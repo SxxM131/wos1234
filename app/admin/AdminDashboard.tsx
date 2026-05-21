@@ -15,6 +15,7 @@ import { DAY_CONFIG, DayOfWeek, TIME_BLOCKS } from "@/lib/types";
 import { dayLabel, formatSlotTime, formatBlockRange } from "@/lib/utils";
 import { DayTabs } from "@/components/DayTabs";
 import { TimezoneToggle } from "@/components/TimezoneToggle";
+import { AssignmentRunPanel } from "./AssignmentRunPanel";
 
 interface ReservationRow {
   id: string;
@@ -99,11 +100,22 @@ export function AdminDashboard({
     }
   });
 
-  // Filter eliminated (waitlisted) by activeDay
-  const dayEliminated = eliminated.filter((e) =>
-    e.preferences?.some(
-      (p) => (p as { day_of_week?: string }).day_of_week === activeDay
-    )
+  const assignedPlayerIdsOnDay = new Set(
+    reservations
+      .filter(
+        (r) =>
+          r.status === "assigned" &&
+          r.slots?.day_of_week === activeDay
+      )
+      .map((r) => r.player_id)
+  );
+
+  // Waitlist = has prefs this day, not already assigned this day
+  const dayEliminated = eliminated.filter(
+    (e) =>
+      e.preferences?.some(
+        (p) => (p as { day_of_week?: string }).day_of_week === activeDay
+      ) && !assignedPlayerIdsOnDay.has(e.player_id)
   );
 
   // Search logic across all reservations and waitlist
@@ -233,6 +245,8 @@ export function AdminDashboard({
           Export Excel
         </button>
       </div>
+
+      <AssignmentRunPanel />
 
       {/* Reset */}
       <div className="card border-red-200">
@@ -480,8 +494,19 @@ export function AdminDashboard({
                 DAY_CONFIG[activeDay].speedupKey === "speedup_vp"
                   ? e.players?.speedup_vp ?? 0
                   : e.players?.speedup_mo ?? 0;
-              const prefs = e.preferences
-                ?.map((p) => formatBlockRange(p.block_start_utc, tz))
+              const prefs = Array.from(
+                new Set(
+                  e.preferences
+                    ?.filter(
+                      (p) =>
+                        (p as { day_of_week?: string }).day_of_week ===
+                        activeDay
+                    )
+                    .map((p) => p.block_start_utc) ?? []
+                )
+              )
+                .sort((a, b) => a - b)
+                .map((b) => formatBlockRange(b, tz))
                 .join(", ");
               return (
                 <div key={i} className="card !py-2.5 !px-3 text-sm">

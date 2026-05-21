@@ -10,10 +10,10 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import {
   getCurrentCycleId,
-  processReservation,
   healEliminatedReservations,
+  backfillEmptySlotsForCycle,
 } from "../lib/assignment";
-import { DayOfWeek, DAY_CONFIG } from "../lib/types";
+import { DayOfWeek } from "../lib/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -81,85 +81,13 @@ async function main() {
       byDay.set(day, list);
     }
 
-    console.log(`\n🔧 Recovering ${player.name} (ID ${player.game_id})...`);
-
-    for (const [day, blocks] of Array.from(byDay.entries())) {
-      const uniqueBlocks = Array.from(new Set(blocks)).sort((a, b) => a - b);
-      const config = DAY_CONFIG[day];
-      const speedup =
-        config.speedupKey === "speedup_vp"
-          ? player.speedup_vp
-          : player.speedup_mo;
-
-      const { data: daySlots } = await supabase
-        .from("slots")
-        .select("id")
-        .eq("day_of_week", day);
-      const slotIds = daySlots?.map((s) => s.id) ?? [];
-
-      const { data: assigned } = await supabase
-        .from("reservations")
-        .select("id")
-        .eq("player_id", player.game_id)
-        .eq("cycle_id", cycleId)
-        .eq("status", "assigned")
-        .in("slot_id", slotIds)
-        .maybeSingle();
-
-      if (assigned) {
-        console.log(`  ✓ ${day}: already assigned`);
-        continue;
-      }
-
-      const hasEmptySlot = await blockHasCapacity(day, uniqueBlocks[0], cycleId);
-      if (!hasEmptySlot) {
-        console.log(`  ✗ ${day}: preferred blocks full, skip`);
-        continue;
-      }
-
-      const result = await processReservation(supabase, {
-        gameId: player.game_id,
-        name: player.name,
-        alliance: player.alliance,
-        dayOfWeek: day,
-        speedup,
-        preferredBlocks: uniqueBlocks,
-        skipPlayerUpsert: true,
-      });
-      console.log(
-        `  → ${day}: ${result.success ? "✅" : "⚠️"} ${result.message}`
-      );
-    }
-
+    console.log(`  → ${player.name}: queued for heal + backfill`);
     await healEliminatedReservations(supabase, [player.game_id], cycleId, now);
   }
 
-  console.log("\nDone.");
-}
-
-async function blockHasCapacity(
-  day: DayOfWeek,
-  blockStart: number,
-  cycleId: number
-): Promise<boolean> {
-  const { data: blockSlots } = await supabase
-    .from("slots")
-    .select("id")
-    .eq("day_of_week", day)
-    .eq("block_start_utc", blockStart)
-    .eq("is_active", true);
-
-  if (!blockSlots?.length) return false;
-
-  const slotIds = blockSlots.map((s) => s.id);
-  const { data: taken } = await supabase
-    .from("reservations")
-    .select("slot_id")
-    .in("slot_id", slotIds)
-    .eq("cycle_id", cycleId)
-    .eq("status", "assigned");
-
-  return (taken?.length ?? 0) < blockSlots.length;
+  const filled = await backfillEmptySlotsForCycle(supabase, cycleId);
+  console.log(`\nBackfilled ${filled} empty slot(s) cycle-wide.`);
+  console.log("Done.");
 }
 
 main().catch((e) => {

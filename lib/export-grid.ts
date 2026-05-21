@@ -3,7 +3,7 @@ import { DayOfWeek, DAY_CONFIG } from "./types";
 export const EXPORT_DAY_ORDER: DayOfWeek[] = ["mon", "tue", "thu"];
 
 export function exportDayLabel(day: DayOfWeek): string {
-  return `${DAY_CONFIG[day].label} - ${day}`;
+  return DAY_CONFIG[day].label;
 }
 
 export const EXPORT_CSV_HEADER =

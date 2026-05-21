@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase";
-import { getCurrentCycleId } from "@/lib/assignment";
+import { getCurrentCycleId, getLastAssignmentRun } from "@/lib/assignment";
 import { StatusView } from "./StatusView";
 import { DayOfWeek } from "@/lib/types";
 
@@ -35,16 +35,26 @@ export default async function StatusPage() {
     .eq("cycle_id", cycleId)
     .eq("status", "eliminated");
 
-  const elimWithPrefs = await Promise.all(
-    (eliminated ?? []).map(async (e) => {
-      const { data: prefs } = await supabase
-        .from("preferences")
-        .select("block_start_utc, day_of_week")
-        .eq("player_id", e.player_id)
-        .eq("cycle_id", cycleId);
-      return { ...e, preferences: prefs ?? [] };
-    })
+  const assignedPlayerIds = new Set(
+    (reservations ?? []).map((r) => r.player_id)
   );
+
+  const elimWithPrefs = (
+    await Promise.all(
+      (eliminated ?? [])
+        .filter((e) => !assignedPlayerIds.has(e.player_id))
+        .map(async (e) => {
+          const { data: prefs } = await supabase
+            .from("preferences")
+            .select("block_start_utc, day_of_week")
+            .eq("player_id", e.player_id)
+            .eq("cycle_id", cycleId);
+          return { ...e, preferences: prefs ?? [] };
+        })
+    )
+  ).filter((e) => e.preferences.length > 0);
+
+  const lastAssignmentRun = await getLastAssignmentRun(supabase);
 
   return (
     <StatusView
@@ -56,6 +66,7 @@ export default async function StatusPage() {
       initialEliminated={elimWithPrefs as unknown as Parameters<typeof StatusView>[0]["initialEliminated"]}
       reservationOpen={openData?.value !== "false"}
       cycleId={cycleId}
+      assignmentPending={!lastAssignmentRun}
     />
   );
 }

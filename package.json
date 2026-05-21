@@ -13,7 +13,8 @@
     "test:assignment": "npx tsx scripts/test-assignment.ts",
     "test:150": "npx tsx scripts/test-150-reservations.ts",
     "recover:waitlist": "npx tsx scripts/recover-waitlist.ts",
-    "backfill:slots": "npx tsx scripts/backfill-empty-slots.ts"
+    "backfill:slots": "npx tsx scripts/backfill-empty-slots.ts",
+    "reconcile:waitlist": "npx tsx scripts/reconcile-eliminated.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

@@ -39,6 +39,7 @@ interface Props {
   initialEliminated: EliminatedData[];
   reservationOpen: boolean;
   cycleId: number;
+  assignmentPending: boolean;
 }
 
 export function StatusView({
@@ -47,6 +48,7 @@ export function StatusView({
   initialEliminated,
   reservationOpen,
   cycleId,
+  assignmentPending,
 }: Props) {
   const [day, setDay] = useState<DayOfWeek>("mon");
   const [tz, setTz] = useState<"UTC" | "KST">("UTC");
@@ -66,11 +68,22 @@ export function StatusView({
 
     const { data: resData } = await supabase
       .from("reservations")
-      .select("slot_id, player_id, status, players(name, alliance, speedup_vp, speedup_mo)")
+      .select(
+        "slot_id, player_id, status, players(name, alliance, speedup_vp, speedup_mo), slots(day_of_week)"
+      )
       .eq("cycle_id", cycleId)
       .eq("status", "assigned");
 
     if (resData) setReservations(resData as unknown as ReservationData[]);
+
+    const assignedOnDay = new Set(
+      (resData ?? [])
+        .filter((r) => {
+          const slot = r.slots as unknown as { day_of_week: string } | null;
+          return slot?.day_of_week === day;
+        })
+        .map((r) => r.player_id)
+    );
 
     const { data: elimData } = await supabase
       .from("reservations")
@@ -79,18 +92,24 @@ export function StatusView({
       .eq("status", "eliminated");
 
     if (elimData) {
-      const withPrefs = await Promise.all(
-        elimData.map(async (e) => {
-          const { data: prefs } = await supabase
-            .from("preferences")
-            .select("block_start_utc, day_of_week")
-            .eq("player_id", e.player_id)
-            .eq("cycle_id", cycleId)
-            .eq("day_of_week", day);
-          return { ...e, preferences: prefs ?? [] };
-        })
-      );
+      const withPrefs = (
+        await Promise.all(
+          elimData
+            .filter((e) => !assignedOnDay.has(e.player_id))
+            .map(async (e) => {
+              const { data: prefs } = await supabase
+                .from("preferences")
+                .select("block_start_utc, day_of_week")
+                .eq("player_id", e.player_id)
+                .eq("cycle_id", cycleId)
+                .eq("day_of_week", day);
+              return { ...e, preferences: prefs ?? [] };
+            })
+        )
+      ).filter((e) => e.preferences.length > 0);
       setEliminated(withPrefs as unknown as EliminatedData[]);
+    } else {
+      setEliminated([]);
     }
   }, [cycleId, day]);
 
@@ -129,14 +148,20 @@ export function StatusView({
 
   const dayEliminated = eliminated.filter(
     (e) =>
-      e.preferences?.some((p) => p.day_of_week === day) &&
-      !assignedPlayerIdsOnDay.has(e.player_id)
+      e.preferences.length > 0 && !assignedPlayerIdsOnDay.has(e.player_id)
   );
 
   return (
     <div>
       {closed && (
         <div className="banner-closed mb-4">Reservations closed</div>
+      )}
+
+      {assignmentPending && (
+        <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-900">
+          Assignment results are not published yet. The schedule below will
+          update after the admin runs batch assignment.
+        </div>
       )}
 
       <div className="mb-3 flex items-center justify-between">
@@ -209,8 +234,11 @@ export function StatusView({
                 config.speedupKey === "speedup_vp"
                   ? e.players.speedup_vp
                   : e.players.speedup_mo;
-              const prefs = e.preferences
-                ?.map((p) => formatBlockRange(p.block_start_utc, tz))
+              const prefs = Array.from(
+                new Set(e.preferences?.map((p) => p.block_start_utc) ?? [])
+              )
+                .sort((a, b) => a - b)
+                .map((b) => formatBlockRange(b, tz))
                 .join(", ");
               return (
                 <div key={i} className="card !py-2 text-sm">

@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase";
 import {
   processMultiDayReservation,
   DaySubmit,
+  getLastAssignmentRun,
 } from "@/lib/assignment";
 import { DayOfWeek, DAY_CONFIG } from "@/lib/types";
 
@@ -29,9 +30,13 @@ export async function submitReservation(formData: FormData) {
     if (!ALL_DAYS.includes(day)) continue;
 
     const speedup = parseInt(formData.get(`speedup_${day}`) as string, 10);
-    const preferredBlocks = formData
-      .getAll(`preferred_blocks_${day}`)
-      .map((v) => parseInt(v as string, 10));
+    const preferredBlocks = Array.from(
+      new Set(
+        formData
+          .getAll(`preferred_blocks_${day}`)
+          .map((v) => parseInt(v as string, 10))
+      )
+    );
 
     if (isNaN(speedup) || speedup < 0 || !Number.isInteger(speedup)) {
       return {
@@ -100,5 +105,12 @@ export async function checkReservation(gameId: number) {
     .eq("player_id", gameId)
     .eq("cycle_id", cycleId);
 
-  return { player, reservations: reservations ?? [], preferences: preferences ?? [] };
+  const assignmentCompleted = !!(await getLastAssignmentRun(supabase));
+
+  return {
+    player,
+    reservations: reservations ?? [],
+    preferences: preferences ?? [],
+    assignmentCompleted,
+  };
 }

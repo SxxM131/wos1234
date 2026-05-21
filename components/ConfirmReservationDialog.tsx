@@ -39,8 +39,9 @@ export function ConfirmReservationDialog({
           Confirm your reservation?
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          After submitting, you cannot edit this yourself. Double-check speedup
-          and time slots.
+          After applying, you cannot edit this yourself. Double-check speedup
+          and time slots. Assignment results will be announced after the booking
+          window closes.
         </p>
 
         <ul className="mt-4 flex flex-col gap-3">

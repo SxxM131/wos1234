@@ -42,6 +42,7 @@ CREATE TABLE preferences (
   day_of_week TEXT NOT NULL,
   block_start_utc INTEGER NOT NULL,
   cycle_id INTEGER NOT NULL DEFAULT 1,
+  applied_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(player_id, day_of_week, block_start_utc, cycle_id)
 );
 

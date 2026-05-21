@@ -3,6 +3,8 @@
 import { createServiceClient } from "@/lib/supabase";
 import { getAdminSession } from "@/lib/session";
 import { getCurrentCycleId, promoteOnCancel } from "@/lib/assignment";
+import { clearCancelledDayReservations } from "@/lib/reservation-guard";
+import { DayOfWeek } from "@/lib/types";
 import {
   EXPORT_CSV_HEADER,
   EXPORT_DAY_ORDER,
@@ -136,6 +138,7 @@ export async function resetCycle(confirmText: string) {
 
   await supabase.from("reservations").delete().eq("cycle_id", cycleId);
   await supabase.from("preferences").delete().eq("cycle_id", cycleId);
+  await supabase.from("settings").delete().eq("key", "last_assignment_run");
 
   revalidatePath("/admin");
   revalidatePath("/status");
@@ -149,7 +152,7 @@ export async function cancelReservation(reservationId: string) {
 
   const { data: res } = await supabase
     .from("reservations")
-    .select("slot_id")
+    .select("slot_id, player_id, slots(day_of_week)")
     .eq("id", reservationId)
     .single();
 
@@ -158,7 +161,18 @@ export async function cancelReservation(reservationId: string) {
     .update({ status: "cancelled" })
     .eq("id", reservationId);
 
-  if (res?.slot_id) {
+  if (res?.slot_id && res.player_id) {
+    const day = (
+      res.slots as unknown as { day_of_week: DayOfWeek } | null
+    )?.day_of_week;
+    if (day) {
+      await clearCancelledDayReservations(
+        supabase,
+        res.player_id,
+        day,
+        cycleId
+      );
+    }
     await promoteOnCancel(supabase, res.slot_id, cycleId);
   }
 

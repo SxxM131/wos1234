@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { checkReservation } from "../actions";
 import { DAY_CONFIG, DayOfWeek } from "@/lib/types";
 import { dayLabel, formatBlockRange } from "@/lib/utils";
+import { SUBMIT_SUCCESS_MESSAGE } from "@/lib/reservation-guard";
 
 interface ReservationRow {
   status: string;
@@ -23,11 +24,14 @@ interface Player {
   speedup_mo: number;
 }
 
+const CHECK_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
+
 export function CheckForm() {
   const [result, setResult] = useState<{
     player: Player;
     reservations: ReservationRow[];
     preferences: { day_of_week: DayOfWeek; block_start_utc: number }[];
+    assignmentCompleted: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -49,17 +53,59 @@ export function CheckForm() {
         setResult({
           player: res.player,
           reservations: res.reservations as ReservationRow[],
-          preferences: res.preferences as { day_of_week: DayOfWeek; block_start_utc: number }[],
+          preferences: res.preferences as {
+            day_of_week: DayOfWeek;
+            block_start_utc: number;
+          }[],
+          assignmentCompleted: res.assignmentCompleted ?? false,
         });
       }
     });
   }
 
+  function dayStatus(
+    day: DayOfWeek,
+    reservations: ReservationRow[],
+    preferences: { day_of_week: DayOfWeek; block_start_utc: number }[],
+    assignmentCompleted: boolean
+  ) {
+    const dayPrefs = preferences.filter((p) => p.day_of_week === day);
+    if (!dayPrefs.length) return null;
+
+    const assigned = reservations.find(
+      (r) => r.status === "assigned" && r.slots?.day_of_week === day
+    );
+
+    if (assigned?.slots) {
+      return {
+        kind: "assigned" as const,
+        block: assigned.slots.block_start_utc,
+        office: assigned.slots.office_type,
+      };
+    }
+
+    if (!assignmentCompleted) {
+      return {
+        kind: "pending" as const,
+        prefs: Array.from(
+          new Set(dayPrefs.map((p) => p.block_start_utc))
+        ).sort((a, b) => a - b),
+      };
+    }
+
+    return {
+      kind: "waitlist" as const,
+      prefs: Array.from(new Set(dayPrefs.map((p) => p.block_start_utc))).sort(
+        (a, b) => a - b
+      ),
+    };
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Final assignment may change based on speedup totals. R4+ may
-        review and adjust manually.
+        Assignment results are published after the booking window closes and the
+        admin runs batch assignment.
       </div>
 
       <form onSubmit={handleSubmit} className="card flex flex-col gap-3">
@@ -114,23 +160,45 @@ export function CheckForm() {
             </div>
           </div>
 
-          {result.reservations.length === 0 ? (
-            <p className="text-center text-sm text-slate-500">
-              No reservations in the current cycle.
-            </p>
-          ) : (
-            result.reservations.map((r, i) => (
-              <div key={i} className="card">
-                {r.status === "assigned" && r.slots ? (
+          {CHECK_DAYS.map((day) => {
+            const status = dayStatus(
+              day,
+              result.reservations,
+              result.preferences,
+              result.assignmentCompleted
+            );
+            if (!status) return null;
+
+            return (
+              <div key={day} className="card">
+                {status.kind === "assigned" ? (
                   <>
                     <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                      Applied
+                      Assigned
                     </span>
                     <p className="mt-2 font-medium">
-                      {dayLabel(r.slots.day_of_week)} ({r.slots.office_type})
+                      {dayLabel(day)} ({DAY_CONFIG[day].office})
                     </p>
                     <p className="text-sm text-slate-600">
-                      {formatBlockRange(r.slots.block_start_utc, tz)}
+                      {formatBlockRange(status.block, tz)}
+                    </p>
+                  </>
+                ) : status.kind === "pending" ? (
+                  <>
+                    <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                      Application received
+                    </span>
+                    <p className="mt-2 font-medium">
+                      {dayLabel(day)} ({DAY_CONFIG[day].office})
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {SUBMIT_SUCCESS_MESSAGE}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Preferred:{" "}
+                      {status.prefs
+                        .map((b) => formatBlockRange(b, tz))
+                        .join(", ")}
                     </p>
                   </>
                 ) : (
@@ -138,25 +206,33 @@ export function CheckForm() {
                     <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                       On waitlist
                     </span>
-                    <p className="mt-2 text-sm text-slate-600">
-                      Waiting for assignment. You may be promoted automatically
-                      if another reservation is cancelled.
+                    <p className="mt-2 font-medium">
+                      {dayLabel(day)} ({DAY_CONFIG[day].office})
                     </p>
-                    {result.preferences.length > 0 && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Preferred:{" "}
-                        {result.preferences
-                          .map(
-                            (p) =>
-                              `${dayLabel(p.day_of_week)} ${formatBlockRange(p.block_start_utc, tz)}`
-                          )
-                          .join(", ")}
-                      </p>
-                    )}
+                    <p className="mt-1 text-xs text-slate-500">
+                      Preferred:{" "}
+                      {status.prefs
+                        .map((b) => formatBlockRange(b, tz))
+                        .join(", ")}
+                    </p>
                   </>
                 )}
               </div>
-            ))
+            );
+          })}
+
+          {CHECK_DAYS.every(
+            (d) =>
+              !dayStatus(
+                d,
+                result.reservations,
+                result.preferences,
+                result.assignmentCompleted
+              )
+          ) && (
+            <p className="text-center text-sm text-slate-500">
+              No applications in the current cycle.
+            </p>
           )}
         </div>
       )}
