@@ -224,7 +224,7 @@ export async function exportCsv(): Promise<string> {
         alliance: string;
         speedup_vp: number;
         speedup_mo: number;
-      };
+      } | null;
       const s = r.slots as unknown as {
         day_of_week: string;
         block_start_utc: number;
@@ -232,7 +232,7 @@ export async function exportCsv(): Promise<string> {
         office_type: string;
       } | null;
 
-      if (!s) return "";
+      if (!p || !s) return "";
 
       const dayName =
         s.day_of_week === "mon"
