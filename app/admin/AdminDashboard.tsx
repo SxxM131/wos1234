@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import {
   regenerateToken,
   toggleReservationOpen,
@@ -77,8 +77,16 @@ export function AdminDashboard({
   const [resetConfirm, setResetConfirm] = useState("");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
+  const [origin, setOrigin] = useState("");
 
-  const secretUrl = `${baseUrl}/r/${token}`;
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
+
+  const currentOrigin = origin || baseUrl;
+  const secretUrl = `${currentOrigin}/r/${token}`;
 
   // Filter reservations by slot_id and activeDay (for assigned ones)
   const daySlots = slots.filter((s) => s.day_of_week === activeDay);
