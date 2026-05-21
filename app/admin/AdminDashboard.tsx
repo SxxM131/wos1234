@@ -1,21 +1,22 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   regenerateToken,
   toggleReservationOpen,
   resetCycle,
   cancelReservation,
-  exportCsv,
   exportExcelData,
   logoutAdmin,
+  getAssignmentPreviewForAdmin,
+  runFullBatchAssignment,
 } from "./actions";
 import * as XLSX from "xlsx";
 import { DAY_CONFIG, DayOfWeek, TIME_BLOCKS } from "@/lib/types";
 import { dayLabel, formatSlotTime, formatBlockRange } from "@/lib/utils";
 import { DayTabs } from "@/components/DayTabs";
 import { TimezoneToggle } from "@/components/TimezoneToggle";
-import { AssignmentRunPanel } from "./AssignmentRunPanel";
 
 interface ReservationRow {
   id: string;
@@ -79,8 +80,60 @@ export function AdminDashboard({
   const [searchTerm, setSearchTerm] = useState("");
   const [resetConfirm, setResetConfirm] = useState("");
   const [pending, startTransition] = useTransition();
+  const [assignPending, startAssignTransition] = useTransition();
   const [message, setMessage] = useState("");
   const [origin, setOrigin] = useState("");
+  const router = useRouter();
+  const [assignPreview, setAssignPreview] = useState<{
+    applicants: { mon: number; tue: number; thu: number };
+    lastRun: string | null;
+    cycleId: number;
+  } | null>(null);
+  const [assignResult, setAssignResult] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const loadAssignPreview = useCallback(() => {
+    startAssignTransition(async () => {
+      try {
+        setAssignPreview(await getAssignmentPreviewForAdmin());
+        setAssignError(null);
+      } catch {
+        setAssignError("Could not load assignment status.");
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    loadAssignPreview();
+  }, [loadAssignPreview]);
+
+  function handleRunFullAssignment() {
+    if (
+      !confirm(
+        "Run full batch assignment for Mon/Tue/Thu? Existing assignments for this cycle will be replaced."
+      )
+    ) {
+      return;
+    }
+    setAssignResult(null);
+    setAssignError(null);
+    startAssignTransition(async () => {
+      try {
+        const data = await runFullBatchAssignment();
+        if (!data.success) {
+          setAssignError("Assignment failed.");
+          return;
+        }
+        setAssignResult(
+          `Done — Mon ${data.mon.assigned}/${data.mon.eliminated} waitlist · Tue ${data.tue.assigned}/${data.tue.eliminated} · Thu ${data.thu.assigned}/${data.thu.eliminated}`
+        );
+        setAssignPreview(await getAssignmentPreviewForAdmin());
+        router.refresh();
+      } catch {
+        setAssignError("Assignment failed.");
+      }
+    });
+  }
   useEffect(() => {
     if (typeof window !== "undefined") {
       setOrigin(window.location.origin);
@@ -278,7 +331,56 @@ export function AdminDashboard({
 
       <hr className="border-slate-200 my-2" />
 
-      <AssignmentRunPanel />
+      <section
+        id="run-full-assignment"
+        className="rounded-2xl border-4 border-amber-500 bg-amber-50 p-4 shadow-md"
+        aria-label="Run full assignment"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-900">
+            Run full assignment
+          </h2>
+          <span className="rounded-full bg-brand-700 px-2.5 py-1 text-xs font-bold text-white">
+            R4+ only
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-slate-700">
+          Close reservations and verify speedups first. Assigns all applicants
+          for this cycle (Mon → Tue → Thu). Re-run replaces current assignments.
+        </p>
+        {assignPreview && (
+          <>
+            <p className="mt-3 text-sm text-slate-600">
+              Cycle <strong>#{assignPreview.cycleId}</strong> · Applicants: Mon{" "}
+              {assignPreview.applicants.mon} · Tue {assignPreview.applicants.tue}{" "}
+              · Thu {assignPreview.applicants.thu}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {assignPreview.lastRun
+                ? `Last run: ${new Date(assignPreview.lastRun).toLocaleString()}`
+                : "Not run yet for this cycle"}
+            </p>
+          </>
+        )}
+        <button
+          type="button"
+          className="btn-gold mt-4 w-full min-h-[52px] text-base font-bold"
+          disabled={assignPending}
+          onClick={handleRunFullAssignment}
+        >
+          {assignPending ? "Running assignment…" : "Run full assignment"}
+        </button>
+        {assignResult && (
+          <p className="mt-3 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-900">
+            {assignResult}
+          </p>
+        )}
+        {assignError && (
+          <p className="mt-3 rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-800">
+            {assignError}
+          </p>
+        )}
+      </section>
 
       {/* Search Bar */}
       <div className="flex flex-col gap-1.5">

@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 import { getAdminSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase";
 import { getCurrentCycleId } from "@/lib/assignment";
