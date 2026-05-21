@@ -1,0 +1,21 @@
+import { NextResponse } from "next/server";
+import { createServiceClient } from "@/lib/supabase";
+import { getReservedDaysForPlayer } from "@/lib/reservation-guard";
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  await params;
+  const gameId = parseInt(
+    new URL(request.url).searchParams.get("gameId") ?? "",
+    10
+  );
+  if (!gameId || isNaN(gameId)) {
+    return NextResponse.json({ reservedDays: [] });
+  }
+
+  const supabase = createServiceClient();
+  const reservedDays = await getReservedDaysForPlayer(supabase, gameId);
+  return NextResponse.json({ reservedDays });
+}

@@ -1,6 +1,11 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { DayOfWeek, DAY_CONFIG } from "./types";
 import { dayLabel, formatBlockRange } from "./utils";
+import {
+  DUPLICATE_DAY_MESSAGE,
+  hasActiveDayReservation,
+  clearCancelledDayReservations,
+} from "./reservation-guard";
 
 export interface SubmitInput {
   gameId: number;
@@ -10,6 +15,8 @@ export interface SubmitInput {
   speedup: number;
   preferredBlocks: number[];
   skipPlayerUpsert?: boolean;
+  /** When true, caller runs healEliminatedReservations once after all days (multi-day submit). */
+  deferHeal?: boolean;
 }
 
 export interface DaySubmit {
@@ -21,6 +28,7 @@ export interface DaySubmit {
 export interface AssignmentResult {
   success: boolean;
   message: string;
+  touchedPlayerIds?: number[];
 }
 
 interface Applicant {
@@ -81,26 +89,16 @@ export async function processReservation(
     }
   }
 
-  // Clear existing reservations and preferences for this day
-  const { data: daySlots } = await supabase
-    .from("slots")
-    .select("id")
-    .eq("day_of_week", input.dayOfWeek);
-  const slotIds = daySlots?.map((s) => s.id) ?? [];
+  if (await hasActiveDayReservation(supabase, input.gameId, input.dayOfWeek, cycleId)) {
+    return { success: false, message: DUPLICATE_DAY_MESSAGE };
+  }
 
-  await supabase
-    .from("reservations")
-    .delete()
-    .eq("player_id", input.gameId)
-    .eq("cycle_id", cycleId)
-    .in("slot_id", slotIds);
-
-  await supabase
-    .from("preferences")
-    .delete()
-    .eq("player_id", input.gameId)
-    .eq("day_of_week", input.dayOfWeek)
-    .eq("cycle_id", cycleId);
+  await clearCancelledDayReservations(
+    supabase,
+    input.gameId,
+    input.dayOfWeek,
+    cycleId
+  );
 
   // Save preferences
   for (const block of input.preferredBlocks) {
@@ -152,14 +150,18 @@ export async function processReservation(
     );
   }
 
-  // Run self-healing for all touched players
-  await healEliminatedReservations(supabase, Array.from(touchedPlayerIds), cycleId, now);
+  const touched = Array.from(touchedPlayerIds);
+
+  if (!input.deferHeal) {
+    await healEliminatedReservations(supabase, touched, cycleId, now);
+  }
 
   if (!assignedSlotId) {
     return {
       success: false,
       message:
         "All preferred time slots are full. Check your status on the /status page.",
+      touchedPlayerIds: touched,
     };
   }
 
@@ -169,6 +171,7 @@ export async function processReservation(
   return {
     success: true,
     message: `${dayName} ${timeStr} — applied`,
+    touchedPlayerIds: touched,
   };
 }
 
@@ -242,6 +245,18 @@ export async function processMultiDayReservation(
 
   const messages: string[] = [];
   let anySuccess = false;
+  const allTouched = new Set<number>([gameId]);
+  const now = new Date().toISOString();
+  const cycleId = await getCurrentCycleId(supabase);
+
+  for (const day of days) {
+    if (await hasActiveDayReservation(supabase, gameId, day.dayOfWeek, cycleId)) {
+      return {
+        success: false,
+        message: `${DAY_CONFIG[day.dayOfWeek].label}: ${DUPLICATE_DAY_MESSAGE}`,
+      };
+    }
+  }
 
   for (const day of days) {
     const result = await processReservation(supabase, {
@@ -252,10 +267,19 @@ export async function processMultiDayReservation(
       speedup: day.speedup,
       preferredBlocks: day.preferredBlocks,
       skipPlayerUpsert: true,
+      deferHeal: true,
     });
     messages.push(result.message);
     if (result.success) anySuccess = true;
+    result.touchedPlayerIds?.forEach((id) => allTouched.add(id));
   }
+
+  await healEliminatedReservations(
+    supabase,
+    Array.from(allTouched),
+    cycleId,
+    now
+  );
 
   return {
     success: anySuccess,
@@ -335,7 +359,8 @@ async function assignToBlock(
       .update({ status: "eliminated", slot_id: null })
       .eq("player_id", d.playerId)
       .eq("cycle_id", cycleId)
-      .eq("status", "assigned");
+      .eq("status", "assigned")
+      .in("slot_id", slotIds);
   }
 
   // Clear remaining assigned slots in the block
@@ -441,7 +466,7 @@ async function runReassignmentQueue(
   }
 }
 
-async function healEliminatedReservations(
+export async function healEliminatedReservations(
   supabase: SupabaseClient,
   playerIds: number[],
   cycleId: number,

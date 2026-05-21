@@ -2,7 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { processReservation, promoteOnCancel } from "../lib/assignment";
+import {
+  processReservation,
+  processMultiDayReservation,
+  promoteOnCancel,
+} from "../lib/assignment";
+import { DUPLICATE_DAY_MESSAGE } from "../lib/reservation-guard";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,7 +30,7 @@ const supabase = createClient(
 );
 
 const TEST_CYCLE = 9999;
-const testPlayerIds = [9001, 9002, 9003, 9004, 9005];
+const testPlayerIds = [9001, 9002, 9003, 9004, 9005, 9052, 9099, 9010, 9011];
 
 async function cleanup() {
   console.log("🧹 Cleaning up test data...");
@@ -239,6 +244,162 @@ async function runTests() {
       console.log("✅ Scenario 3 Passed! P1 promoted to slot successfully.");
     } else {
       console.error("❌ Scenario 3 Failed! P1 was not promoted.");
+    }
+
+    console.log("\n==========================================");
+    console.log(
+      "🧪 RUNNING SCENARIO 4: Multi-day — Monday displacement must not wipe Thursday"
+    );
+    console.log("==========================================");
+
+    await cleanup();
+
+    const multiRes = await processMultiDayReservation(
+      supabase,
+      9052,
+      "MultiDay_Player",
+      "TEST",
+      [
+        { dayOfWeek: "mon", speedup: 30, preferredBlocks: [0] },
+        { dayOfWeek: "thu", speedup: 40, preferredBlocks: [4] },
+      ]
+    );
+    console.log(`Multi-day submit: ${multiRes.message}`);
+
+    const { data: afterMulti } = await supabase
+      .from("reservations")
+      .select("player_id, status, slot_id, slots(day_of_week, block_start_utc)")
+      .eq("cycle_id", TEST_CYCLE)
+      .eq("player_id", 9052);
+
+    const thuAssignedBefore = afterMulti?.some((r) => {
+      const slots = r.slots as unknown as { day_of_week: string } | null;
+      return r.status === "assigned" && slots?.day_of_week === "thu";
+    });
+    console.log("9052 Thursday assigned before displacement:", thuAssignedBefore);
+
+    await processReservation(supabase, {
+      gameId: 9099,
+      name: "Displacer",
+      alliance: "TEST",
+      dayOfWeek: "mon",
+      speedup: 99,
+      preferredBlocks: [0],
+    });
+
+    const { data: afterDisplace } = await supabase
+      .from("reservations")
+      .select("player_id, status, slot_id, slots(day_of_week, block_start_utc)")
+      .eq("cycle_id", TEST_CYCLE)
+      .in("player_id", [9052, 9099]);
+
+    console.log(JSON.stringify(afterDisplace, null, 2));
+
+    const thuStillAssigned = afterDisplace?.some((r) => {
+      const slots = r.slots as unknown as { day_of_week: string } | null;
+      return (
+        r.player_id === 9052 &&
+        r.status === "assigned" &&
+        slots?.day_of_week === "thu"
+      );
+    });
+    const monDisplacerAssigned = afterDisplace?.some((r) => {
+      const slots = r.slots as unknown as { day_of_week: string } | null;
+      return (
+        r.player_id === 9099 &&
+        r.status === "assigned" &&
+        slots?.day_of_week === "mon"
+      );
+    });
+
+    if (thuStillAssigned && monDisplacerAssigned) {
+      console.log(
+        "✅ Scenario 4 Passed! Thursday reservation survived Monday displacement."
+      );
+    } else {
+      console.error(
+        `❌ Scenario 4 Failed! thuStillAssigned=${thuStillAssigned}, monDisplacerAssigned=${monDisplacerAssigned}`
+      );
+    }
+
+    console.log("\n==========================================");
+    console.log("🧪 RUNNING SCENARIO 5: Re-submit same day is rejected");
+    console.log("==========================================");
+    await cleanup();
+
+    const first = await processReservation(supabase, {
+      gameId: 9010,
+      name: "NoResubmit",
+      alliance: "TEST",
+      dayOfWeek: "mon",
+      speedup: 25,
+      preferredBlocks: [0],
+    });
+    console.log("First submit:", first.message);
+
+    const second = await processReservation(supabase, {
+      gameId: 9010,
+      name: "NoResubmit",
+      alliance: "TEST",
+      dayOfWeek: "mon",
+      speedup: 99,
+      preferredBlocks: [2],
+    });
+    console.log("Second submit:", second.message);
+
+    const ok5 =
+      first.success &&
+      !second.success &&
+      second.message.includes(DUPLICATE_DAY_MESSAGE);
+    if (ok5) {
+      console.log("✅ Scenario 5 Passed! Duplicate day rejected.");
+    } else {
+      console.error("❌ Scenario 5 Failed!");
+    }
+
+    console.log("\n==========================================");
+    console.log("🧪 SCENARIO 6: Re-submit after admin cancel");
+    console.log("==========================================");
+    await cleanup();
+
+    await processReservation(supabase, {
+      gameId: 9011,
+      name: "ReAfterCancel",
+      alliance: "TEST",
+      dayOfWeek: "mon",
+      speedup: 20,
+      preferredBlocks: [0],
+    });
+
+    const { data: firstRes } = await supabase
+      .from("reservations")
+      .select("id, slot_id")
+      .eq("player_id", 9011)
+      .eq("cycle_id", TEST_CYCLE)
+      .eq("status", "assigned")
+      .limit(1)
+      .single();
+
+    if (firstRes?.id) {
+      await supabase
+        .from("reservations")
+        .update({ status: "cancelled" })
+        .eq("id", firstRes.id);
+    }
+
+    const afterCancel = await processReservation(supabase, {
+      gameId: 9011,
+      name: "ReAfterCancel",
+      alliance: "TEST",
+      dayOfWeek: "mon",
+      speedup: 30,
+      preferredBlocks: [2],
+    });
+
+    if (afterCancel.success) {
+      console.log("✅ Scenario 6 Passed! Re-apply after cancel allowed.");
+    } else {
+      console.error("❌ Scenario 6 Failed!", afterCancel.message);
     }
 
   } finally {

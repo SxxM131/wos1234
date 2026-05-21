@@ -9,7 +9,9 @@
     "lint": "next lint",
     "check-env": "node scripts/check-env.mjs",
     "setup:secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
-    "set-admin-password": "node scripts/set-admin-password.mjs"
+    "set-admin-password": "node scripts/set-admin-password.mjs",
+    "test:assignment": "npx tsx scripts/test-assignment.ts",
+    "recover:waitlist": "npx tsx scripts/recover-waitlist.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

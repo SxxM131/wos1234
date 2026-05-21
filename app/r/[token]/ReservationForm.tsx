@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import { submitReservation } from "./actions";
 import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS } from "@/lib/types";
 import { TimeBlockCheckbox } from "@/components/TimeBlockCheckbox";
+import {
+  ConfirmReservationDialog,
+  DayConfirmSummary,
+} from "@/components/ConfirmReservationDialog";
 
 interface Props {
   reservationOpen: boolean;
@@ -37,12 +41,45 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   const [name, setName] = useState("");
   const [alliance, setAlliance] = useState("");
   const [dayState, setDayState] = useState(emptyDayState);
+  const [reservedDays, setReservedDays] = useState<DayOfWeek[]>([]);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const [tz, setTz] = useState<"UTC" | "KST">("UTC");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const stepIndex =
     step === "info" ? 0 : step === "mon" ? 1 : step === "tue" ? 2 : 3;
+
+  const fetchReservedDays = useCallback(
+    async (id: string) => {
+      const parsed = parseInt(id, 10);
+      if (!id.trim() || isNaN(parsed)) {
+        setReservedDays([]);
+        return;
+      }
+      try {
+        const res = await fetch(
+          `/r/${token}/api/existing?gameId=${parsed}`
+        );
+        const data = await res.json();
+        setReservedDays((data.reservedDays ?? []) as DayOfWeek[]);
+      } catch {
+        setReservedDays([]);
+      }
+    },
+    [token]
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => fetchReservedDays(gameId), 400);
+    return () => clearTimeout(t);
+  }, [gameId, fetchReservedDays]);
+
+  useEffect(() => {
+    if (step !== "info" && gameId.trim()) {
+      fetchReservedDays(gameId);
+    }
+  }, [step, gameId, fetchReservedDays]);
 
   function clearDay(day: DayOfWeek) {
     setDayState((prev) => ({
@@ -61,11 +98,13 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   }
 
   function validateDay(day: DayOfWeek): string | null {
+    if (reservedDays.includes(day)) return null;
+
     const d = dayState[day];
     const hasBlocks = d.blocks.length > 0;
     const hasSpeedup = d.speedup !== "" && !isNaN(parseInt(d.speedup, 10));
 
-    if (!hasBlocks && !hasSpeedup) return null; // skip day
+    if (!hasBlocks && !hasSpeedup) return null;
 
     if (!hasSpeedup) {
       return `${DAY_CONFIG[day].label}: enter speedup.`;
@@ -82,22 +121,37 @@ export function ReservationForm({ reservationOpen, token }: Props) {
 
   function getSelectedDays(): DayOfWeek[] {
     return (["mon", "tue", "thu"] as DayOfWeek[]).filter(
-      (day) => dayState[day].blocks.length > 0
+      (day) =>
+        !reservedDays.includes(day) &&
+        dayState[day].blocks.length > 0 &&
+        dayState[day].speedup !== ""
     );
   }
 
+  function nextStepAfter(day: DayOfWeek): Step {
+    if (day === "mon") return "tue";
+    if (day === "tue") return "thu";
+    return "thu";
+  }
+
   function goNextFromDay(day: DayOfWeek) {
+    if (reservedDays.includes(day)) {
+      setMessage(null);
+      const next = nextStepAfter(day);
+      if (day === "thu") return;
+      setStep(next);
+      return;
+    }
+
     const err = validateDay(day);
     if (err) {
       setMessage({ type: "err", text: err });
       return;
     }
     setMessage(null);
-    if (day === "mon") setStep("tue");
-    else if (day === "tue") setStep("thu");
+    if (day === "thu") return;
+    setStep(nextStepAfter(day));
   }
-
-
 
   function goBack() {
     setMessage(null);
@@ -115,8 +169,17 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     setStep("mon");
   }
 
-  function handleSubmit() {
+  function buildConfirmSummaries(): DayConfirmSummary[] {
+    return getSelectedDays().map((day) => ({
+      day,
+      speedup: parseInt(dayState[day].speedup, 10),
+      blocks: [...dayState[day].blocks].sort((a, b) => a - b),
+    }));
+  }
+
+  function openConfirmDialog() {
     for (const { day } of DAY_STEPS) {
+      if (reservedDays.includes(day)) continue;
       const err = validateDay(day);
       if (err) {
         setMessage({ type: "err", text: err });
@@ -129,11 +192,17 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     if (selected.length === 0) {
       setMessage({
         type: "err",
-        text: "Apply for at least one day, or go back and select time slots.",
+        text: "Apply for at least one day that is not already reserved.",
       });
       return;
     }
 
+    setMessage(null);
+    setConfirmOpen(true);
+  }
+
+  function submitConfirmed() {
+    const selected = getSelectedDays();
     const fd = new FormData();
     fd.set("game_id", gameId);
     fd.set("name", name);
@@ -149,6 +218,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
 
     startTransition(async () => {
       const result = await submitReservation(fd);
+      setConfirmOpen(false);
       setMessage({
         type: result.success ? "ok" : "err",
         text: result.message,
@@ -159,6 +229,9 @@ export function ReservationForm({ reservationOpen, token }: Props) {
         setName("");
         setAlliance("");
         setDayState(emptyDayState());
+        setReservedDays([]);
+      } else {
+        await fetchReservedDays(gameId);
       }
     });
   }
@@ -175,6 +248,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     const office = DAY_CONFIG[day].office;
     const speedupLabel =
       office === "VP" ? "VP Speedup (days)" : "MO Speedup (days)";
+    const isReserved = reservedDays.includes(day);
 
     return (
       <div className="flex flex-col gap-4">
@@ -185,68 +259,83 @@ export function ReservationForm({ reservationOpen, token }: Props) {
           <span>{DAY_CONFIG[day].label} · {office}</span>
         </div>
 
-        <p className="text-sm text-slate-600">
-          Set speedup and time slots for {DAY_CONFIG[day].label}, or leave them blank to skip.
-        </p>
-
-        <div className="card">
-          <label className="mb-1 block text-sm font-medium text-slate-600">
-            {speedupLabel}
-          </label>
-          <input
-            type="number"
-            step="1"
-            min="0"
-            value={dayState[day].speedup}
-            onChange={(e) =>
-              setDayState((prev) => ({
-                ...prev,
-                [day]: { ...prev[day], speedup: e.target.value },
-              }))
-            }
-            className="input-field"
-            placeholder="Whole numbers only"
-            onKeyDown={(e) => {
-              if (e.key === "." || e.key === "e" || e.key === "-")
-                e.preventDefault();
-            }}
-          />
-        </div>
-
-        <div className="card">
-          <div className="mb-3 flex items-center justify-between">
-            <label className="text-sm font-medium text-slate-600">
-              Preferred time slots
-            </label>
-            <div className="inline-flex rounded-lg border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => setTz("UTC")}
-                className={`px-2 py-1 ${tz === "UTC" ? "bg-brand-600 text-white rounded-l-lg" : ""}`}
-              >
-                UTC
-              </button>
-              <button
-                type="button"
-                onClick={() => setTz("KST")}
-                className={`px-2 py-1 ${tz === "KST" ? "bg-brand-600 text-white rounded-r-lg" : ""}`}
-              >
-                KST
-              </button>
-            </div>
+        {isReserved ? (
+          <div className="card border-green-200 bg-green-50">
+            <span className="inline-block rounded-full bg-green-200 px-2 py-0.5 text-xs font-semibold text-green-900">
+              Already reserved
+            </span>
+            <p className="mt-2 text-sm text-green-800">
+              You already have a reservation for {DAY_CONFIG[day].label}. Check
+              your status on the reservation check page.
+            </p>
           </div>
-          <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
-            {TIME_BLOCKS.map((block) => (
-              <TimeBlockCheckbox
-                key={block}
-                blockStart={block}
-                checked={dayState[day].blocks.includes(block)}
-                onChange={() => toggleBlock(day, block)}
-                tz={tz}
+        ) : (
+          <>
+            <p className="text-sm text-slate-600">
+              Set speedup and time slots for {DAY_CONFIG[day].label}, or leave
+              blank to skip.
+            </p>
+
+            <div className="card">
+              <label className="mb-1 block text-sm font-medium text-slate-600">
+                {speedupLabel}
+              </label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={dayState[day].speedup}
+                onChange={(e) =>
+                  setDayState((prev) => ({
+                    ...prev,
+                    [day]: { ...prev[day], speedup: e.target.value },
+                  }))
+                }
+                className="input-field"
+                placeholder="Whole numbers only"
+                onKeyDown={(e) => {
+                  if (e.key === "." || e.key === "e" || e.key === "-")
+                    e.preventDefault();
+                }}
               />
-            ))}
-          </div>
-        </div>
+            </div>
+
+            <div className="card">
+              <div className="mb-3 flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-600">
+                  Preferred time slots
+                </label>
+                <div className="inline-flex rounded-lg border border-slate-200 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setTz("UTC")}
+                    className={`px-2 py-1 ${tz === "UTC" ? "bg-brand-600 text-white rounded-l-lg" : ""}`}
+                  >
+                    UTC
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTz("KST")}
+                    className={`px-2 py-1 ${tz === "KST" ? "bg-brand-600 text-white rounded-r-lg" : ""}`}
+                  >
+                    KST
+                  </button>
+                </div>
+              </div>
+              <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
+                {TIME_BLOCKS.map((block) => (
+                  <TimeBlockCheckbox
+                    key={block}
+                    blockStart={block}
+                    checked={dayState[day].blocks.includes(block)}
+                    onChange={() => toggleBlock(day, block)}
+                    tz={tz}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="flex gap-2">
           <button type="button" onClick={goBack} className="btn-secondary flex-1">
@@ -255,11 +344,11 @@ export function ReservationForm({ reservationOpen, token }: Props) {
           {day === "thu" ? (
             <button
               type="button"
-              onClick={handleSubmit}
+              onClick={openConfirmDialog}
               disabled={pending}
               className="btn-primary flex-1"
             >
-              {pending ? "Submitting..." : "Submit"}
+              Submit
             </button>
           ) : (
             <button
@@ -277,7 +366,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Progress */}
       <div className="flex gap-1">
         {(["info", "mon", "tue", "thu"] as Step[]).map((s, i) => (
           <div
@@ -303,6 +391,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
                   required
                   value={gameId}
                   onChange={(e) => setGameId(e.target.value)}
+                  onBlur={() => fetchReservedDays(gameId)}
                   className="input-field"
                   placeholder="e.g. 12345678"
                 />
@@ -333,9 +422,15 @@ export function ReservationForm({ reservationOpen, token }: Props) {
               </div>
             </div>
           </div>
+          {reservedDays.length > 0 && (
+            <p className="text-sm text-amber-800">
+              Already reserved:{" "}
+              {reservedDays.map((d) => DAY_CONFIG[d].label).join(", ")}. Those
+              days cannot be submitted again.
+            </p>
+          )}
           <p className="text-sm text-slate-500">
-            Go through Monday → Tuesday → Thursday. Skip any day you don&apos;t
-            need.
+            Monday → Tuesday → Thursday. You cannot edit after submitting.
           </p>
           <button type="button" onClick={handleInfoNext} className="btn-primary">
             Next — Monday
@@ -358,6 +453,15 @@ export function ReservationForm({ reservationOpen, token }: Props) {
           {message.text}
         </div>
       )}
+
+      <ConfirmReservationDialog
+        open={confirmOpen}
+        summaries={buildConfirmSummaries()}
+        tz={tz}
+        pending={pending}
+        onConfirm={submitConfirmed}
+        onCancel={() => setConfirmOpen(false)}
+      />
 
       <a
         href={`/r/${token}/check`}
