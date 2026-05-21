@@ -2,7 +2,13 @@
 
 import { createServiceClient } from "@/lib/supabase";
 import { getAdminSession } from "@/lib/session";
-import { getCurrentCycleId, promoteOnCancel } from "@/lib/assignment";
+import {
+  getCurrentCycleId,
+  promoteOnCancel,
+  runBatchAssignmentForCycle,
+  getAssignmentApplicantCounts,
+  getLastAssignmentRun,
+} from "@/lib/assignment";
 import { clearCancelledDayReservations } from "@/lib/reservation-guard";
 import { DayOfWeek } from "@/lib/types";
 import {
@@ -136,13 +142,38 @@ export async function resetCycle(confirmText: string) {
     .update({ value: String(newCycle) })
     .eq("key", "current_cycle_id");
 
-  await supabase.from("reservations").delete().eq("cycle_id", cycleId);
-  await supabase.from("preferences").delete().eq("cycle_id", cycleId);
+  await supabase.from("reservations").delete().gte("cycle_id", 0);
+  await supabase.from("preferences").delete().gte("cycle_id", 0);
+  await supabase.from("players").delete().gte("game_id", 0);
   await supabase.from("settings").delete().eq("key", "last_assignment_run");
 
   revalidatePath("/admin");
   revalidatePath("/status");
   return { success: true, cycleId: newCycle };
+}
+
+export async function getAssignmentPreviewForAdmin() {
+  await requireAdmin();
+  const supabase = createServiceClient();
+  const cycleId = await getCurrentCycleId(supabase);
+  const applicants = await getAssignmentApplicantCounts(supabase, cycleId);
+  const lastRun = await getLastAssignmentRun(supabase);
+  return { applicants, lastRun, cycleId };
+}
+
+export async function runFullBatchAssignment() {
+  await requireAdmin();
+  const supabase = createServiceClient();
+  const cycleId = await getCurrentCycleId(supabase);
+  const results = await runBatchAssignmentForCycle(supabase, cycleId);
+  revalidatePath("/admin");
+  revalidatePath("/status");
+  return {
+    success: true as const,
+    mon: results.mon,
+    tue: results.tue,
+    thu: results.thu,
+  };
 }
 
 export async function cancelReservation(reservationId: string) {

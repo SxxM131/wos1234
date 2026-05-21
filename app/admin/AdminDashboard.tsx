@@ -252,7 +252,8 @@ export function AdminDashboard({
       <div className="card border-red-200">
         <p className="mb-2 text-sm font-medium text-red-700">Reset cycle</p>
         <p className="mb-2 text-xs text-slate-500">
-          This cannot be undone. Type RESET below to confirm.
+          Clears all players, applications, and assignments, then starts a new
+          cycle. Type RESET below to confirm.
         </p>
         <input
           value={resetConfirm}

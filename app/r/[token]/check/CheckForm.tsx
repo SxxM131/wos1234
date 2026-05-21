@@ -221,19 +221,6 @@ export function CheckForm() {
             );
           })}
 
-          {CHECK_DAYS.every(
-            (d) =>
-              !dayStatus(
-                d,
-                result.reservations,
-                result.preferences,
-                result.assignmentCompleted
-              )
-          ) && (
-            <p className="text-center text-sm text-slate-500">
-              No applications in the current cycle.
-            </p>
-          )}
         </div>
       )}
     </div>

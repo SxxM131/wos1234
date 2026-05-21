@@ -1,23 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import {
+  getAssignmentPreviewForAdmin,
+  runFullBatchAssignment,
+} from "./actions";
 
 interface Preview {
   applicants: { mon: number; tue: number; thu: number };
   lastRun: string | null;
-}
-
-interface BatchResult {
-  assigned: number;
-  eliminated: number;
-}
-
-interface RunResponse {
-  success: boolean;
-  mon?: BatchResult;
-  tue?: BatchResult;
-  thu?: BatchResult;
-  error?: string;
+  cycleId: number;
 }
 
 function formatLastRun(iso: string): string {
@@ -33,61 +25,73 @@ function formatLastRun(iso: string): string {
 
 export function AssignmentRunPanel() {
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [running, setRunning] = useState(false);
   const [resultLine, setResultLine] = useState<string | null>(null);
   const [errorLine, setErrorLine] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
-  const loadPreview = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/assignment-preview");
-      if (!res.ok) return;
-      const data = (await res.json()) as Preview;
-      setPreview(data);
-    } catch {
-      /* ignore */
-    }
+  const loadPreview = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const data = await getAssignmentPreviewForAdmin();
+        setPreview(data);
+      } catch {
+        /* ignore */
+      }
+    });
   }, []);
 
   useEffect(() => {
     loadPreview();
   }, [loadPreview]);
 
-  async function handleRun() {
-    setRunning(true);
+  function handleRun() {
+    if (
+      !confirm(
+        "Run full batch assignment for the current cycle? Existing assignments for Mon/Tue/Thu will be cleared and recalculated."
+      )
+    ) {
+      return;
+    }
     setResultLine(null);
     setErrorLine(null);
-    try {
-      const res = await fetch("/api/admin/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "run_batch_assignment" }),
-      });
-      const data = (await res.json()) as RunResponse;
-      if (!res.ok || !data.success || !data.mon) {
+    startTransition(async () => {
+      try {
+        const data = await runFullBatchAssignment();
+        if (!data.success) {
+          setErrorLine("An error occurred while processing assignments.");
+          return;
+        }
+        setResultLine(
+          `Assignment complete (cycle #${preview?.cycleId ?? "?"}) — Mon ${data.mon.assigned} assigned / ${data.mon.eliminated} waitlist · Tue ${data.tue.assigned} assigned / ${data.tue.eliminated} waitlist · Thu ${data.thu.assigned} assigned / ${data.thu.eliminated} waitlist`
+        );
+        const next = await getAssignmentPreviewForAdmin();
+        setPreview(next);
+      } catch {
         setErrorLine("An error occurred while processing assignments.");
-        return;
       }
-      setResultLine(
-        `Assignment complete — Mon ${data.mon.assigned} assigned / ${data.mon.eliminated} waitlist · Tue ${data.tue!.assigned} assigned / ${data.tue!.eliminated} waitlist · Thu ${data.thu!.assigned} assigned / ${data.thu!.eliminated} waitlist`
-      );
-      await loadPreview();
-    } catch {
-      setErrorLine("An error occurred while processing assignments.");
-    } finally {
-      setRunning(false);
-    }
+    });
   }
 
   const a = preview?.applicants;
 
   return (
-    <div className="card border-amber-200 bg-amber-50/30">
-      <h2 className="text-sm font-bold text-slate-800">Run assignment</h2>
+    <div className="card border-amber-300 bg-amber-50/40">
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-bold text-slate-800">Full batch assignment</h2>
+        <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+          R4+ only
+        </span>
+      </div>
       <p className="mt-2 text-xs text-slate-600">
-        Run only after reservations are closed and speedups have been verified.
-        All applicants are assigned by speedup in one pass. Re-running clears
-        existing assignments for this cycle and recalculates.
+        Assigns all applicants for the current cycle in one pass (Mon → Tue →
+        Thu). Re-running replaces existing assignments for this cycle.
       </p>
+
+      {preview && (
+        <p className="mt-2 text-xs text-slate-500">
+          Current cycle: <strong>#{preview.cycleId}</strong>
+        </p>
+      )}
 
       {a && (
         <p className="mt-3 text-sm text-slate-700">
@@ -103,13 +107,13 @@ export function AssignmentRunPanel() {
       <button
         type="button"
         className="btn-gold mt-4"
-        disabled={running}
+        disabled={pending}
         onClick={handleRun}
       >
-        {running ? "Running assignment..." : "Run assignment"}
+        {pending ? "Running assignment..." : "Run full assignment"}
       </button>
 
-      {running && (
+      {pending && (
         <p className="mt-2 text-xs text-slate-500">Processing assignments...</p>
       )}
 
@@ -121,8 +125,8 @@ export function AssignmentRunPanel() {
       )}
 
       <p className="mt-4 border-t border-amber-200/80 pt-3 text-xs text-slate-500">
-        Recommended order: ① Close reservations → ② Verify and fix speedups →
-        ③ Run assignment → ④ Review results and announce
+        Recommended: ① Close reservations → ② Verify speedups → ③ Run full
+        assignment → ④ Check /status and announce
       </p>
     </div>
   );

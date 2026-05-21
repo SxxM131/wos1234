@@ -88,7 +88,13 @@ export async function checkReservation(gameId: number) {
     .eq("game_id", gameId)
     .maybeSingle();
 
-  if (!player) {
+  const { data: preferences } = await supabase
+    .from("preferences")
+    .select("*")
+    .eq("player_id", gameId)
+    .eq("cycle_id", cycleId);
+
+  if (!player || !preferences?.length) {
     return { error: "No reservation found for this Game ID." };
   }
 
@@ -98,12 +104,6 @@ export async function checkReservation(gameId: number) {
     .eq("player_id", gameId)
     .eq("cycle_id", cycleId)
     .in("status", ["assigned", "eliminated"]);
-
-  const { data: preferences } = await supabase
-    .from("preferences")
-    .select("*")
-    .eq("player_id", gameId)
-    .eq("cycle_id", cycleId);
 
   const assignmentCompleted = !!(await getLastAssignmentRun(supabase));
 
