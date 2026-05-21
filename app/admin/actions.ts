@@ -317,3 +317,129 @@ export async function exportCsv(): Promise<string> {
 
   return sections.join("\n\n");
 }
+
+export async function exportExcelData(): Promise<Record<string, any[]>> {
+  await requireAdmin();
+  const supabase = createServiceClient();
+  const cycleId = await getCurrentCycleId(supabase);
+
+  // Fetch all slots from the slots table
+  const { data: slots, error: slotsError } = await supabase
+    .from("slots")
+    .select("id, day_of_week, office_type, block_start_utc, slot_index, is_active");
+  if (slotsError || !slots) {
+    throw new Error("Failed to fetch slots");
+  }
+
+  // Fetch all assigned reservations for this cycle
+  const { data: reservations, error: resError } = await supabase
+    .from("reservations")
+    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_vp, speedup_mo)")
+    .eq("cycle_id", cycleId)
+    .eq("status", "assigned");
+  if (resError) {
+    throw new Error("Failed to fetch reservations");
+  }
+
+  // Map reservations to their slot IDs
+  const resMap = new Map<number, typeof reservations[number]>();
+  if (reservations) {
+    for (const r of reservations) {
+      if (r.slot_id !== null) {
+        resMap.set(r.slot_id, r);
+      }
+    }
+  }
+
+  const days = ["mon", "tue", "thu"] as const;
+  const dayNames: Record<string, string> = {
+    mon: "월요일",
+    tue: "화요일",
+    thu: "목요일",
+  };
+
+  const result: Record<string, any[]> = {
+    "월요일": [],
+    "화요일": [],
+    "목요일": [],
+  };
+
+  for (const d of days) {
+    const daySlots = slots.filter((s) => s.day_of_week === d);
+    
+    // Sort chronologically: block_start_utc ASC, slot_index ASC
+    daySlots.sort((a, b) => {
+      if (a.block_start_utc !== b.block_start_utc) {
+        return a.block_start_utc - b.block_start_utc;
+      }
+      return a.slot_index - b.slot_index;
+    });
+
+    const sheetName = dayNames[d];
+
+    const rows = daySlots.map((s) => {
+      const totalHalfHoursUtc = s.block_start_utc * 2 + s.slot_index;
+      const utcHour = Math.floor(totalHalfHoursUtc / 2) % 24;
+      const utcMin = (totalHalfHoursUtc % 2) * 30;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const slotStartUtcStr = `${pad(utcHour)}:${pad(utcMin)}`;
+
+      const totalHalfHoursKst = totalHalfHoursUtc + 18;
+      const kstHour = Math.floor(totalHalfHoursKst / 2) % 24;
+      const kstMin = (totalHalfHoursKst % 2) * 30;
+      const nextDay = Math.floor(totalHalfHoursKst / 2) >= 24;
+      const slotStartKstStr = `${pad(kstHour)}:${pad(kstMin)}${nextDay ? " (+1일)" : ""}`;
+
+      const utcBlockStr = `${pad(s.block_start_utc)}:00~${pad(s.block_start_utc + 2)}:00`;
+      const slotNum = s.slot_index + 1;
+
+      const r = resMap.get(s.id);
+      let gameId = "";
+      let name = "";
+      let alliance = "";
+      let speedup = "";
+      let status = "";
+
+      if (r) {
+        gameId = String(r.player_id ?? "");
+        status = r.status ?? "";
+
+        const p = r.players as unknown as {
+          game_id: number;
+          name: string;
+          alliance: string;
+          speedup_vp: number;
+          speedup_mo: number;
+        } | null;
+
+        if (!p) {
+          name = "(데이터오류)";
+          alliance = "(데이터오류)";
+          speedup = "(데이터오류)";
+        } else {
+          name = p.name;
+          alliance = p.alliance;
+          const speedupVal = s.office_type === "VP" ? p.speedup_vp : p.speedup_mo;
+          speedup = String(speedupVal);
+        }
+      }
+
+      return {
+        "요일": sheetName,
+        "구간(UTC)": utcBlockStr,
+        "슬롯시작(UTC)": slotStartUtcStr,
+        "슬롯시작(KST)": slotStartKstStr,
+        "슬롯번호(1~4)": slotNum,
+        "게임ID": gameId ? Number(gameId) : "",
+        "이름": name,
+        "연맹": alliance,
+        "스피드업(days)": speedup ? Number(speedup) : "",
+        "상태": status,
+      };
+    });
+
+    result[sheetName] = rows;
+  }
+
+  return result;
+}

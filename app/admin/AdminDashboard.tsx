@@ -7,8 +7,10 @@ import {
   resetCycle,
   cancelReservation,
   exportCsv,
+  exportExcelData,
   logoutAdmin,
 } from "./actions";
+import * as XLSX from "xlsx";
 import { DAY_CONFIG, DayOfWeek, TIME_BLOCKS } from "@/lib/types";
 import { dayLabel, formatSlotTime, formatBlockRange } from "@/lib/utils";
 import { DayTabs } from "@/components/DayTabs";
@@ -204,9 +206,18 @@ export function AdminDashboard({
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
-              const csv = await exportCsv();
-              const blob = new Blob([csv], { type: "text/csv" });
+              const data = await exportExcelData();
+              const wb = XLSX.utils.book_new();
+
+              Object.entries(data).forEach(([sheetName, rows]) => {
+                const ws = XLSX.utils.json_to_sheet(rows);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+              });
+
+              const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+              const blob = new Blob([wbout], { type: "application/octet-stream" });
               const url = URL.createObjectURL(blob);
+              
               const a = document.createElement("a");
               a.href = url;
               const today = new Date();
@@ -214,12 +225,12 @@ export function AdminDashboard({
               const mm = String(today.getMonth() + 1).padStart(2, "0");
               const dd = String(today.getDate()).padStart(2, "0");
               const formattedDate = `${yyyy}${mm}${dd}`;
-              a.download = `reservation_cycle${cycleId}_${formattedDate}.csv`;
+              a.download = `reservation_cycle${cycleId}_${formattedDate}.xlsx`;
               a.click();
             })
           }
         >
-          Export CSV
+          Export Excel
         </button>
       </div>
 
