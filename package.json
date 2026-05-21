@@ -11,6 +11,7 @@
     "setup:secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "set-admin-password": "node scripts/set-admin-password.mjs",
     "test:assignment": "npx tsx scripts/test-assignment.ts",
+    "test:150": "npx tsx scripts/test-150-reservations.ts",
     "recover:waitlist": "npx tsx scripts/recover-waitlist.ts"
   },
   "dependencies": {

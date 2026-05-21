@@ -100,7 +100,7 @@ async function runInjection() {
   console.log("\n=========================================================");
   console.log("🎉 SUCCESS: 70 players have been injected!");
   console.log(`Open your browser and visit: https://wos1234.vercel.app/status`);
-  console.log("You can also log in to /admin (Password: 0105) to check or download the CSV!");
+  console.log("Log in to /admin with your configured admin password to check or download the CSV.");
   console.log("\n💡 TO CLEAN UP LATER:");
   console.log("You can easily clear this data by logging in to the admin panel");
   console.log("and typing 'RESET' in the 'Reset cycle' section!");

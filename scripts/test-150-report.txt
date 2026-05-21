@@ -1,0 +1,5 @@
+150-player test @ 2026-05-21T17:18:18.284Z
+submit ok/partial=145 fail=5
+integrity 4/4
+duplicate block 20/20
+reapply after cancel 5/5
