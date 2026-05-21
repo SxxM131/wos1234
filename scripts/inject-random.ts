@@ -1,0 +1,153 @@
+#!/usr/bin/env npx tsx
+/**
+ * Inject random test applications into the current cycle (preferences only).
+ * Usage: npm run inject:random
+ *        npm run inject:random -- 90
+ */
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+import {
+  processMultiDayReservation,
+  getCurrentCycleId,
+  getAssignmentApplicantCounts,
+} from "../lib/assignment";
+import { DayOfWeek } from "../lib/types";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const env = Object.fromEntries(
+  readFileSync(resolve(root, ".env.local"), "utf8")
+    .split("\n")
+    .filter((l) => l && !l.startsWith("#"))
+    .map((l) => {
+      const i = l.indexOf("=");
+      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+    })
+);
+
+const supabase = createClient(
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const ALLIANCES = ["WOS", "LEO", "MOON", "SUN", "ZEUS"];
+const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);
+const BASE_GAME_ID = 300001;
+
+const count = Math.max(1, parseInt(process.argv[2] ?? "90", 10));
+
+function getRandomPrefs(n: number): number[] {
+  const primeTime = [10, 12, 14, 16, 20];
+  const pool = [...TIME_BLOCKS];
+  const prefs: number[] = [];
+
+  while (prefs.length < n && pool.length > 0) {
+    const usePrime =
+      Math.random() < 0.55 && primeTime.some((t) => pool.includes(t));
+    let chosen: number;
+    if (usePrime) {
+      const primes = primeTime.filter((t) => pool.includes(t));
+      chosen = primes[Math.floor(Math.random() * primes.length)];
+    } else {
+      chosen = pool[Math.floor(Math.random() * pool.length)];
+    }
+    prefs.push(chosen);
+    pool.splice(pool.indexOf(chosen), 1);
+  }
+  return prefs;
+}
+
+function randomSpeedup(): number {
+  return Math.floor(Math.random() * 50) * 10 + 10;
+}
+
+async function main() {
+  const cycleId = await getCurrentCycleId(supabase);
+  console.log(`Injecting ${count} random applicants into cycle #${cycleId}...\n`);
+
+  await supabase
+    .from("settings")
+    .upsert({ key: "reservation_open", value: "true" });
+
+  let ok = 0;
+  let fail = 0;
+
+  for (let i = 0; i < count; i++) {
+    const gameId = BASE_GAME_ID + i;
+    const name = `테스터_${String(i + 1).padStart(2, "0")}`;
+    const alliance = ALLIANCES[Math.floor(Math.random() * ALLIANCES.length)];
+
+    const days = Math.random();
+    const dayInputs: {
+      dayOfWeek: DayOfWeek;
+      speedup: number;
+      preferredBlocks: number[];
+    }[] = [];
+
+    if (days < 0.85) {
+      dayInputs.push({
+        dayOfWeek: "mon",
+        speedup: randomSpeedup(),
+        preferredBlocks: getRandomPrefs(2 + Math.floor(Math.random() * 2)),
+      });
+    }
+    if (days < 0.7 || days > 0.5) {
+      dayInputs.push({
+        dayOfWeek: "tue",
+        speedup: randomSpeedup(),
+        preferredBlocks: getRandomPrefs(2 + Math.floor(Math.random() * 2)),
+      });
+    }
+    if (days > 0.15) {
+      dayInputs.push({
+        dayOfWeek: "thu",
+        speedup: randomSpeedup(),
+        preferredBlocks: getRandomPrefs(2 + Math.floor(Math.random() * 2)),
+      });
+    }
+
+    if (!dayInputs.length) {
+      dayInputs.push({
+        dayOfWeek: "mon",
+        speedup: randomSpeedup(),
+        preferredBlocks: getRandomPrefs(3),
+      });
+    }
+
+    const res = await processMultiDayReservation(
+      supabase,
+      gameId,
+      name,
+      alliance,
+      dayInputs
+    );
+
+    if (res.success) ok++;
+    else {
+      fail++;
+      console.log(`  ✗ ${name} (${gameId}): ${res.message}`);
+    }
+
+    if ((i + 1) % 10 === 0 || i === count - 1) {
+      console.log(`  … ${i + 1}/${count} submitted`);
+    }
+  }
+
+  const applicants = await getAssignmentApplicantCounts(supabase, cycleId);
+
+  console.log("\n=========================================================");
+  console.log(`Done: ${ok} ok, ${fail} failed`);
+  console.log(`Applicants — Mon ${applicants.mon} · Tue ${applicants.tue} · Thu ${applicants.thu}`);
+  console.log("\nNext steps:");
+  console.log("  1. /status — applications only until batch assign");
+  console.log("  2. Admin → Run full assignment (R4+)");
+  console.log("  3. /status and /r/.../check to verify results");
+  console.log("\nCleanup: Admin → Reset cycle (type RESET)");
+  console.log("=========================================================");
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
