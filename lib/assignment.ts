@@ -154,6 +154,7 @@ export async function processReservation(
 
   if (!input.deferHeal) {
     await healEliminatedReservations(supabase, touched, cycleId, now);
+    await backfillEmptySlotsForDay(supabase, input.dayOfWeek, cycleId);
   }
 
   if (!assignedSlotId) {
@@ -280,6 +281,11 @@ export async function processMultiDayReservation(
     cycleId,
     now
   );
+
+  const daysProcessed = Array.from(new Set(days.map((d) => d.dayOfWeek)));
+  for (const day of daysProcessed) {
+    await backfillEmptySlotsForDay(supabase, day, cycleId);
+  }
 
   return {
     success: anySuccess,
@@ -523,6 +529,132 @@ export async function healEliminatedReservations(
   }
 }
 
+/**
+ * Fill empty slots in a day from waitlisted players who preferred that block
+ * (speedup desc, then earlier applied_at). Runs after heal / cancel / submit.
+ */
+export async function backfillEmptySlotsForDay(
+  supabase: SupabaseClient,
+  day: DayOfWeek,
+  cycleId: number
+): Promise<number> {
+  const config = DAY_CONFIG[day];
+
+  const { data: daySlots } = await supabase
+    .from("slots")
+    .select("id, block_start_utc, slot_index")
+    .eq("day_of_week", day)
+    .eq("is_active", true)
+    .order("block_start_utc")
+    .order("slot_index");
+
+  if (!daySlots?.length) return 0;
+
+  const allDaySlotIds = daySlots.map((s) => s.id);
+  const { data: assignedOnDay } = await supabase
+    .from("reservations")
+    .select("player_id, slot_id")
+    .eq("cycle_id", cycleId)
+    .eq("status", "assigned")
+    .in("slot_id", allDaySlotIds);
+
+  const assignedPlayerIds = new Set(
+    (assignedOnDay ?? []).map((r) => r.player_id)
+  );
+
+  const blocks = new Map<number, typeof daySlots>();
+  for (const s of daySlots) {
+    const list = blocks.get(s.block_start_utc) ?? [];
+    list.push(s);
+    blocks.set(s.block_start_utc, list);
+  }
+
+  let filled = 0;
+
+  for (const [blockStart, slots] of Array.from(blocks.entries())) {
+    const slotIds = slots.map((s) => s.id);
+    const takenSlotIds = new Set(
+      (assignedOnDay ?? [])
+        .filter((r) => r.slot_id && slotIds.includes(r.slot_id))
+        .map((r) => r.slot_id as number)
+    );
+
+    const emptySlots = slots
+      .filter((s) => !takenSlotIds.has(s.id))
+      .sort((a, b) => a.slot_index - b.slot_index);
+
+    if (!emptySlots.length) continue;
+
+    const { data: prefs } = await supabase
+      .from("preferences")
+      .select("player_id")
+      .eq("day_of_week", day)
+      .eq("block_start_utc", blockStart)
+      .eq("cycle_id", cycleId);
+
+    const prefPlayerIds = new Set(prefs?.map((p) => p.player_id) ?? []);
+    if (!prefPlayerIds.size) continue;
+
+    const { data: eliminated } = await supabase
+      .from("reservations")
+      .select("id, player_id, applied_at, players(speedup_vp, speedup_mo)")
+      .eq("status", "eliminated")
+      .eq("cycle_id", cycleId)
+      .is("slot_id", null);
+
+    const candidates = (eliminated ?? [])
+      .filter(
+        (e) =>
+          prefPlayerIds.has(e.player_id) &&
+          !assignedPlayerIds.has(e.player_id)
+      )
+      .map((e) => {
+        const p = e.players as unknown as {
+          speedup_vp: number;
+          speedup_mo: number;
+        };
+        return {
+          id: e.id,
+          playerId: e.player_id,
+          speedup: p[config.speedupKey],
+          appliedAt: e.applied_at,
+        };
+      })
+      .sort((a, b) => {
+        if (b.speedup !== a.speedup) return b.speedup - a.speedup;
+        return new Date(a.appliedAt).getTime() - new Date(b.appliedAt).getTime();
+      });
+
+    for (let i = 0; i < emptySlots.length && i < candidates.length; i++) {
+      const slot = emptySlots[i];
+      const winner = candidates[i];
+      const { error } = await supabase
+        .from("reservations")
+        .update({ status: "assigned", slot_id: slot.id })
+        .eq("id", winner.id);
+
+      if (!error) {
+        assignedPlayerIds.add(winner.playerId);
+        filled++;
+      }
+    }
+  }
+
+  return filled;
+}
+
+export async function backfillEmptySlotsForCycle(
+  supabase: SupabaseClient,
+  cycleId: number
+): Promise<number> {
+  const days: DayOfWeek[] = ["mon", "tue", "thu"];
+  let total = 0;
+  for (const day of days) {
+    total += await backfillEmptySlotsForDay(supabase, day, cycleId);
+  }
+  return total;
+}
+
 export async function promoteOnCancel(
   supabase: SupabaseClient,
   slotId: number,
@@ -535,7 +667,25 @@ export async function promoteOnCancel(
     .single();
   if (!slot) return;
 
-  const config = DAY_CONFIG[slot.day_of_week as DayOfWeek];
+  const day = slot.day_of_week as DayOfWeek;
+  const config = DAY_CONFIG[day];
+
+  const { data: daySlots } = await supabase
+    .from("slots")
+    .select("id")
+    .eq("day_of_week", day);
+  const daySlotIds = daySlots?.map((s) => s.id) ?? [];
+
+  const { data: assignedOnDay } = await supabase
+    .from("reservations")
+    .select("player_id")
+    .eq("cycle_id", cycleId)
+    .eq("status", "assigned")
+    .in("slot_id", daySlotIds);
+
+  const assignedPlayerIds = new Set(
+    (assignedOnDay ?? []).map((r) => r.player_id)
+  );
 
   const { data: eliminated } = await supabase
     .from("reservations")
@@ -556,7 +706,10 @@ export async function promoteOnCancel(
   const prefPlayerIds = new Set(prefs?.map((p) => p.player_id) ?? []);
 
   const candidates = eliminated
-    .filter((e) => prefPlayerIds.has(e.player_id))
+    .filter(
+      (e) =>
+        prefPlayerIds.has(e.player_id) && !assignedPlayerIds.has(e.player_id)
+    )
     .map((e) => {
       const p = e.players as unknown as { speedup_vp: number; speedup_mo: number };
       return {
@@ -578,4 +731,6 @@ export async function promoteOnCancel(
     .from("reservations")
     .update({ status: "assigned", slot_id: slotId })
     .eq("id", winner.id);
+
+  await backfillEmptySlotsForDay(supabase, day, cycleId);
 }

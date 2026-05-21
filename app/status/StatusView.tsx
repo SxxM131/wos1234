@@ -17,6 +17,7 @@ interface SlotData {
 
 interface ReservationData {
   slot_id: number;
+  player_id: number;
   status: string;
   players: { name: string; alliance: string; speedup_vp: number; speedup_mo: number };
 }
@@ -29,7 +30,7 @@ interface EliminatedData {
     speedup_vp: number;
     speedup_mo: number;
   };
-  preferences: { block_start_utc: number }[];
+  preferences: { block_start_utc: number; day_of_week?: string }[];
 }
 
 interface Props {
@@ -65,7 +66,7 @@ export function StatusView({
 
     const { data: resData } = await supabase
       .from("reservations")
-      .select("slot_id, status, players(name, alliance, speedup_vp, speedup_mo)")
+      .select("slot_id, player_id, status, players(name, alliance, speedup_vp, speedup_mo)")
       .eq("cycle_id", cycleId)
       .eq("status", "assigned");
 
@@ -119,10 +120,17 @@ export function StatusView({
     if (r.slot_id) resBySlot.set(r.slot_id, r);
   });
 
-  const dayEliminated = eliminated.filter((e) =>
-    e.preferences?.some(
-      (p) => (p as { day_of_week?: string }).day_of_week === day
-    )
+  const daySlotIds = new Set(daySlots.map((s) => s.id));
+  const assignedPlayerIdsOnDay = new Set(
+    reservations
+      .filter((r) => daySlotIds.has(r.slot_id))
+      .map((r) => r.player_id)
+  );
+
+  const dayEliminated = eliminated.filter(
+    (e) =>
+      e.preferences?.some((p) => p.day_of_week === day) &&
+      !assignedPlayerIdsOnDay.has(e.player_id)
   );
 
   return (

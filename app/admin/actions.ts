@@ -3,6 +3,14 @@
 import { createServiceClient } from "@/lib/supabase";
 import { getAdminSession } from "@/lib/session";
 import { getCurrentCycleId, promoteOnCancel } from "@/lib/assignment";
+import {
+  EXPORT_CSV_HEADER,
+  EXPORT_DAY_ORDER,
+  buildSlotExportRow,
+  exportDayLabel,
+  slotExportRowToCsvCells,
+  slotExportRowToExcelRecord,
+} from "@/lib/export-grid";
 import { formatSlotTime } from "@/lib/utils";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
@@ -221,14 +229,7 @@ export async function exportCsv(): Promise<string> {
     }
   }
 
-  const days = ["mon", "tue", "thu"] as const;
-  const dayNames: Record<string, string> = {
-    mon: "월요일",
-    tue: "화요일",
-    thu: "목요일",
-  };
-
-  const escape = (val: any) => {
+  const escape = (val: unknown) => {
     const str = String(val ?? "");
     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
       return `"${str.replace(/"/g, '""')}"`;
@@ -236,13 +237,10 @@ export async function exportCsv(): Promise<string> {
     return str;
   };
 
-  const header = "요일,구간(UTC),슬롯시작(UTC),슬롯시작(KST),슬롯번호(1~4),게임ID,이름,연맹,스피드업(days),상태";
   const sections: string[] = [];
 
-  for (const d of days) {
+  for (const d of EXPORT_DAY_ORDER) {
     const daySlots = slots.filter((s) => s.day_of_week === d);
-    
-    // Sort chronologically: block_start_utc ASC, slot_index ASC
     daySlots.sort((a, b) => {
       if (a.block_start_utc !== b.block_start_utc) {
         return a.block_start_utc - b.block_start_utc;
@@ -251,68 +249,27 @@ export async function exportCsv(): Promise<string> {
     });
 
     const rows = daySlots.map((s) => {
-      const totalHalfHoursUtc = s.block_start_utc * 2 + s.slot_index;
-      const utcHour = Math.floor(totalHalfHoursUtc / 2) % 24;
-      const utcMin = (totalHalfHoursUtc % 2) * 30;
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const slotStartUtcStr = `${pad(utcHour)}:${pad(utcMin)}`;
-
-      const totalHalfHoursKst = totalHalfHoursUtc + 18;
-      const kstHour = Math.floor(totalHalfHoursKst / 2) % 24;
-      const kstMin = (totalHalfHoursKst % 2) * 30;
-      const nextDay = Math.floor(totalHalfHoursKst / 2) >= 24;
-      const slotStartKstStr = `${pad(kstHour)}:${pad(kstMin)}${nextDay ? " (+1일)" : ""}`;
-
-      const utcBlockStr = `${pad(s.block_start_utc)}:00~${pad(s.block_start_utc + 2)}:00`;
-      const dayName = dayNames[s.day_of_week as keyof typeof dayNames] ?? s.day_of_week;
-      const slotNum = s.slot_index + 1;
-
       const r = resMap.get(s.id);
-      let gameId = "";
-      let name = "";
-      let alliance = "";
-      let speedup = "";
-      let status = "";
-
-      if (r) {
-        gameId = String(r.player_id ?? "");
-        status = r.status ?? "";
-
-        const p = r.players as unknown as {
-          game_id: number;
-          name: string;
-          alliance: string;
-          speedup_vp: number;
-          speedup_mo: number;
-        } | null;
-
-        if (!p) {
-          name = "(데이터오류)";
-          alliance = "(데이터오류)";
-          speedup = "(데이터오류)";
-        } else {
-          name = p.name;
-          alliance = p.alliance;
-          const speedupVal = s.office_type === "VP" ? p.speedup_vp : p.speedup_mo;
-          speedup = String(speedupVal);
-        }
-      }
-
-      return [
-        escape(dayName),
-        escape(utcBlockStr),
-        escape(slotStartUtcStr),
-        escape(slotStartKstStr),
-        escape(slotNum),
-        escape(gameId),
-        escape(name),
-        escape(alliance),
-        escape(speedup),
-        escape(status),
-      ].join(",");
+      const row = buildSlotExportRow(
+        s,
+        r
+          ? {
+              player_id: r.player_id,
+              status: r.status,
+              players: r.players as unknown as {
+                game_id: number;
+                name: string;
+                alliance: string;
+                speedup_vp: number;
+                speedup_mo: number;
+              } | null,
+            }
+          : undefined
+      );
+      return slotExportRowToCsvCells(row, escape);
     });
 
-    sections.push([header, ...rows].join("\n"));
+    sections.push([EXPORT_CSV_HEADER, ...rows].join("\n"));
   }
 
   return sections.join("\n\n");
@@ -351,23 +308,13 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
     }
   }
 
-  const days = ["mon", "tue", "thu"] as const;
-  const dayNames: Record<string, string> = {
-    mon: "월요일",
-    tue: "화요일",
-    thu: "목요일",
-  };
+  const result: Record<string, Record<string, string | number>[]> = {};
 
-  const result: Record<string, any[]> = {
-    "월요일": [],
-    "화요일": [],
-    "목요일": [],
-  };
+  for (const d of EXPORT_DAY_ORDER) {
+    const sheetName = exportDayLabel(d);
+    result[sheetName] = [];
 
-  for (const d of days) {
     const daySlots = slots.filter((s) => s.day_of_week === d);
-    
-    // Sort chronologically: block_start_utc ASC, slot_index ASC
     daySlots.sort((a, b) => {
       if (a.block_start_utc !== b.block_start_utc) {
         return a.block_start_utc - b.block_start_utc;
@@ -375,70 +322,26 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
       return a.slot_index - b.slot_index;
     });
 
-    const sheetName = dayNames[d];
-
-    const rows = daySlots.map((s) => {
-      const totalHalfHoursUtc = s.block_start_utc * 2 + s.slot_index;
-      const utcHour = Math.floor(totalHalfHoursUtc / 2) % 24;
-      const utcMin = (totalHalfHoursUtc % 2) * 30;
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const slotStartUtcStr = `${pad(utcHour)}:${pad(utcMin)}`;
-
-      const totalHalfHoursKst = totalHalfHoursUtc + 18;
-      const kstHour = Math.floor(totalHalfHoursKst / 2) % 24;
-      const kstMin = (totalHalfHoursKst % 2) * 30;
-      const nextDay = Math.floor(totalHalfHoursKst / 2) >= 24;
-      const slotStartKstStr = `${pad(kstHour)}:${pad(kstMin)}${nextDay ? " (+1일)" : ""}`;
-
-      const utcBlockStr = `${pad(s.block_start_utc)}:00~${pad(s.block_start_utc + 2)}:00`;
-      const slotNum = s.slot_index + 1;
-
+    result[sheetName] = daySlots.map((s) => {
       const r = resMap.get(s.id);
-      let gameId = "";
-      let name = "";
-      let alliance = "";
-      let speedup = "";
-      let status = "";
-
-      if (r) {
-        gameId = String(r.player_id ?? "");
-        status = r.status ?? "";
-
-        const p = r.players as unknown as {
-          game_id: number;
-          name: string;
-          alliance: string;
-          speedup_vp: number;
-          speedup_mo: number;
-        } | null;
-
-        if (!p) {
-          name = "(데이터오류)";
-          alliance = "(데이터오류)";
-          speedup = "(데이터오류)";
-        } else {
-          name = p.name;
-          alliance = p.alliance;
-          const speedupVal = s.office_type === "VP" ? p.speedup_vp : p.speedup_mo;
-          speedup = String(speedupVal);
-        }
-      }
-
-      return {
-        "요일": sheetName,
-        "구간(UTC)": utcBlockStr,
-        "슬롯시작(UTC)": slotStartUtcStr,
-        "슬롯시작(KST)": slotStartKstStr,
-        "슬롯번호(1~4)": slotNum,
-        "게임ID": gameId ? Number(gameId) : "",
-        "이름": name,
-        "연맹": alliance,
-        "스피드업(days)": speedup ? Number(speedup) : "",
-        "상태": status,
-      };
+      const row = buildSlotExportRow(
+        s,
+        r
+          ? {
+              player_id: r.player_id,
+              status: r.status,
+              players: r.players as unknown as {
+                game_id: number;
+                name: string;
+                alliance: string;
+                speedup_vp: number;
+                speedup_mo: number;
+              } | null,
+            }
+          : undefined
+      );
+      return slotExportRowToExcelRecord(row);
     });
-
-    result[sheetName] = rows;
   }
 
   return result;

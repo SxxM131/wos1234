@@ -24,7 +24,7 @@ export default async function StatusPage() {
   const { data: reservations } = await supabase
     .from("reservations")
     .select(
-      "slot_id, status, players(name, alliance, speedup_vp, speedup_mo), slots(day_of_week)"
+      "slot_id, player_id, status, players(name, alliance, speedup_vp, speedup_mo), slots(day_of_week)"
     )
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
