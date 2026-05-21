@@ -68,7 +68,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     if (!hasBlocks && !hasSpeedup) return null; // skip day
 
     if (!hasSpeedup) {
-      return `${DAY_CONFIG[day].label}: enter speedup or tap Skip.`;
+      return `${DAY_CONFIG[day].label}: enter speedup.`;
     }
     const speedup = parseInt(d.speedup, 10);
     if (speedup < 0 || !Number.isInteger(speedup)) {
@@ -97,12 +97,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     else if (day === "tue") setStep("thu");
   }
 
-  function skipDay(day: DayOfWeek) {
-    clearDay(day);
-    setMessage(null);
-    if (day === "mon") setStep("tue");
-    else if (day === "tue") setStep("thu");
-  }
+
 
   function goBack() {
     setMessage(null);
@@ -191,8 +186,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
         </div>
 
         <p className="text-sm text-slate-600">
-          Set speedup and time slots for {DAY_CONFIG[day].label}, or tap{" "}
-          <strong>Skip</strong> to continue without applying.
+          Set speedup and time slots for {DAY_CONFIG[day].label}, or leave them blank to skip.
         </p>
 
         <div className="card">
@@ -258,19 +252,12 @@ export function ReservationForm({ reservationOpen, token }: Props) {
           <button type="button" onClick={goBack} className="btn-secondary flex-1">
             Back
           </button>
-          <button
-            type="button"
-            onClick={() => skipDay(day)}
-            className="btn-secondary flex-1"
-          >
-            Skip
-          </button>
           {day === "thu" ? (
             <button
               type="button"
               onClick={handleSubmit}
               disabled={pending}
-              className="btn-primary flex-[2]"
+              className="btn-primary flex-1"
             >
               {pending ? "Submitting..." : "Submit"}
             </button>
@@ -278,7 +265,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
             <button
               type="button"
               onClick={() => goNextFromDay(day)}
-              className="btn-primary flex-[2]"
+              className="btn-primary flex-1"
             >
               Next
             </button>

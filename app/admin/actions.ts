@@ -264,7 +264,7 @@ export async function exportCsv(): Promise<string> {
       const slotStartKstStr = `${pad(kstHour)}:${pad(kstMin)}${nextDay ? " (+1일)" : ""}`;
 
       const utcBlockStr = `${pad(s.block_start_utc)}:00~${pad(s.block_start_utc + 2)}:00`;
-      const dayName = dayNames[s.day_of_week] ?? s.day_of_week;
+      const dayName = dayNames[s.day_of_week as keyof typeof dayNames] ?? s.day_of_week;
       const slotNum = s.slot_index + 1;
 
       const r = resMap.get(s.id);
