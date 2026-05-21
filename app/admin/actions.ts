@@ -26,11 +26,11 @@ export async function loginAdmin(formData: FormData) {
     .single();
 
   if (!data?.value) {
-    return { error: "관리자 비밀번호가 설정되지 않았습니다. /admin/setup 으로 이동하세요." };
+    return { error: "Admin password not set. Go to /admin/setup first." };
   }
 
   const valid = await bcrypt.compare(password, data.value);
-  if (!valid) return { error: "비밀번호가 올바르지 않습니다." };
+  if (!valid) return { error: "Incorrect password." };
 
   const session = await getAdminSession();
   session.isLoggedIn = true;
@@ -45,10 +45,10 @@ export async function setupAdminPassword(
   const confirm = formData.get("confirm") as string;
 
   if (!password || password.length < 6) {
-    return { error: "비밀번호는 6자 이상이어야 합니다." };
+    return { error: "Password must be at least 6 characters." };
   }
   if (password !== confirm) {
-    return { error: "비밀번호가 일치하지 않습니다." };
+    return { error: "Passwords do not match." };
   }
 
   const supabase = createServiceClient();
@@ -59,7 +59,7 @@ export async function setupAdminPassword(
     .single();
 
   if (existing?.value) {
-    return { error: "이미 비밀번호가 설정되어 있습니다." };
+    return { error: "Password is already configured." };
   }
 
   const hash = await bcrypt.hash(password, 10);
@@ -112,8 +112,8 @@ export async function toggleReservationOpen() {
 
 export async function resetCycle(confirmText: string) {
   await requireAdmin();
-  if (confirmText !== "초기화") {
-    return { error: "확인 텍스트가 올바르지 않습니다." };
+  if (confirmText !== "RESET") {
+    return { error: "Confirmation text is incorrect." };
   }
 
   const supabase = createServiceClient();

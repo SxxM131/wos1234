@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "관직 예약",
-  description: "WOS 관직 예약 자동화 시스템",
+  title: "Office Reservation",
+  description: "WOS office reservation system",
 };
 
 export const viewport: Viewport = {
@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
+    <html lang="en">
       <body className="min-h-screen">
         <main className="mx-auto min-h-screen max-w-lg px-4 pb-8 pt-4">
           {children}

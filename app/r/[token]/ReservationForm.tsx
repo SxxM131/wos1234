@@ -20,13 +20,13 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   if (!reservationOpen) {
     return (
       <div className="banner-closed py-8 text-base">
-        예약이 마감되었습니다
+        Reservations are closed
       </div>
     );
   }
 
   const office = DAY_CONFIG[day].office;
-  const speedupLabel = office === "VP" ? "VP 스피드업 (일)" : "MO 스피드업 (일)";
+  const speedupLabel = office === "VP" ? "VP Speedup (days)" : "MO Speedup (days)";
 
   function toggleBlock(block: number) {
     setSelectedBlocks((prev) =>
@@ -57,29 +57,29 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="card">
-        <h2 className="mb-3 text-lg font-bold">예약 신청</h2>
+        <h2 className="mb-3 text-lg font-bold">Apply for Reservation</h2>
         <div className="flex flex-col gap-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">
-              게임 ID
+              Game ID
             </label>
             <input
               name="game_id"
               type="number"
               required
               className="input-field"
-              placeholder="예: 12345678"
+              placeholder="e.g. 12345678"
             />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">
-              닉네임
+              Name
             </label>
             <input name="name" type="text" required className="input-field" />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">
-              연맹
+              Alliance
             </label>
             <input name="alliance" type="text" required className="input-field" />
           </div>
@@ -88,7 +88,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
 
       <div className="card">
         <label className="mb-2 block text-sm font-medium text-slate-600">
-          요일 선택
+          Select day
         </label>
         <div className="grid grid-cols-3 gap-2">
           {(["mon", "tue", "thu"] as DayOfWeek[]).map((d) => (
@@ -124,7 +124,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
           min="0"
           required
           className="input-field"
-          placeholder="정수만 입력"
+          placeholder="Whole numbers only"
           onKeyDown={(e) => {
             if (e.key === "." || e.key === "e" || e.key === "-") e.preventDefault();
           }}
@@ -134,7 +134,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
       <div className="card">
         <div className="mb-3 flex items-center justify-between">
           <label className="text-sm font-medium text-slate-600">
-            선호 시간대 (복수 선택)
+            Preferred time slots (select multiple)
           </label>
           <div className="inline-flex rounded-lg border border-slate-200 text-xs">
             <button
@@ -183,14 +183,14 @@ export function ReservationForm({ reservationOpen, token }: Props) {
         disabled={pending || selectedBlocks.length === 0}
         className="btn-primary"
       >
-        {pending ? "처리 중..." : "예약 제출"}
+        {pending ? "Submitting..." : "Submit reservation"}
       </button>
 
       <a
         href={`/r/${token}/check`}
         className="text-center text-sm text-brand-600 underline"
       >
-        내 예약 확인하기
+        Check my reservation
       </a>
     </form>
   );

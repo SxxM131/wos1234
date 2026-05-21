@@ -23,7 +23,7 @@ export function formatBlockRange(
   const startStr = formatHour(start.hour);
   const endStr = formatHour(end.hour);
   const dayNote =
-    start.nextDay || end.nextDay ? " (익일)" : "";
+    start.nextDay || end.nextDay ? " (next day)" : "";
   return `${startStr}~${endStr} KST${dayNote}`;
 }
 

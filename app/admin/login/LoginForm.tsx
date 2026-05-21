@@ -23,7 +23,7 @@ export function LoginForm() {
         router.refresh();
       } else {
         const data = await res.json();
-        setError(data.error || "로그인 실패");
+        setError(data.error || "Login failed");
       }
     });
   }
@@ -32,7 +32,7 @@ export function LoginForm() {
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-600">
-          비밀번호
+          Password
         </label>
         <input
           name="password"
@@ -42,11 +42,9 @@ export function LoginForm() {
           autoComplete="current-password"
         />
       </div>
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" disabled={pending} className="btn-primary">
-        {pending ? "로그인 중..." : "로그인"}
+        {pending ? "Signing in..." : "Sign in"}
       </button>
     </form>
   );

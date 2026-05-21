@@ -40,9 +40,9 @@ export const DAY_CONFIG: Record<
   DayOfWeek,
   { label: string; office: OfficeType; speedupKey: "speedup_vp" | "speedup_mo" }
 > = {
-  mon: { label: "월요일", office: "VP", speedupKey: "speedup_vp" },
-  tue: { label: "화요일", office: "VP", speedupKey: "speedup_vp" },
-  thu: { label: "목요일", office: "MO", speedupKey: "speedup_mo" },
+  mon: { label: "Monday", office: "VP", speedupKey: "speedup_vp" },
+  tue: { label: "Tuesday", office: "VP", speedupKey: "speedup_vp" },
+  thu: { label: "Thursday", office: "MO", speedupKey: "speedup_mo" },
 };
 
 export const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);

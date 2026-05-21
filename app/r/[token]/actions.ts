@@ -15,20 +15,20 @@ export async function submitReservation(formData: FormData) {
     .map((v) => parseInt(v as string, 10));
 
   if (!gameId || !name || !alliance || !dayOfWeek) {
-    return { success: false, message: "필수 항목을 모두 입력해 주세요." };
+    return { success: false, message: "Please fill in all required fields." };
   }
 
   if (isNaN(speedup) || speedup < 0 || !Number.isInteger(speedup)) {
     return {
       success: false,
-      message: "스피드업은 0 이상의 정수만 입력 가능합니다.",
+      message: "Speedup must be a whole number ≥ 0.",
     };
   }
 
   if (preferredBlocks.length === 0) {
     return {
       success: false,
-      message: "선호 시간대를 1개 이상 선택해 주세요.",
+      message: "Select at least one preferred time slot.",
     };
   }
 
@@ -45,7 +45,7 @@ export async function submitReservation(formData: FormData) {
 
 export async function checkReservation(gameId: number) {
   if (!gameId || isNaN(gameId)) {
-    return { error: "게임 ID를 입력해 주세요." };
+    return { error: "Please enter your Game ID." };
   }
 
   const supabase = createServiceClient();
@@ -63,7 +63,7 @@ export async function checkReservation(gameId: number) {
     .maybeSingle();
 
   if (!player) {
-    return { error: "해당 게임 ID의 예약 정보가 없습니다." };
+    return { error: "No reservation found for this Game ID." };
   }
 
   const { data: reservations } = await supabase

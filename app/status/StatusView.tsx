@@ -126,11 +126,11 @@ export function StatusView({
   return (
     <div>
       {closed && (
-        <div className="banner-closed mb-4">현재 예약 마감 중</div>
+        <div className="banner-closed mb-4">Reservations closed</div>
       )}
 
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-brand-900">예약 현황</h1>
+        <h1 className="text-xl font-bold text-brand-900">Schedule</h1>
         <TimezoneToggle tz={tz} onChange={setTz} />
       </div>
 
@@ -166,7 +166,7 @@ export function StatusView({
                         {formatSlotTime(block, slot.slot_index, tz)}
                       </p>
                       {inactive ? (
-                        <p className="font-medium">비활성</p>
+                        <p className="font-medium">Inactive</p>
                       ) : res ? (
                         <>
                           <p className="font-medium truncate">
@@ -177,7 +177,7 @@ export function StatusView({
                           </p>
                         </>
                       ) : (
-                        <p>예약 가능</p>
+                        <p>Available</p>
                       )}
                     </div>
                   );
@@ -191,7 +191,7 @@ export function StatusView({
       {dayEliminated.length > 0 && (
         <div className="mt-6">
           <h2 className="mb-2 text-sm font-bold text-slate-700">
-            배정 탈락자 ({config.office})
+            Waitlist ({config.office})
           </h2>
           <div className="flex flex-col gap-2">
             {dayEliminated.map((e, i) => {
@@ -209,7 +209,7 @@ export function StatusView({
                     <span className="text-slate-500">({e.players.alliance})</span>
                   </p>
                   <p className="text-xs text-slate-500">
-                    스피드업 {speedup}일 · 선호 {prefs || "-"}
+                    Speedup {speedup}d · Preferred {prefs || "-"}
                   </p>
                 </div>
               );

@@ -20,9 +20,9 @@ export default async function ReservationPage({
   return (
     <div>
       <header className="mb-4">
-        <h1 className="text-xl font-bold text-brand-900">관직 예약 신청</h1>
+        <h1 className="text-xl font-bold text-brand-900">Office Reservation</h1>
         <p className="mt-1 text-sm text-slate-500">
-          월·화 VP / 목 MO — 스피드업 높은 순 배정
+          Mon/Tue VP · Thu MO — higher speedup gets priority
         </p>
       </header>
       <ReservationForm reservationOpen={reservationOpen} token={token} />

@@ -77,28 +77,28 @@ export function AdminDashboard({
   return (
     <div className="flex flex-col gap-4 pb-20">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">운영자 관리</h1>
+        <h1 className="text-xl font-bold">Admin</h1>
         <form action={logoutAdmin}>
           <button type="submit" className="text-sm text-slate-500 underline">
-            로그아웃
+            Log out
           </button>
         </form>
       </div>
 
       {!open && (
-        <div className="banner-closed">예약 마감</div>
+        <div className="banner-closed">Reservations closed</div>
       )}
 
       <div className="card text-sm">
         <p>
-          사이클 <strong>#{cycleId}</strong>
+          Cycle <strong>#{cycleId}</strong>
           {open ? (
             <span className="ml-2 rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
-              접수 중
+              Open
             </span>
           ) : (
             <span className="ml-2 rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">
-              마감
+              Closed
             </span>
           )}
         </p>
@@ -106,7 +106,7 @@ export function AdminDashboard({
 
       {/* Secret URL */}
       <div className="card">
-        <p className="mb-2 text-sm font-medium">비밀 URL</p>
+        <p className="mb-2 text-sm font-medium">Secret URL</p>
         <p className="break-all text-xs text-slate-600">{secretUrl}</p>
         <div className="mt-3 flex gap-2">
           <button
@@ -114,7 +114,7 @@ export function AdminDashboard({
             className="btn-secondary !min-h-0 flex-1 py-2 text-sm"
             onClick={() => navigator.clipboard.writeText(secretUrl)}
           >
-            복사
+            Copy
           </button>
           <button
             type="button"
@@ -124,11 +124,11 @@ export function AdminDashboard({
               startTransition(async () => {
                 const res = await regenerateToken();
                 setToken(res.token);
-                setMessage("토큰이 재생성되었습니다. 기존 URL은 무효화됩니다.");
+                setMessage("Token regenerated. Previous URLs are now invalid.");
               })
             }
           >
-            토큰 재생성
+            Regenerate token
           </button>
         </div>
       </div>
@@ -150,7 +150,7 @@ export function AdminDashboard({
             })
           }
         >
-          {open ? "예약 마감" : "예약 오픈"}
+          {open ? "Close reservations" : "Open reservations"}
         </button>
         <button
           type="button"
@@ -168,38 +168,38 @@ export function AdminDashboard({
             })
           }
         >
-          CSV보내기
+          Export CSV
         </button>
       </div>
 
       {/* Reset */}
       <div className="card border-red-200">
-        <p className="mb-2 text-sm font-medium text-red-700">예약 초기화</p>
+        <p className="mb-2 text-sm font-medium text-red-700">Reset cycle</p>
         <p className="mb-2 text-xs text-slate-500">
-          되돌릴 수 없습니다. 아래에 &apos;초기화&apos;를 입력하세요.
+          This cannot be undone. Type RESET below to confirm.
         </p>
         <input
           value={resetConfirm}
           onChange={(e) => setResetConfirm(e.target.value)}
-          placeholder="초기화"
+          placeholder="RESET"
           className="input-field mb-2"
         />
         <button
           type="button"
-          disabled={pending || resetConfirm !== "초기화"}
+          disabled={pending || resetConfirm !== "RESET"}
           className="w-full rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-40"
           onClick={() =>
             startTransition(async () => {
               const res = await resetCycle(resetConfirm);
               if (res.error) setMessage(res.error);
               else {
-                setMessage(`사이클이 #${res.cycleId}로 초기화되었습니다.`);
+                setMessage(`Cycle reset to #${res.cycleId}.`);
                 setResetConfirm("");
               }
             })
           }
         >
-          예약 초기화 실행
+          Reset cycle
         </button>
       </div>
 
@@ -216,26 +216,26 @@ export function AdminDashboard({
           onChange={(e) => setFilterDay(e.target.value)}
           className="rounded-lg border px-3 py-2 text-sm"
         >
-          <option value="all">전체 요일</option>
-          <option value="mon">월</option>
-          <option value="tue">화</option>
-          <option value="thu">목</option>
+          <option value="all">All days</option>
+          <option value="mon">Mon</option>
+          <option value="tue">Tue</option>
+          <option value="thu">Thu</option>
         </select>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           className="rounded-lg border px-3 py-2 text-sm"
         >
-          <option value="all">전체 상태</option>
-          <option value="assigned">배정</option>
-          <option value="cancelled">취소</option>
+          <option value="all">All statuses</option>
+          <option value="assigned">Assigned</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </div>
 
       {/* Reservations table - mobile cards */}
       <div>
         <h2 className="mb-2 text-sm font-bold">
-          예약 목록 ({filtered.length})
+          Reservations ({filtered.length})
         </h2>
         <div className="flex flex-col gap-2">
           {filtered.map((r) => {
@@ -278,7 +278,7 @@ export function AdminDashboard({
                       startTransition(() => cancelReservation(r.id))
                     }
                   >
-                    취소
+                    Cancel
                   </button>
                   <SpeedupEdit
                     gameId={r.players.game_id}
@@ -294,7 +294,7 @@ export function AdminDashboard({
                       )
                     }
                   >
-                    슬롯 {r.slots.is_active ? "비활성" : "활성"}
+                    Slot {r.slots.is_active ? "disable" : "enable"}
                   </button>
                 </div>
               </div>
@@ -307,7 +307,7 @@ export function AdminDashboard({
       {eliminated.length > 0 && (
         <div>
           <h2 className="mb-2 text-sm font-bold">
-            탈락자 ({eliminated.length})
+            Waitlist ({eliminated.length})
           </h2>
           <div className="flex flex-col gap-2">
             {eliminated.map((e) => (
@@ -348,7 +348,7 @@ function SpeedupEdit({
         className="rounded-lg border px-2 py-1 text-xs"
         onClick={() => setEditing(true)}
       >
-        SU 수정
+        Edit SU
       </button>
     );
   }
@@ -379,7 +379,7 @@ function SpeedupEdit({
           })
         }
       >
-        저장
+        Save
       </button>
     </div>
   );

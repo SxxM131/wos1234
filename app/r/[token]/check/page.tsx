@@ -11,14 +11,14 @@ export default async function CheckPage({
   return (
     <div>
       <header className="mb-4">
-        <h1 className="text-xl font-bold text-brand-900">내 예약 확인</h1>
+        <h1 className="text-xl font-bold text-brand-900">My Reservation</h1>
       </header>
       <CheckForm />
       <Link
         href={`/r/${token}`}
         className="mt-6 block text-center text-sm text-brand-600 underline"
       >
-        예약 신청으로 돌아가기
+        Back to reservation form
       </Link>
     </div>
   );

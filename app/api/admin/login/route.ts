@@ -15,14 +15,14 @@ export async function POST(request: Request) {
 
   if (!data?.value) {
     return NextResponse.json(
-      { error: "관리자 비밀번호가 설정되지 않았습니다. /admin/setup 으로 이동하세요." },
+      { error: "Admin password not set. Go to /admin/setup first." },
       { status: 400 }
     );
   }
 
   const valid = await bcrypt.compare(password, data.value);
   if (!valid) {
-    return NextResponse.json({ error: "비밀번호가 올바르지 않습니다." }, { status: 401 });
+    return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
   }
 
   const session = await getAdminSession();

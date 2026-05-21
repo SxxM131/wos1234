@@ -51,7 +51,7 @@ export async function processReservation(
 ): Promise<AssignmentResult> {
   const open = await isReservationOpen(supabase);
   if (!open) {
-    return { success: false, message: "현재 예약이 마감되었습니다." };
+    return { success: false, message: "Reservations are currently closed." };
   }
 
   const cycleId = await getCurrentCycleId(supabase);
@@ -71,7 +71,7 @@ export async function processReservation(
     .from("players")
     .upsert(playerData, { onConflict: "game_id" });
   if (playerError) {
-    return { success: false, message: `플레이어 저장 실패: ${playerError.message}` };
+    return { success: false, message: `Failed to save player: ${playerError.message}` };
   }
 
   // Check existing reservation for same day + cycle → modify flow
@@ -208,7 +208,7 @@ export async function processReservation(
     return {
       success: false,
       message:
-        "모든 선호 시간대가 마감되어 배정에 실패했습니다. /status 페이지에서 상태를 확인하세요.",
+        "All preferred time slots are full. Check your status on the /status page.",
     };
   }
 
@@ -218,13 +218,13 @@ export async function processReservation(
   if (movedFromPreferred && eliminatedBlocks.length > 0) {
     return {
       success: true,
-      message: `선호하신 구간이 마감되어 ${timeStr}로 배정되었습니다.`,
+      message: `Your preferred slot was full. Assigned to ${timeStr} instead.`,
     };
   }
 
   return {
     success: true,
-    message: `${day} ${timeStr} 배정 완료`,
+    message: `${day} ${timeStr} — assigned`,
   };
 }
 
@@ -284,7 +284,7 @@ async function assignToBlock(
 
   if (rank < 0) return { assigned: false };
 
-  // 기존 블록 배정 초기화 후 상위 4명 재배정
+  // Clear block assignments and reassign top 4
   await supabase
     .from("reservations")
     .delete()

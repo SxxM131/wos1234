@@ -27,7 +27,7 @@ export function SetupForm() {
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-600">
-          비밀번호
+          Password
         </label>
         <input
           name="password"
@@ -39,7 +39,7 @@ export function SetupForm() {
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-600">
-          비밀번호 확인
+          Confirm password
         </label>
         <input
           name="confirm"
@@ -51,7 +51,7 @@ export function SetupForm() {
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" disabled={pending} className="btn-primary">
-        {pending ? "설정 중..." : "설정 완료"}
+        {pending ? "Saving..." : "Save"}
       </button>
     </form>
   );
