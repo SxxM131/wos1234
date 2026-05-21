@@ -94,6 +94,8 @@ export function StatusView({
   }, [cycleId, day]);
 
   useEffect(() => {
+    refresh();
+
     const supabase = createAnonClient();
     const channel = supabase
       .channel("reservations-changes")

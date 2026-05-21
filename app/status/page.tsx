@@ -3,6 +3,8 @@ import { getCurrentCycleId } from "@/lib/assignment";
 import { StatusView } from "./StatusView";
 import { DayOfWeek } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function StatusPage() {
   const supabase = createServiceClient();
   const cycleId = await getCurrentCycleId(supabase);
