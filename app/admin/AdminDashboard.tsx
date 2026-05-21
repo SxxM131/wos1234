@@ -81,10 +81,6 @@ export function AdminDashboard({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
   const [origin, setOrigin] = useState("");
-  const [adminTab, setAdminTab] = useState<"settings" | "reservations">(
-    "settings"
-  );
-
   useEffect(() => {
     if (typeof window !== "undefined") {
       setOrigin(window.location.origin);
@@ -150,32 +146,127 @@ export function AdminDashboard({
         </form>
       </div>
 
-      {!open && adminTab === "settings" && (
-        <div className="banner-closed">예약 마감됨 — 신청 불가</div>
-      )}
+      {!open && <div className="banner-closed">Reservations closed</div>}
 
-      <div className="flex rounded-xl border border-slate-200 bg-white p-1">
+      <div className="card text-sm">
+        <p>
+          Cycle <strong>#{cycleId}</strong>
+          {open ? (
+            <span className="ml-2 rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
+              Open
+            </span>
+          ) : (
+            <span className="ml-2 rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+              Closed
+            </span>
+          )}
+        </p>
+      </div>
+
+      <div className="card">
+        <p className="mb-2 text-sm font-medium">Secret URL</p>
+        <p className="break-all text-xs text-slate-600">{secretUrl}</p>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            className="btn-secondary !min-h-0 flex-1 py-2 text-sm"
+            onClick={() => navigator.clipboard.writeText(secretUrl)}
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            className="btn-primary !min-h-0 flex-1 py-2 text-sm"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const res = await regenerateToken();
+                setToken(res.token);
+                setMessage("Token regenerated. Previous URLs are now invalid.");
+              })
+            }
+          >
+            Regenerate token
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
-          className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
-            adminTab === "settings"
-              ? "bg-brand-600 text-white shadow-sm"
-              : "text-slate-600 hover:bg-slate-50"
+          className={`rounded-xl border py-3 text-sm font-medium transition ${
+            open
+              ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
+              : "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
           }`}
-          onClick={() => setAdminTab("settings")}
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const res = await toggleReservationOpen();
+              setOpen(res.open);
+            })
+          }
         >
-          설정
+          {open ? "Close reservations" : "Open reservations"}
         </button>
         <button
           type="button"
-          className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
-            adminTab === "reservations"
-              ? "bg-brand-600 text-white shadow-sm"
-              : "text-slate-600 hover:bg-slate-50"
-          }`}
-          onClick={() => setAdminTab("reservations")}
+          className="btn-secondary !min-h-0 py-3 text-sm hover:bg-slate-100"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const data = await exportExcelData();
+              const wb = XLSX.utils.book_new();
+              Object.entries(data).forEach(([sheetName, rows]) => {
+                const ws = XLSX.utils.json_to_sheet(rows);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+              });
+              const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+              const blob = new Blob([wbout], {
+                type: "application/octet-stream",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              const today = new Date();
+              const formattedDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
+              a.download = `reservation_cycle${cycleId}_${formattedDate}.xlsx`;
+              a.click();
+            })
+          }
         >
-          예약 목록
+          Export Excel
+        </button>
+      </div>
+
+      <div className="card border-red-200">
+        <p className="mb-2 text-sm font-medium text-red-700">Reset cycle</p>
+        <p className="mb-2 text-xs text-slate-500">
+          Clears all players, applications, and assignments, then starts a new
+          cycle. Type RESET below to confirm.
+        </p>
+        <input
+          value={resetConfirm}
+          onChange={(e) => setResetConfirm(e.target.value)}
+          placeholder="RESET"
+          className="input-field mb-2"
+        />
+        <button
+          type="button"
+          disabled={pending || resetConfirm !== "RESET"}
+          className="w-full rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-40 hover:bg-red-700 transition"
+          onClick={() =>
+            startTransition(async () => {
+              const res = await resetCycle(resetConfirm);
+              if (res.error) setMessage(res.error);
+              else {
+                setMessage(res.message ?? `Cycle reset to #${res.cycleId}.`);
+                setResetConfirm("");
+              }
+            })
+          }
+        >
+          Reset cycle
         </button>
       </div>
 
@@ -185,174 +276,11 @@ export function AdminDashboard({
         </div>
       )}
 
-      {adminTab === "settings" && (
-        <>
-          <div className="card text-sm">
-            <p className="mb-3 font-bold text-slate-800">운영 순서</p>
-            <ol className="list-decimal space-y-2 pl-5 text-slate-700">
-              <li>
-                <strong>신청 기간</strong> — 플레이어가 비밀 URL에서 신청 (선호만
-                저장, 배정 없음)
-              </li>
-              <li>
-                <strong>예약 마감</strong> — 아래 토글로 신청 마감
-              </li>
-              <li>
-                <strong>스피드업 검증</strong> — 「예약 목록」탭에서 수치 확인·수정
-              </li>
-              <li>
-                <strong>배정 실행</strong> — 아래 「배정 실행」버튼 (R4+)
-              </li>
-              <li>
-                <strong>결과 공지</strong> — /status 링크 공유
-              </li>
-            </ol>
-          </div>
+      <hr className="border-slate-200 my-2" />
 
-          <div className="card text-sm">
-            <p>
-              사이클 <strong>#{cycleId}</strong>
-              {open ? (
-                <span className="ml-2 rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                  신청 접수 중
-                </span>
-              ) : (
-                <span className="ml-2 rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                  마감됨
-                </span>
-              )}
-            </p>
-          </div>
+      <AssignmentRunPanel />
 
-          <div className="card border-2 border-slate-300">
-            <p className="mb-2 text-sm font-bold text-slate-800">
-              ② 예약 마감
-            </p>
-            <button
-              type="button"
-              className={`w-full rounded-xl border py-3.5 text-sm font-semibold transition ${
-                open
-                  ? "border-red-400 bg-red-50 text-red-800 hover:bg-red-100"
-                  : "border-green-400 bg-green-50 text-green-800 hover:bg-green-100"
-              }`}
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  const res = await toggleReservationOpen();
-                  setOpen(res.open);
-                  setMessage(
-                    res.open ? "신청을 다시 받습니다." : "신청이 마감되었습니다."
-                  );
-                })
-              }
-            >
-              {open ? "예약 마감하기" : "예약 다시 열기"}
-            </button>
-          </div>
-
-          <AssignmentRunPanel />
-
-          <div className="card">
-            <p className="mb-2 text-sm font-medium">신청 링크 (Secret URL)</p>
-            <p className="break-all text-xs text-slate-600">{secretUrl}</p>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                className="btn-secondary !min-h-0 flex-1 py-2 text-sm"
-                onClick={() => navigator.clipboard.writeText(secretUrl)}
-              >
-                복사
-              </button>
-              <button
-                type="button"
-                className="btn-primary !min-h-0 flex-1 py-2 text-sm"
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const res = await regenerateToken();
-                    setToken(res.token);
-                    setMessage("토큰이 재발급되었습니다.");
-                  })
-                }
-              >
-                토큰 재발급
-              </button>
-            </div>
-          </div>
-
-          <div className="card border-red-200">
-            <p className="mb-2 text-sm font-medium text-red-700">사이클 초기화</p>
-            <p className="mb-2 text-xs text-slate-500">
-              플레이어·신청·배정 전부 삭제 후 새 사이클. RESET 입력 후 실행.
-            </p>
-            <input
-              value={resetConfirm}
-              onChange={(e) => setResetConfirm(e.target.value)}
-              placeholder="RESET"
-              className="input-field mb-2"
-            />
-            <button
-              type="button"
-              disabled={pending || resetConfirm !== "RESET"}
-              className="w-full rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-40 hover:bg-red-700 transition"
-              onClick={() =>
-                startTransition(async () => {
-                  const res = await resetCycle(resetConfirm);
-                  if (res.error) setMessage(res.error);
-                  else {
-                    setMessage(
-                      res.message ?? `사이클 #${res.cycleId}로 초기화되었습니다.`
-                    );
-                    setResetConfirm("");
-                  }
-                })
-              }
-            >
-              Reset cycle
-            </button>
-          </div>
-        </>
-      )}
-
-      {adminTab === "reservations" && (
-        <>
-          <p className="text-sm text-slate-600">
-            ③ 스피드업 검증 — 검색·그리드·대기열에서 확인. 배정 후 결과도 여기서
-            봅니다.
-          </p>
-
-          <button
-            type="button"
-            className="btn-secondary !min-h-0 py-3 text-sm"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                const data = await exportExcelData();
-                const wb = XLSX.utils.book_new();
-                Object.entries(data).forEach(([sheetName, rows]) => {
-                  const ws = XLSX.utils.json_to_sheet(rows);
-                  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-                });
-                const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-                const blob = new Blob([wbout], {
-                  type: "application/octet-stream",
-                });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                const today = new Date();
-                const formattedDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
-                a.download = `reservation_cycle${cycleId}_${formattedDate}.xlsx`;
-                a.click();
-              })
-            }
-          >
-            Excel보내기
-          </button>
-
-          <hr className="border-slate-200" />
-
-          {/* Search Bar */}
+      {/* Search Bar */}
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-bold text-slate-700">Search Reservations</label>
         <input
@@ -589,8 +517,6 @@ export function AdminDashboard({
             })}
           </div>
         </div>
-      )}
-        </>
       )}
     </div>
   );
