@@ -99,18 +99,18 @@ export function AdminDashboard({
   // Search logic across all reservations and waitlist
   const term = searchTerm.trim().toLowerCase();
   const searchResultsRes = reservations.filter((r) => {
-    if (!term) return false;
-    const nameMatch = r.players.name.toLowerCase().includes(term);
-    const allianceMatch = r.players.alliance.toLowerCase().includes(term);
-    const idMatch = String(r.players.game_id).includes(term);
+    if (!term || !r.players) return false;
+    const nameMatch = r.players.name?.toLowerCase().includes(term);
+    const allianceMatch = r.players.alliance?.toLowerCase().includes(term);
+    const idMatch = String(r.players.game_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
 
   const searchResultsElim = eliminated.filter((e) => {
-    if (!term) return false;
-    const nameMatch = e.players.name.toLowerCase().includes(term);
-    const allianceMatch = e.players.alliance.toLowerCase().includes(term);
-    const idMatch = String(e.players.game_id).includes(term);
+    if (!term || !e.players) return false;
+    const nameMatch = e.players.name?.toLowerCase().includes(term);
+    const allianceMatch = e.players.alliance?.toLowerCase().includes(term);
+    const idMatch = String(e.players.game_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
 
@@ -201,7 +201,12 @@ export function AdminDashboard({
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
-              a.download = `reservations-cycle-${cycleId}.csv`;
+              const today = new Date();
+              const yyyy = today.getFullYear();
+              const mm = String(today.getMonth() + 1).padStart(2, "0");
+              const dd = String(today.getDate()).padStart(2, "0");
+              const formattedDate = `${yyyy}${mm}${dd}`;
+              a.download = `reservation_cycle${cycleId}_${formattedDate}.csv`;
               a.click();
             })
           }
@@ -275,8 +280,8 @@ export function AdminDashboard({
                 const config = DAY_CONFIG[r.slots.day_of_week as DayOfWeek];
                 const speedup =
                   config?.speedupKey === "speedup_vp"
-                    ? r.players.speedup_vp
-                    : r.players.speedup_mo;
+                    ? r.players?.speedup_vp ?? 0
+                    : r.players?.speedup_mo ?? 0;
                 return (
                   <div
                     key={r.id}
@@ -284,9 +289,9 @@ export function AdminDashboard({
                   >
                     <div>
                       <p className="font-semibold text-slate-900">
-                        {r.players.name}{" "}
+                        {r.players?.name ?? "Unknown"}{" "}
                         <span className="text-xs text-slate-500 font-normal">
-                          ({r.players.alliance}) · ID: {r.players.game_id}
+                          ({r.players?.alliance ?? "Unknown"}) · ID: {r.players?.game_id ?? "Unknown"}
                         </span>
                       </p>
                       <p className="text-xs text-slate-600 mt-0.5">
@@ -316,7 +321,7 @@ export function AdminDashboard({
                         className="rounded border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 font-medium transition"
                         onClick={() => {
                           if (
-                            confirm(`Cancel reservation for ${r.players.name}?`)
+                            confirm(`Cancel reservation for ${r.players?.name ?? "Unknown"}?`)
                           ) {
                             startTransition(() => cancelReservation(r.id));
                           }
@@ -335,14 +340,14 @@ export function AdminDashboard({
                 >
                   <div>
                     <p className="font-semibold text-slate-900">
-                      {e.players.name}{" "}
+                      {e.players?.name ?? "Unknown"}{" "}
                       <span className="text-xs text-slate-500 font-normal">
-                        ({e.players.alliance}) · ID: {e.players.game_id}
+                        ({e.players?.alliance ?? "Unknown"}) · ID: {e.players?.game_id ?? "Unknown"}
                       </span>
                     </p>
                     <p className="text-xs text-amber-600 font-semibold mt-0.5">
-                      Status: Waitlist (VP: {e.players.speedup_vp}d / MO:{" "}
-                      {e.players.speedup_mo}d)
+                      Status: Waitlist (VP: {e.players?.speedup_vp ?? 0}d / MO:{" "}
+                      {e.players?.speedup_mo ?? 0}d)
                     </p>
                   </div>
                 </div>
@@ -392,7 +397,7 @@ export function AdminDashboard({
                             <span className="text-[10px] font-semibold text-slate-500">
                               {formatSlotTime(block, slot.slot_index, tz)}
                             </span>
-                            {res && (
+                            {res && res.players && (
                               <span className="text-[9px] bg-brand-100 px-1 py-0.5 rounded text-brand-800 font-medium">
                                 SU{" "}
                                 {slot.office_type === "VP"
@@ -407,10 +412,10 @@ export function AdminDashboard({
                           ) : res ? (
                             <>
                               <p className="font-bold truncate mt-1">
-                                {res.players.name}
+                                {res.players?.name ?? "Unknown"}
                               </p>
                               <p className="text-[11px] truncate text-slate-500">
-                                {res.players.alliance} (ID: {res.players.game_id})
+                                {res.players?.alliance ?? "Unknown"} (ID: {res.players?.game_id ?? "Unknown"})
                               </p>
                             </>
                           ) : (
@@ -424,7 +429,7 @@ export function AdminDashboard({
                             onClick={() => {
                               if (
                                 confirm(
-                                  `Cancel reservation for ${res.players.name}?`
+                                  `Cancel reservation for ${res.players?.name ?? "Unknown"}?`
                                 )
                               ) {
                                 startTransition(() => cancelReservation(res.id));
@@ -454,17 +459,17 @@ export function AdminDashboard({
             {dayEliminated.map((e, i) => {
               const speedup =
                 DAY_CONFIG[activeDay].speedupKey === "speedup_vp"
-                  ? e.players.speedup_vp
-                  : e.players.speedup_mo;
+                  ? e.players?.speedup_vp ?? 0
+                  : e.players?.speedup_mo ?? 0;
               const prefs = e.preferences
                 ?.map((p) => formatBlockRange(p.block_start_utc, tz))
                 .join(", ");
               return (
                 <div key={i} className="card !py-2.5 !px-3 text-sm">
                   <p className="font-semibold text-slate-900">
-                    {e.players.name}{" "}
+                    {e.players?.name ?? "Unknown"}{" "}
                     <span className="text-xs text-slate-500 font-normal">
-                      ({e.players.alliance}) · ID {e.players.game_id}
+                      ({e.players?.alliance ?? "Unknown"}) · ID {e.players?.game_id ?? "Unknown"}
                     </span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">

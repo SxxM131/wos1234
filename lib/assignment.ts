@@ -81,40 +81,26 @@ export async function processReservation(
     }
   }
 
-  // Check existing reservation for same day + cycle → modify flow
-  const { data: existingRes } = await supabase
+  // Clear existing reservations and preferences for this day
+  const { data: daySlots } = await supabase
+    .from("slots")
+    .select("id")
+    .eq("day_of_week", input.dayOfWeek);
+  const slotIds = daySlots?.map((s) => s.id) ?? [];
+
+  await supabase
     .from("reservations")
-    .select("id, slots!inner(day_of_week)")
+    .delete()
     .eq("player_id", input.gameId)
     .eq("cycle_id", cycleId)
-    .in("status", ["assigned", "eliminated"]);
+    .in("slot_id", slotIds);
 
-  const hasSameDay = existingRes?.some((r) => {
-    const slots = r.slots as unknown as { day_of_week: string };
-    return slots.day_of_week === input.dayOfWeek;
-  });
-
-  if (hasSameDay) {
-    const { data: daySlots } = await supabase
-      .from("slots")
-      .select("id")
-      .eq("day_of_week", input.dayOfWeek);
-    const slotIds = daySlots?.map((s) => s.id) ?? [];
-
-    await supabase
-      .from("reservations")
-      .delete()
-      .eq("player_id", input.gameId)
-      .eq("cycle_id", cycleId)
-      .in("slot_id", slotIds);
-
-    await supabase
-      .from("preferences")
-      .delete()
-      .eq("player_id", input.gameId)
-      .eq("day_of_week", input.dayOfWeek)
-      .eq("cycle_id", cycleId);
-  }
+  await supabase
+    .from("preferences")
+    .delete()
+    .eq("player_id", input.gameId)
+    .eq("day_of_week", input.dayOfWeek)
+    .eq("cycle_id", cycleId);
 
   // Save preferences
   for (const block of input.preferredBlocks) {
@@ -129,13 +115,11 @@ export async function processReservation(
     );
   }
 
-  const eliminatedBlocks: number[] = [];
   let assignedSlotId: number | null = null;
   let assignedBlock: number | null = null;
-  let assignedSlotIndex: number | null = null;
-  let movedFromPreferred = false;
+  let initialDisplacedIds: number[] = [];
 
-  // Phase 1: preferred blocks
+  // Try preferred blocks in order
   for (const block of input.preferredBlocks) {
     const result = await assignToBlock(
       supabase,
@@ -149,69 +133,29 @@ export async function processReservation(
     if (result.assigned) {
       assignedSlotId = result.slotId!;
       assignedBlock = block;
-      assignedSlotIndex = result.slotIndex!;
+      initialDisplacedIds = result.displacedPlayerIds ?? [];
       break;
     }
-    eliminatedBlocks.push(block);
   }
 
-  // Phase 2: remaining preferred blocks for eliminated
-  if (!assignedSlotId && eliminatedBlocks.length > 0) {
-    const remaining = input.preferredBlocks.filter(
-      (b) => !eliminatedBlocks.includes(b) || eliminatedBlocks.indexOf(b) > 0
+  // Run reassignment queue for any displaced players
+  const touchedPlayerIds = new Set<number>([input.gameId, ...initialDisplacedIds]);
+  
+  if (initialDisplacedIds.length > 0) {
+    await runReassignmentQueue(
+      supabase,
+      initialDisplacedIds,
+      input.dayOfWeek,
+      cycleId,
+      now,
+      touchedPlayerIds
     );
-    const blocksToTry = input.preferredBlocks.filter((b) =>
-      eliminatedBlocks.includes(b)
-    );
-
-    for (const block of blocksToTry) {
-      const result = await tryEmptySlot(
-        supabase,
-        input.gameId,
-        input.dayOfWeek,
-        block,
-        cycleId,
-        now
-      );
-      if (result.assigned) {
-        assignedSlotId = result.slotId!;
-        assignedBlock = block;
-        assignedSlotIndex = result.slotIndex!;
-        movedFromPreferred = eliminatedBlocks.includes(block);
-        break;
-      }
-    }
-
-    if (!assignedSlotId) {
-      for (const block of remaining) {
-        if (blocksToTry.includes(block)) continue;
-        const result = await tryEmptySlot(
-          supabase,
-          input.gameId,
-          input.dayOfWeek,
-          block,
-          cycleId,
-          now
-        );
-        if (result.assigned) {
-          assignedSlotId = result.slotId!;
-          assignedBlock = block;
-          assignedSlotIndex = result.slotIndex!;
-          movedFromPreferred = true;
-          break;
-        }
-      }
-    }
   }
+
+  // Run self-healing for all touched players
+  await healEliminatedReservations(supabase, Array.from(touchedPlayerIds), cycleId, now);
 
   if (!assignedSlotId) {
-    await supabase.from("reservations").insert({
-      player_id: input.gameId,
-      slot_id: null,
-      status: "eliminated",
-      cycle_id: cycleId,
-      applied_at: now,
-    });
     return {
       success: false,
       message:
@@ -219,12 +163,12 @@ export async function processReservation(
     };
   }
 
-  const day = dayLabel(input.dayOfWeek);
+  const dayName = dayLabel(input.dayOfWeek);
   const timeStr = formatBlockRange(assignedBlock!, "UTC");
 
   return {
     success: true,
-    message: `${day} ${timeStr} — applied`,
+    message: `${dayName} ${timeStr} — applied`,
   };
 }
 
@@ -327,7 +271,7 @@ async function assignToBlock(
   blockStart: number,
   cycleId: number,
   appliedAt: string
-): Promise<{ assigned: boolean; slotId?: number; slotIndex?: number }> {
+): Promise<{ assigned: boolean; slotId?: number; slotIndex?: number; displacedPlayerIds?: number[] }> {
   const { data: blockSlots } = await supabase
     .from("slots")
     .select("id, slot_index, is_active")
@@ -358,12 +302,15 @@ async function assignToBlock(
     };
   });
 
-  applicants.push({
-    playerId,
-    speedup,
-    appliedAt,
-    isNew: true,
-  });
+  const isAlreadyApplicant = applicants.some((a) => a.playerId === playerId);
+  if (!isAlreadyApplicant) {
+    applicants.push({
+      playerId,
+      speedup,
+      appliedAt,
+      isNew: true,
+    });
+  }
 
   applicants.sort((a, b) => {
     if (b.speedup !== a.speedup) return b.speedup - a.speedup;
@@ -375,30 +322,29 @@ async function assignToBlock(
 
   if (rank < 0) return { assigned: false };
 
-  // Clear block assignments and reassign top 4
+  const originalAssignedIds = new Set((existing ?? []).map((e) => e.player_id));
+  const top4Ids = new Set(top4.map((t) => t.playerId));
+  const displacedPlayerIds = Array.from(originalAssignedIds).filter((id) => !top4Ids.has(id));
+
+  // Update demoted players to eliminated BEFORE deleting/reassigning slots
+  const demoted = applicants.slice(4);
+  for (const d of demoted) {
+    if (d.isNew) continue;
+    await supabase
+      .from("reservations")
+      .update({ status: "eliminated", slot_id: null })
+      .eq("player_id", d.playerId)
+      .eq("cycle_id", cycleId)
+      .eq("status", "assigned");
+  }
+
+  // Clear remaining assigned slots in the block
   await supabase
     .from("reservations")
     .delete()
     .in("slot_id", slotIds)
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
-
-  const demoted = applicants.slice(4);
-  for (const d of demoted) {
-    const { data: existing } = await supabase
-      .from("reservations")
-      .select("id")
-      .eq("player_id", d.playerId)
-      .eq("cycle_id", cycleId)
-      .eq("status", "assigned")
-      .maybeSingle();
-    if (existing) {
-      await supabase
-        .from("reservations")
-        .update({ status: "eliminated", slot_id: null })
-        .eq("id", existing.id);
-    }
-  }
 
   let assignedSlotId: number | undefined;
   let assignedSlotIndex: number | undefined;
@@ -426,51 +372,130 @@ async function assignToBlock(
     assigned: true,
     slotId: assignedSlotId!,
     slotIndex: assignedSlotIndex!,
+    displacedPlayerIds,
   };
 }
 
-async function tryEmptySlot(
+async function runReassignmentQueue(
   supabase: SupabaseClient,
-  playerId: number,
+  initialDisplacedIds: number[],
   day: DayOfWeek,
-  blockStart: number,
   cycleId: number,
-  appliedAt: string
-): Promise<{ assigned: boolean; slotId?: number; slotIndex?: number }> {
-  const { data: blockSlots } = await supabase
-    .from("slots")
-    .select("id, slot_index")
-    .eq("day_of_week", day)
-    .eq("block_start_utc", blockStart)
-    .eq("is_active", true)
-    .order("slot_index");
+  now: string,
+  touchedPlayerIds: Set<number>
+) {
+  const queue = [...initialDisplacedIds];
+  const processed = new Set<number>();
 
-  if (!blockSlots) return { assigned: false };
+  while (queue.length > 0) {
+    const playerId = queue.shift()!;
+    if (processed.has(playerId)) continue;
+    processed.add(playerId);
 
-  for (const slot of blockSlots) {
-    const { data: taken } = await supabase
-      .from("reservations")
-      .select("id")
-      .eq("slot_id", slot.id)
+    const { data: player } = await supabase
+      .from("players")
+      .select("speedup_vp, speedup_mo")
+      .eq("game_id", playerId)
+      .single();
+    if (!player) continue;
+
+    const config = DAY_CONFIG[day];
+    const speedup = player[config.speedupKey];
+
+    const { data: prefs } = await supabase
+      .from("preferences")
+      .select("block_start_utc")
+      .eq("player_id", playerId)
+      .eq("day_of_week", day)
       .eq("cycle_id", cycleId)
-      .eq("status", "assigned")
-      .maybeSingle();
+      .order("block_start_utc");
 
-    if (!taken) {
-      await supabase.from("reservations").upsert(
-        {
-          player_id: playerId,
-          slot_id: slot.id,
-          status: "assigned",
-          cycle_id: cycleId,
-          applied_at: appliedAt,
-        },
-        { onConflict: "player_id,slot_id,cycle_id" }
+    const preferredBlocks = prefs?.map((p) => p.block_start_utc) ?? [];
+
+    let assigned = false;
+    let displacedFromThisBlock: number[] = [];
+
+    for (const block of preferredBlocks) {
+      const res = await assignToBlock(
+        supabase,
+        playerId,
+        speedup,
+        day,
+        block,
+        cycleId,
+        now
       );
-      return { assigned: true, slotId: slot.id, slotIndex: slot.slot_index };
+      if (res.assigned) {
+        assigned = true;
+        displacedFromThisBlock = res.displacedPlayerIds ?? [];
+        break;
+      }
+    }
+
+    if (assigned) {
+      for (const displacedId of displacedFromThisBlock) {
+        queue.push(displacedId);
+        touchedPlayerIds.add(displacedId);
+      }
     }
   }
-  return { assigned: false };
+}
+
+async function healEliminatedReservations(
+  supabase: SupabaseClient,
+  playerIds: number[],
+  cycleId: number,
+  now: string
+) {
+  for (const playerId of playerIds) {
+    // 1. Delete all eliminated reservations for this player in this cycle
+    await supabase
+      .from("reservations")
+      .delete()
+      .eq("player_id", playerId)
+      .eq("cycle_id", cycleId)
+      .eq("status", "eliminated");
+
+    // 2. Fetch all unique days this player has preferences for
+    const { data: prefs } = await supabase
+      .from("preferences")
+      .select("day_of_week")
+      .eq("player_id", playerId)
+      .eq("cycle_id", cycleId);
+
+    if (!prefs) continue;
+
+    const prefDays = Array.from(new Set(prefs.map((p) => p.day_of_week)));
+
+    // 3. For each day, check if there is an assigned reservation
+    for (const day of prefDays) {
+      const { data: slots } = await supabase
+        .from("slots")
+        .select("id")
+        .eq("day_of_week", day);
+      const slotIds = slots?.map((s) => s.id) ?? [];
+
+      const { data: assigned } = await supabase
+        .from("reservations")
+        .select("id")
+        .eq("player_id", playerId)
+        .eq("cycle_id", cycleId)
+        .eq("status", "assigned")
+        .in("slot_id", slotIds)
+        .maybeSingle();
+
+      if (!assigned) {
+        // If not assigned, insert one eliminated record
+        await supabase.from("reservations").insert({
+          player_id: playerId,
+          slot_id: null,
+          status: "eliminated",
+          cycle_id: cycleId,
+          applied_at: now,
+        });
+      }
+    }
+  }
 }
 
 export async function promoteOnCancel(

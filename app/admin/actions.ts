@@ -193,81 +193,127 @@ export async function exportCsv(): Promise<string> {
   const supabase = createServiceClient();
   const cycleId = await getCurrentCycleId(supabase);
 
-  const { data: reservations } = await supabase
+  // Fetch all slots from the slots table
+  const { data: slots, error: slotsError } = await supabase
+    .from("slots")
+    .select("id, day_of_week, office_type, block_start_utc, slot_index, is_active");
+  if (slotsError || !slots) {
+    throw new Error("Failed to fetch slots");
+  }
+
+  // Fetch all assigned reservations for this cycle
+  const { data: reservations, error: resError } = await supabase
     .from("reservations")
-    .select(
-      "status, players(game_id, name, alliance, speedup_vp, speedup_mo), slots(day_of_week, block_start_utc, slot_index, office_type)"
-    )
+    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_vp, speedup_mo)")
     .eq("cycle_id", cycleId)
-    .eq("status", "assigned"); // Only export final assigned reservations
+    .eq("status", "assigned");
+  if (resError) {
+    throw new Error("Failed to fetch reservations");
+  }
 
-  const dayOrder: Record<string, number> = { mon: 1, tue: 2, thu: 3 };
+  // Map reservations to their slot IDs
+  const resMap = new Map<number, typeof reservations[number]>();
+  if (reservations) {
+    for (const r of reservations) {
+      if (r.slot_id !== null) {
+        resMap.set(r.slot_id, r);
+      }
+    }
+  }
 
-  // Sort chronologically: Monday -> Tuesday -> Thursday, then by time block, then by slot index
-  const sorted = [...(reservations ?? [])].sort((a, b) => {
-    const sA = a.slots as any;
-    const sB = b.slots as any;
-    if (!sA || !sB) return 0;
-    const dayDiff = (dayOrder[sA.day_of_week] ?? 99) - (dayOrder[sB.day_of_week] ?? 99);
-    if (dayDiff !== 0) return dayDiff;
-    const blockDiff = sA.block_start_utc - sB.block_start_utc;
-    if (blockDiff !== 0) return blockDiff;
-    return sA.slot_index - sB.slot_index;
-  });
+  const days = ["mon", "tue", "thu"] as const;
+  const dayNames: Record<string, string> = {
+    mon: "월요일",
+    tue: "화요일",
+    thu: "목요일",
+  };
 
-  const header = "Day,Time (KST),Time (UTC),Player (Name/Alliance),Name,Alliance,Game ID,Office,Speedup";
-  const rows = sorted
-    .map((r) => {
-      const p = r.players as unknown as {
-        game_id: number;
-        name: string;
-        alliance: string;
-        speedup_vp: number;
-        speedup_mo: number;
-      } | null;
-      const s = r.slots as unknown as {
-        day_of_week: string;
-        block_start_utc: number;
-        slot_index: number;
-        office_type: string;
-      } | null;
+  const escape = (val: any) => {
+    const str = String(val ?? "");
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
 
-      if (!p || !s) return "";
+  const header = "요일,구간(UTC),슬롯시작(UTC),슬롯시작(KST),슬롯번호(1~4),게임ID,이름,연맹,스피드업(days),상태";
+  const sections: string[] = [];
 
-      const dayName =
-        s.day_of_week === "mon"
-          ? "Monday"
-          : s.day_of_week === "tue"
-            ? "Tuesday"
-            : "Thursday";
+  for (const d of days) {
+    const daySlots = slots.filter((s) => s.day_of_week === d);
+    
+    // Sort chronologically: block_start_utc ASC, slot_index ASC
+    daySlots.sort((a, b) => {
+      if (a.block_start_utc !== b.block_start_utc) {
+        return a.block_start_utc - b.block_start_utc;
+      }
+      return a.slot_index - b.slot_index;
+    });
 
-      const timeKst = formatSlotTime(s.block_start_utc, s.slot_index, "KST");
-      const timeUtc = formatSlotTime(s.block_start_utc, s.slot_index, "UTC");
-      const playerInfo = `${p.name}/${p.alliance}`;
-      const speedup = s.office_type === "VP" ? p.speedup_vp : p.speedup_mo;
+    const rows = daySlots.map((s) => {
+      const totalHalfHoursUtc = s.block_start_utc * 2 + s.slot_index;
+      const utcHour = Math.floor(totalHalfHoursUtc / 2) % 24;
+      const utcMin = (totalHalfHoursUtc % 2) * 30;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const slotStartUtcStr = `${pad(utcHour)}:${pad(utcMin)}`;
 
-      // Escape CSV values
-      const escape = (val: any) => {
-        const str = String(val ?? "");
-        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-          return `"${str.replace(/"/g, '""')}"`;
+      const totalHalfHoursKst = totalHalfHoursUtc + 18;
+      const kstHour = Math.floor(totalHalfHoursKst / 2) % 24;
+      const kstMin = (totalHalfHoursKst % 2) * 30;
+      const nextDay = Math.floor(totalHalfHoursKst / 2) >= 24;
+      const slotStartKstStr = `${pad(kstHour)}:${pad(kstMin)}${nextDay ? " (+1일)" : ""}`;
+
+      const utcBlockStr = `${pad(s.block_start_utc)}:00~${pad(s.block_start_utc + 2)}:00`;
+      const dayName = dayNames[s.day_of_week] ?? s.day_of_week;
+      const slotNum = s.slot_index + 1;
+
+      const r = resMap.get(s.id);
+      let gameId = "";
+      let name = "";
+      let alliance = "";
+      let speedup = "";
+      let status = "";
+
+      if (r) {
+        gameId = String(r.player_id ?? "");
+        status = r.status ?? "";
+
+        const p = r.players as unknown as {
+          game_id: number;
+          name: string;
+          alliance: string;
+          speedup_vp: number;
+          speedup_mo: number;
+        } | null;
+
+        if (!p) {
+          name = "(데이터오류)";
+          alliance = "(데이터오류)";
+          speedup = "(데이터오류)";
+        } else {
+          name = p.name;
+          alliance = p.alliance;
+          const speedupVal = s.office_type === "VP" ? p.speedup_vp : p.speedup_mo;
+          speedup = String(speedupVal);
         }
-        return str;
-      };
+      }
 
       return [
         escape(dayName),
-        escape(timeKst),
-        escape(timeUtc),
-        escape(playerInfo),
-        escape(p.name),
-        escape(p.alliance),
-        escape(p.game_id),
-        escape(s.office_type),
+        escape(utcBlockStr),
+        escape(slotStartUtcStr),
+        escape(slotStartKstStr),
+        escape(slotNum),
+        escape(gameId),
+        escape(name),
+        escape(alliance),
         escape(speedup),
+        escape(status),
       ].join(",");
-    })
-    .filter(Boolean);
+    });
 
-  return [header, ...rows].join("\n");
+    sections.push([header, ...rows].join("\n"));
+  }
+
+  return sections.join("\n\n");
 }
