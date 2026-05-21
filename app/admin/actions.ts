@@ -137,19 +137,47 @@ export async function resetCycle(confirmText: string) {
   const cycleId = await getCurrentCycleId(supabase);
   const newCycle = cycleId + 1;
 
-  await supabase
+  const { error: resErr } = await supabase
+    .from("reservations")
+    .delete()
+    .gte("cycle_id", 0);
+  if (resErr) {
+    return { error: `Failed to clear reservations: ${resErr.message}` };
+  }
+
+  const { error: prefErr } = await supabase
+    .from("preferences")
+    .delete()
+    .gte("cycle_id", 0);
+  if (prefErr) {
+    return { error: `Failed to clear preferences: ${prefErr.message}` };
+  }
+
+  const { error: playerErr } = await supabase
+    .from("players")
+    .delete()
+    .gte("game_id", 0);
+  if (playerErr) {
+    return { error: `Failed to clear players: ${playerErr.message}` };
+  }
+
+  await supabase.from("settings").delete().eq("key", "last_assignment_run");
+
+  const { error: cycleErr } = await supabase
     .from("settings")
     .update({ value: String(newCycle) })
     .eq("key", "current_cycle_id");
-
-  await supabase.from("reservations").delete().gte("cycle_id", 0);
-  await supabase.from("preferences").delete().gte("cycle_id", 0);
-  await supabase.from("players").delete().gte("game_id", 0);
-  await supabase.from("settings").delete().eq("key", "last_assignment_run");
+  if (cycleErr) {
+    return { error: `Failed to update cycle: ${cycleErr.message}` };
+  }
 
   revalidatePath("/admin");
   revalidatePath("/status");
-  return { success: true, cycleId: newCycle };
+  return {
+    success: true,
+    cycleId: newCycle,
+    message: `Cycle reset to #${newCycle}. All players, applications, and assignments were removed.`,
+  };
 }
 
 export async function getAssignmentPreviewForAdmin() {

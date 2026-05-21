@@ -94,7 +94,10 @@ export async function checkReservation(gameId: number) {
     .eq("player_id", gameId)
     .eq("cycle_id", cycleId);
 
-  if (!player || !preferences?.length) {
+  if (!preferences?.length) {
+    if (player) {
+      await supabase.from("players").delete().eq("game_id", gameId);
+    }
     return { error: "No reservation found for this Game ID." };
   }
 

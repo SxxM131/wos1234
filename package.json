@@ -14,7 +14,8 @@
     "test:150": "npx tsx scripts/test-150-reservations.ts",
     "recover:waitlist": "npx tsx scripts/recover-waitlist.ts",
     "backfill:slots": "npx tsx scripts/backfill-empty-slots.ts",
-    "reconcile:waitlist": "npx tsx scripts/reconcile-eliminated.ts"
+    "reconcile:waitlist": "npx tsx scripts/reconcile-eliminated.ts",
+    "purge:orphans": "npx tsx scripts/purge-orphan-players.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

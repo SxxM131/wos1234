@@ -270,7 +270,9 @@ export function AdminDashboard({
               const res = await resetCycle(resetConfirm);
               if (res.error) setMessage(res.error);
               else {
-                setMessage(`Cycle reset to #${res.cycleId}.`);
+                setMessage(
+                  res.message ?? `Cycle reset to #${res.cycleId}.`
+                );
                 setResetConfirm("");
               }
             })
