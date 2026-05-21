@@ -3,6 +3,7 @@ import { getAdminSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase";
 import { getCurrentCycleId } from "@/lib/assignment";
 import { AdminDashboard } from "./AdminDashboard";
+import { DayOfWeek } from "@/lib/types";
 
 export default async function AdminPage() {
   const session = await getAdminSession();
@@ -24,6 +25,12 @@ export default async function AdminPage() {
     .select("value")
     .eq("key", "reservation_open")
     .single();
+
+  const { data: slots } = await supabase
+    .from("slots")
+    .select("id, day_of_week, block_start_utc, slot_index, office_type, is_active")
+    .order("block_start_utc")
+    .order("slot_index");
 
   const { data: reservations } = await supabase
     .from("reservations")
@@ -61,6 +68,10 @@ export default async function AdminPage() {
     <AdminDashboard
       reservations={(reservations ?? []) as unknown as Parameters<typeof AdminDashboard>[0]["reservations"]}
       eliminated={elimWithPrefs as unknown as Parameters<typeof AdminDashboard>[0]["eliminated"]}
+      slots={(slots ?? []).map((s) => ({
+        ...s,
+        day_of_week: s.day_of_week as DayOfWeek,
+      }))}
       accessToken={tokenData?.value ?? ""}
       reservationOpen={openData?.value !== "false"}
       cycleId={cycleId}

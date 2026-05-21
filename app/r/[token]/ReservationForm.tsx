@@ -353,42 +353,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
           <button type="button" onClick={handleInfoNext} className="btn-primary">
             Next — Monday
           </button>
-          <div className="flex gap-2 text-center text-sm">
-            <button
-              type="button"
-              onClick={() => {
-                if (!gameId.trim() || !name.trim() || !alliance.trim()) {
-                  setMessage({
-                    type: "err",
-                    text: "Please fill in Game ID, Name, and Alliance.",
-                  });
-                  return;
-                }
-                setMessage(null);
-                setStep("tue");
-              }}
-              className="flex-1 text-brand-600 underline"
-            >
-              Skip to Tuesday
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!gameId.trim() || !name.trim() || !alliance.trim()) {
-                  setMessage({
-                    type: "err",
-                    text: "Please fill in Game ID, Name, and Alliance.",
-                  });
-                  return;
-                }
-                setMessage(null);
-                setStep("thu");
-              }}
-              className="flex-1 text-brand-600 underline"
-            >
-              Skip to Thursday
-            </button>
-          </div>
         </div>
       )}
 

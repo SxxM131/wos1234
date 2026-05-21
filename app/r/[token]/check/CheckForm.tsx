@@ -58,7 +58,7 @@ export function CheckForm() {
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Final assignment may change based on speedup totals. Officers may
+        Final assignment may change based on speedup totals. R4+ may
         review and adjust manually.
       </div>
 
