@@ -1,4 +1,4 @@
--- WOS 관직 예약 시스템 스키마
+-- SVS Reservation schema
 -- Supabase SQL Editor에서 전체 실행
 
 CREATE TABLE players (

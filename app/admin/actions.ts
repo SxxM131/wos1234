@@ -157,20 +157,6 @@ export async function cancelReservation(reservationId: string) {
   revalidatePath("/status");
 }
 
-export async function updatePlayerSpeedup(
-  gameId: number,
-  speedupVp: number,
-  speedupMo: number
-) {
-  await requireAdmin();
-  const supabase = createServiceClient();
-  await supabase
-    .from("players")
-    .update({ speedup_vp: speedupVp, speedup_mo: speedupMo })
-    .eq("game_id", gameId);
-  revalidatePath("/admin");
-}
-
 export async function moveReservation(
   reservationId: string,
   newSlotId: number
@@ -197,17 +183,6 @@ export async function moveReservation(
     .update({ slot_id: newSlotId })
     .eq("id", reservationId);
 
-  revalidatePath("/admin");
-  revalidatePath("/status");
-}
-
-export async function toggleSlotActive(slotId: number, active: boolean) {
-  await requireAdmin();
-  const supabase = createServiceClient();
-  await supabase
-    .from("slots")
-    .update({ is_active: active })
-    .eq("id", slotId);
   revalidatePath("/admin");
   revalidatePath("/status");
 }

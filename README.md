@@ -1,6 +1,6 @@
-# WOS 관직 예약 자동화 시스템
+# SVS Reservation
 
-Next.js 14 + Supabase + Vercel 기반 관직 예약 웹 앱입니다. 모바일 우선 UI로 설계되었습니다.
+Next.js 14 + Supabase + Vercel based SVS reservation web app. Mobile-first UI.
 
 ## 로컬 개발
 

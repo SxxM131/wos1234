@@ -20,9 +20,9 @@ export default async function ReservationPage({
   return (
     <div>
       <header className="mb-4">
-        <h1 className="text-xl font-bold text-brand-900">Office Reservation</h1>
+        <h1 className="text-xl font-bold text-brand-900">SVS Reservation</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Mon/Tue VP · Thu MO — higher speedup gets priority
+          Mon → Tue → Thu step by step · skip any day you don&apos;t need
         </p>
       </header>
       <ReservationForm reservationOpen={reservationOpen} token={token} />

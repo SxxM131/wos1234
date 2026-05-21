@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { checkReservation } from "../actions";
 import { DAY_CONFIG, DayOfWeek } from "@/lib/types";
-import { dayLabel, formatBlockRange, formatSlotTime } from "@/lib/utils";
+import { dayLabel, formatBlockRange } from "@/lib/utils";
 
 interface ReservationRow {
   status: string;
@@ -124,17 +124,13 @@ export function CheckForm() {
                 {r.status === "assigned" && r.slots ? (
                   <>
                     <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                      Assigned
+                      Applied
                     </span>
                     <p className="mt-2 font-medium">
                       {dayLabel(r.slots.day_of_week)} ({r.slots.office_type})
                     </p>
                     <p className="text-sm text-slate-600">
-                      {formatSlotTime(
-                        r.slots.block_start_utc,
-                        r.slots.slot_index,
-                        tz
-                      )}
+                      {formatBlockRange(r.slots.block_start_utc, tz)}
                     </p>
                   </>
                 ) : (

@@ -1,11 +1,18 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { DayOfWeek, DAY_CONFIG } from "./types";
-import { dayLabel, formatSlotTime } from "./utils";
+import { dayLabel, formatBlockRange } from "./utils";
 
 export interface SubmitInput {
   gameId: number;
   name: string;
   alliance: string;
+  dayOfWeek: DayOfWeek;
+  speedup: number;
+  preferredBlocks: number[];
+  skipPlayerUpsert?: boolean;
+}
+
+export interface DaySubmit {
   dayOfWeek: DayOfWeek;
   speedup: number;
   preferredBlocks: number[];
@@ -59,19 +66,19 @@ export async function processReservation(
   const speedupKey = config.speedupKey;
   const now = new Date().toISOString();
 
-  // Upsert player
-  const playerData: Record<string, unknown> = {
-    game_id: input.gameId,
-    name: input.name,
-    alliance: input.alliance,
-    [speedupKey]: input.speedup,
-  };
-
-  const { error: playerError } = await supabase
-    .from("players")
-    .upsert(playerData, { onConflict: "game_id" });
-  if (playerError) {
-    return { success: false, message: `Failed to save player: ${playerError.message}` };
+  if (!input.skipPlayerUpsert) {
+    const playerData: Record<string, unknown> = {
+      game_id: input.gameId,
+      name: input.name,
+      alliance: input.alliance,
+      [speedupKey]: input.speedup,
+    };
+    const { error: playerError } = await supabase
+      .from("players")
+      .upsert(playerData, { onConflict: "game_id" });
+    if (playerError) {
+      return { success: false, message: `Failed to save player: ${playerError.message}` };
+    }
   }
 
   // Check existing reservation for same day + cycle → modify flow
@@ -213,18 +220,102 @@ export async function processReservation(
   }
 
   const day = dayLabel(input.dayOfWeek);
-  const timeStr = formatSlotTime(assignedBlock!, assignedSlotIndex!, "UTC");
-
-  if (movedFromPreferred && eliminatedBlocks.length > 0) {
-    return {
-      success: true,
-      message: `Your preferred slot was full. Assigned to ${timeStr} instead.`,
-    };
-  }
+  const timeStr = formatBlockRange(assignedBlock!, "UTC");
 
   return {
     success: true,
-    message: `${day} ${timeStr} — assigned`,
+    message: `${day} ${timeStr} — applied`,
+  };
+}
+
+async function upsertPlayerForDays(
+  supabase: SupabaseClient,
+  gameId: number,
+  name: string,
+  alliance: string,
+  days: DaySubmit[]
+) {
+  const { data: existing } = await supabase
+    .from("players")
+    .select("speedup_vp, speedup_mo")
+    .eq("game_id", gameId)
+    .maybeSingle();
+
+  let speedupVp = existing?.speedup_vp ?? 0;
+  let speedupMo = existing?.speedup_mo ?? 0;
+
+  for (const d of days) {
+    if (d.dayOfWeek === "mon" || d.dayOfWeek === "tue") {
+      speedupVp = Math.max(speedupVp, d.speedup);
+    }
+    if (d.dayOfWeek === "thu") {
+      speedupMo = d.speedup;
+    }
+  }
+
+  const { error } = await supabase.from("players").upsert(
+    {
+      game_id: gameId,
+      name,
+      alliance,
+      speedup_vp: speedupVp,
+      speedup_mo: speedupMo,
+    },
+    { onConflict: "game_id" }
+  );
+  return error;
+}
+
+export async function processMultiDayReservation(
+  supabase: SupabaseClient,
+  gameId: number,
+  name: string,
+  alliance: string,
+  days: DaySubmit[]
+): Promise<AssignmentResult> {
+  const open = await isReservationOpen(supabase);
+  if (!open) {
+    return { success: false, message: "Reservations are currently closed." };
+  }
+
+  if (days.length === 0) {
+    return { success: false, message: "Select at least one day." };
+  }
+
+  const playerError = await upsertPlayerForDays(
+    supabase,
+    gameId,
+    name,
+    alliance,
+    days
+  );
+  if (playerError) {
+    return {
+      success: false,
+      message: `Failed to save player: ${playerError.message}`,
+    };
+  }
+
+  const messages: string[] = [];
+  let anySuccess = false;
+
+  for (const day of days) {
+    const result = await processReservation(supabase, {
+      gameId,
+      name,
+      alliance,
+      dayOfWeek: day.dayOfWeek,
+      speedup: day.speedup,
+      preferredBlocks: day.preferredBlocks,
+      skipPlayerUpsert: true,
+    });
+    messages.push(result.message);
+    if (result.success) anySuccess = true;
+  }
+
+  return {
+    success: anySuccess,
+    message: messages.join("\n"),
   };
 }
 

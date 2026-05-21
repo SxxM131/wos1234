@@ -1,46 +1,67 @@
 "use server";
 
 import { createServiceClient } from "@/lib/supabase";
-import { processReservation } from "@/lib/assignment";
-import { DayOfWeek } from "@/lib/types";
+import {
+  processMultiDayReservation,
+  DaySubmit,
+} from "@/lib/assignment";
+import { DayOfWeek, DAY_CONFIG } from "@/lib/types";
+
+const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
 
 export async function submitReservation(formData: FormData) {
   const gameId = parseInt(formData.get("game_id") as string, 10);
   const name = (formData.get("name") as string)?.trim();
   const alliance = (formData.get("alliance") as string)?.trim();
-  const dayOfWeek = formData.get("day_of_week") as DayOfWeek;
-  const speedup = parseInt(formData.get("speedup") as string, 10);
-  const preferredBlocks = formData
-    .getAll("preferred_blocks")
-    .map((v) => parseInt(v as string, 10));
+  const selectedDays = formData.getAll("days") as DayOfWeek[];
 
-  if (!gameId || !name || !alliance || !dayOfWeek) {
+  if (!gameId || !name || !alliance) {
     return { success: false, message: "Please fill in all required fields." };
   }
 
-  if (isNaN(speedup) || speedup < 0 || !Number.isInteger(speedup)) {
-    return {
-      success: false,
-      message: "Speedup must be a whole number ≥ 0.",
-    };
+  if (selectedDays.length === 0) {
+    return { success: false, message: "Select at least one day." };
   }
 
-  if (preferredBlocks.length === 0) {
-    return {
-      success: false,
-      message: "Select at least one preferred time slot.",
-    };
+  const daySubmits: DaySubmit[] = [];
+
+  for (const day of selectedDays) {
+    if (!ALL_DAYS.includes(day)) continue;
+
+    const speedup = parseInt(formData.get(`speedup_${day}`) as string, 10);
+    const preferredBlocks = formData
+      .getAll(`preferred_blocks_${day}`)
+      .map((v) => parseInt(v as string, 10));
+
+    if (isNaN(speedup) || speedup < 0 || !Number.isInteger(speedup)) {
+      return {
+        success: false,
+        message: `${DAY_CONFIG[day].label}: speedup must be a whole number ≥ 0.`,
+      };
+    }
+
+    if (preferredBlocks.length === 0) {
+      return {
+        success: false,
+        message: `${DAY_CONFIG[day].label}: select at least one time slot.`,
+      };
+    }
+
+    daySubmits.push({ dayOfWeek: day, speedup, preferredBlocks });
+  }
+
+  if (daySubmits.length === 0) {
+    return { success: false, message: "Select at least one day." };
   }
 
   const supabase = createServiceClient();
-  return processReservation(supabase, {
+  return processMultiDayReservation(
+    supabase,
     gameId,
     name,
     alliance,
-    dayOfWeek,
-    speedup,
-    preferredBlocks,
-  });
+    daySubmits
+  );
 }
 
 export async function checkReservation(gameId: number) {

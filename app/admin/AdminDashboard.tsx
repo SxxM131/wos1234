@@ -6,8 +6,6 @@ import {
   toggleReservationOpen,
   resetCycle,
   cancelReservation,
-  updatePlayerSpeedup,
-  toggleSlotActive,
   exportCsv,
   logoutAdmin,
 } from "./actions";
@@ -278,23 +276,7 @@ export function AdminDashboard({
                       startTransition(() => cancelReservation(r.id))
                     }
                   >
-                    Cancel
-                  </button>
-                  <SpeedupEdit
-                    gameId={r.players.game_id}
-                    vp={r.players.speedup_vp}
-                    mo={r.players.speedup_mo}
-                  />
-                  <button
-                    type="button"
-                    className="rounded-lg border px-2 py-1 text-xs"
-                    onClick={() =>
-                      startTransition(() =>
-                        toggleSlotActive(r.slots.id, !r.slots.is_active)
-                      )
-                    }
-                  >
-                    Slot {r.slots.is_active ? "disable" : "enable"}
+                    Cancel reservation
                   </button>
                 </div>
               </div>
@@ -323,64 +305,6 @@ export function AdminDashboard({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function SpeedupEdit({
-  gameId,
-  vp,
-  mo,
-}: {
-  gameId: number;
-  vp: number;
-  mo: number;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [vpVal, setVpVal] = useState(vp);
-  const [moVal, setMoVal] = useState(mo);
-  const [, startTransition] = useTransition();
-
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        className="rounded-lg border px-2 py-1 text-xs"
-        onClick={() => setEditing(true)}
-      >
-        Edit SU
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex w-full flex-wrap items-center gap-1">
-      <input
-        type="number"
-        value={vpVal}
-        onChange={(e) => setVpVal(parseInt(e.target.value, 10) || 0)}
-        className="w-14 rounded border px-1 text-xs"
-        title="VP"
-      />
-      <input
-        type="number"
-        value={moVal}
-        onChange={(e) => setMoVal(parseInt(e.target.value, 10) || 0)}
-        className="w-14 rounded border px-1 text-xs"
-        title="MO"
-      />
-      <button
-        type="button"
-        className="rounded bg-brand-600 px-2 py-1 text-xs text-white"
-        onClick={() =>
-          startTransition(async () => {
-            await updatePlayerSpeedup(gameId, vpVal, moVal);
-            setEditing(false);
-          })
-        }
-      >
-        Save
-      </button>
     </div>
   );
 }
