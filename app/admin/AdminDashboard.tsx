@@ -16,7 +16,6 @@ import * as XLSX from "xlsx";
 import { DAY_CONFIG, DayOfWeek, TIME_BLOCKS } from "@/lib/types";
 import { dayLabel, formatSlotTime, formatBlockRange } from "@/lib/utils";
 import { DayTabs } from "@/components/DayTabs";
-import { TimezoneToggle } from "@/components/TimezoneToggle";
 
 interface ReservationRow {
   id: string;
@@ -76,7 +75,6 @@ export function AdminDashboard({
   const [token, setToken] = useState(accessToken);
   const [open, setOpen] = useState(reservationOpen);
   const [activeDay, setActiveDay] = useState<DayOfWeek>("mon");
-  const [tz, setTz] = useState<"UTC" | "KST">("UTC");
   const [searchTerm, setSearchTerm] = useState("");
   const [resetConfirm, setResetConfirm] = useState("");
   const [pending, startTransition] = useTransition();
@@ -426,8 +424,7 @@ export function AdminDashboard({
                         {dayLabel(r.slots.day_of_week as DayOfWeek)} ·{" "}
                         {formatSlotTime(
                           r.slots.block_start_utc,
-                          r.slots.slot_index,
-                          tz
+                          r.slots.slot_index
                         )}{" "}
                         · Speedup: {speedup}d · Status:{" "}
                         <span
@@ -487,10 +484,7 @@ export function AdminDashboard({
 
       {/* Schedule Table View */}
       <div className="mt-2">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-800">Schedule Grid</h2>
-          <TimezoneToggle tz={tz} onChange={setTz} />
-        </div>
+        <h2 className="mb-3 text-sm font-bold text-slate-800">Schedule Grid (UTC)</h2>
 
         <DayTabs active={activeDay} onChange={setActiveDay} />
 
@@ -503,7 +497,7 @@ export function AdminDashboard({
             return (
               <div key={block} className="card !p-3">
                 <p className="mb-2 text-xs font-semibold text-slate-500">
-                  {formatBlockRange(block, tz)}
+                  {formatBlockRange(block)}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {blockSlots.map((slot) => {
@@ -523,7 +517,7 @@ export function AdminDashboard({
                         <div>
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-[10px] font-semibold text-slate-500">
-                              {formatSlotTime(block, slot.slot_index, tz)}
+                              {formatSlotTime(block, slot.slot_index)}
                             </span>
                             {res && res.players && (
                               <span className="text-[9px] bg-brand-100 px-1 py-0.5 rounded text-brand-800 font-medium">
@@ -601,7 +595,7 @@ export function AdminDashboard({
                 )
               )
                 .sort((a, b) => a - b)
-                .map((b) => formatBlockRange(b, tz))
+                .map((b) => formatBlockRange(b))
                 .join(", ");
               return (
                 <div key={i} className="card !py-2.5 !px-3 text-sm">

@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { createAnonClient } from "@/lib/supabase";
 import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS } from "@/lib/types";
 import { DayTabs } from "@/components/DayTabs";
-import { TimezoneToggle } from "@/components/TimezoneToggle";
 import { formatSlotTime, formatBlockRange } from "@/lib/utils";
 
 interface SlotData {
@@ -51,7 +50,6 @@ export function StatusView({
   assignmentPending,
 }: Props) {
   const [day, setDay] = useState<DayOfWeek>("mon");
-  const [tz, setTz] = useState<"UTC" | "KST">("UTC");
   const [slots, setSlots] = useState(initialSlots);
   const [reservations, setReservations] = useState(initialReservations);
   const [eliminated, setEliminated] = useState(initialEliminated);
@@ -164,10 +162,7 @@ export function StatusView({
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-brand-900">Schedule</h1>
-        <TimezoneToggle tz={tz} onChange={setTz} />
-      </div>
+      <h1 className="mb-3 text-xl font-bold text-brand-900">Schedule (UTC)</h1>
 
       <DayTabs active={day} onChange={setDay} />
 
@@ -180,7 +175,7 @@ export function StatusView({
           return (
             <div key={block} className="card !p-3">
               <p className="mb-2 text-xs font-semibold text-slate-500">
-                {formatBlockRange(block, tz)}
+                {formatBlockRange(block)}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {blockSlots.map((slot) => {
@@ -198,7 +193,7 @@ export function StatusView({
                       }`}
                     >
                       <p className="text-xs text-slate-500">
-                        {formatSlotTime(block, slot.slot_index, tz)}
+                        {formatSlotTime(block, slot.slot_index)}
                       </p>
                       {inactive ? (
                         <p className="font-medium">Inactive</p>
@@ -238,7 +233,7 @@ export function StatusView({
                 new Set(e.preferences?.map((p) => p.block_start_utc) ?? [])
               )
                 .sort((a, b) => a - b)
-                .map((b) => formatBlockRange(b, tz))
+                .map((b) => formatBlockRange(b))
                 .join(", ");
               return (
                 <div key={i} className="card !py-2 text-sm">

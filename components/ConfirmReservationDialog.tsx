@@ -12,7 +12,6 @@ export interface DayConfirmSummary {
 interface Props {
   open: boolean;
   summaries: DayConfirmSummary[];
-  tz: "UTC" | "KST";
   pending: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -21,7 +20,6 @@ interface Props {
 export function ConfirmReservationDialog({
   open,
   summaries,
-  tz,
   pending,
   onConfirm,
   onCancel,
@@ -54,12 +52,10 @@ export function ConfirmReservationDialog({
                 {DAY_CONFIG[s.day].label} ({DAY_CONFIG[s.day].office})
               </p>
               <p className="mt-1 text-slate-600">Speedup: {s.speedup} days</p>
-              <p className="mt-1 text-slate-600">
-                Time slots ({tz}):
-              </p>
+              <p className="mt-1 text-slate-600">Time slots (UTC):</p>
               <ul className="mt-1 list-inside list-disc text-slate-700">
                 {s.blocks.map((b) => (
-                  <li key={b}>{formatBlockRange(b, tz)}</li>
+                  <li key={b}>{formatBlockRange(b)}</li>
                 ))}
               </ul>
             </li>

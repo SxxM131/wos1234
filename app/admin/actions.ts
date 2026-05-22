@@ -19,7 +19,6 @@ import {
   slotExportRowToCsvCells,
   slotExportRowToExcelRecord,
 } from "@/lib/export-grid";
-import { formatSlotTime } from "@/lib/utils";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";

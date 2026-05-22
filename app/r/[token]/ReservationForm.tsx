@@ -44,7 +44,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   const [reservedDays, setReservedDays] = useState<DayOfWeek[]>([]);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const [tz, setTz] = useState<"UTC" | "KST">("UTC");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const stepIndex =
@@ -301,27 +300,9 @@ export function ReservationForm({ reservationOpen, token }: Props) {
             </div>
 
             <div className="card">
-              <div className="mb-3 flex items-center justify-between">
-                <label className="text-sm font-medium text-slate-600">
-                  Preferred time slots
-                </label>
-                <div className="inline-flex rounded-lg border border-slate-200 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setTz("UTC")}
-                    className={`px-2 py-1 ${tz === "UTC" ? "bg-brand-600 text-white rounded-l-lg" : ""}`}
-                  >
-                    UTC
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTz("KST")}
-                    className={`px-2 py-1 ${tz === "KST" ? "bg-brand-600 text-white rounded-r-lg" : ""}`}
-                  >
-                    KST
-                  </button>
-                </div>
-              </div>
+              <label className="mb-3 block text-sm font-medium text-slate-600">
+                Preferred time slots (UTC)
+              </label>
               <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
                 {TIME_BLOCKS.map((block) => (
                   <TimeBlockCheckbox
@@ -329,7 +310,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
                     blockStart={block}
                     checked={dayState[day].blocks.includes(block)}
                     onChange={() => toggleBlock(day, block)}
-                    tz={tz}
                   />
                 ))}
               </div>
@@ -457,7 +437,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
       <ConfirmReservationDialog
         open={confirmOpen}
         summaries={buildConfirmSummaries()}
-        tz={tz}
         pending={pending}
         onConfirm={submitConfirmed}
         onCancel={() => setConfirmOpen(false)}

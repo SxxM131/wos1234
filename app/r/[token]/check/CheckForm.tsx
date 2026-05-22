@@ -35,8 +35,6 @@ export function CheckForm() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [tz, setTz] = useState<"UTC" | "KST">("UTC");
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const gameId = parseInt(
@@ -141,25 +139,6 @@ export function CheckForm() {
             </p>
           </div>
 
-          <div className="flex justify-end">
-            <div className="inline-flex rounded-lg border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => setTz("UTC")}
-                className={`px-2 py-1 ${tz === "UTC" ? "bg-brand-600 text-white rounded-l-lg" : ""}`}
-              >
-                UTC
-              </button>
-              <button
-                type="button"
-                onClick={() => setTz("KST")}
-                className={`px-2 py-1 ${tz === "KST" ? "bg-brand-600 text-white rounded-r-lg" : ""}`}
-              >
-                KST
-              </button>
-            </div>
-          </div>
-
           {CHECK_DAYS.map((day) => {
             const status = dayStatus(
               day,
@@ -180,7 +159,7 @@ export function CheckForm() {
                       {dayLabel(day)} ({DAY_CONFIG[day].office})
                     </p>
                     <p className="text-sm text-slate-600">
-                      {formatBlockRange(status.block, tz)}
+                      {formatBlockRange(status.block)}
                     </p>
                   </>
                 ) : status.kind === "pending" ? (
@@ -197,7 +176,7 @@ export function CheckForm() {
                     <p className="mt-1 text-xs text-slate-500">
                       Preferred:{" "}
                       {status.prefs
-                        .map((b) => formatBlockRange(b, tz))
+                        .map((b) => formatBlockRange(b))
                         .join(", ")}
                     </p>
                   </>
@@ -212,7 +191,7 @@ export function CheckForm() {
                     <p className="mt-1 text-xs text-slate-500">
                       Preferred:{" "}
                       {status.prefs
-                        .map((b) => formatBlockRange(b, tz))
+                        .map((b) => formatBlockRange(b))
                         .join(", ")}
                     </p>
                   </>
