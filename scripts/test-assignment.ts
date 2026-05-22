@@ -9,6 +9,12 @@ import {
   runBatchAssignment,
   saveLastAssignmentRun,
   solveDayAssignment,
+  runSecondPassMatching,
+  mergeMatchings,
+  computeEligibleByBlock,
+  buildMatchingEdges,
+  buildSecondPassEdges,
+  hopcroftKarp,
   type BatchApplicant,
   type DaySlotRow,
 } from "../lib/assignment";
@@ -36,6 +42,7 @@ const TEST_CYCLE = 9999;
 const testPlayerIds = [
   9001, 9002, 9003, 9004, 9005, 9052, 9099, 9010, 9011, 9020, 9021, 9022,
   9101, 9102, 9103, 9104, 9105, 9106,
+  9201, 9202, 9203, 9204, 9205,
 ];
 
 async function cleanup() {
@@ -503,6 +510,119 @@ async function runTests() {
         descSize: matchDesc.size,
       });
     }
+
+    console.log("\n==========================================");
+    console.log("🧪 SCENARIO 8: 2nd pass fills empty slots (solveDayAssignment E2E)");
+    console.log("==========================================");
+
+    const s8Slots: DaySlotRow[] = [
+      ...[0, 1, 2, 3].map((i) => ({
+        id: i + 1,
+        block_start_utc: 0,
+        slot_index: i,
+      })),
+      ...[0, 1, 2, 3].map((i) => ({
+        id: i + 5,
+        block_start_utc: 6,
+        slot_index: i,
+      })),
+    ];
+    const s8Applicants = new Map<number, BatchApplicant>([
+      [
+        9201,
+        {
+          playerId: 9201,
+          speedup: 490,
+          appliedAt: "2025-01-01T00:00:00Z",
+          blocks: new Set([0, 6]),
+        },
+      ],
+      [
+        9202,
+        {
+          playerId: 9202,
+          speedup: 480,
+          appliedAt: "2025-01-01T01:00:00Z",
+          blocks: new Set([0, 6]),
+        },
+      ],
+      [
+        9203,
+        {
+          playerId: 9203,
+          speedup: 470,
+          appliedAt: "2025-01-01T02:00:00Z",
+          blocks: new Set([0]),
+        },
+      ],
+      [
+        9204,
+        {
+          playerId: 9204,
+          speedup: 440,
+          appliedAt: "2025-01-01T03:00:00Z",
+          blocks: new Set([0]),
+        },
+      ],
+      [
+        9205,
+        {
+          playerId: 9205,
+          speedup: 430,
+          appliedAt: "2025-01-01T04:00:00Z",
+          blocks: new Set([0]),
+        },
+      ],
+    ]);
+
+    const phase1Manual = new Map<number, number>([
+      [9201, 5],
+      [9202, 6],
+      [9203, 1],
+      [9204, 2],
+    ]);
+    const phase2 = runSecondPassMatching(phase1Manual, s8Applicants, s8Slots);
+    const full = mergeMatchings(phase1Manual, phase2);
+    const block0 = Array.from(full.entries()).filter(
+      ([, sid]) => s8Slots.find((s) => s.id === sid)?.block_start_utc === 0
+    );
+
+    const ok8 =
+      phase2.has(9205) &&
+      block0.length === 3 &&
+      block0.some(([p]) => p === 9203) &&
+      block0.some(([p]) => p === 9204);
+
+    if (ok8) console.log("✅ Scenario 8 Passed!");
+    else
+      console.error("❌ Scenario 8 Failed!", {
+        phase2: [...phase2.entries()],
+        block0,
+      });
+
+    console.log("\n==========================================");
+    console.log("🧪 SCENARIO 9: 2nd pass excludes phase-1 players");
+    console.log("==========================================");
+
+    const allIds = s8Slots.map((s) => s.id);
+    const elig = computeEligibleByBlock(s8Applicants, s8Slots);
+    const p1 = hopcroftKarp(
+      Array.from(s8Applicants.keys()),
+      allIds,
+      buildMatchingEdges(s8Applicants, s8Slots, elig)
+    );
+    const matchedSlotIds = new Set(p1.values());
+    const emptyIds = new Set(allIds.filter((id) => !matchedSlotIds.has(id)));
+    const p2edges = buildSecondPassEdges(
+      s8Applicants,
+      s8Slots,
+      emptyIds,
+      new Set(p1.keys())
+    );
+    const ok9 = Array.from(p1.keys()).every((id) => !p2edges.has(id));
+
+    if (ok9) console.log("✅ Scenario 9 Passed!");
+    else console.error("❌ Scenario 9 Failed — phase-1 player in 2nd pass edges");
   } finally {
     console.log(`\nRestoring original cycle ID: ${originalCycle}`);
     await supabase

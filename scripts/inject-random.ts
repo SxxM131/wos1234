@@ -35,8 +35,42 @@ const ALLIANCES = ["WOS", "LEO", "MOON", "SUN", "ZEUS"];
 const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);
 const DEFAULT_BASE_GAME_ID = 300001;
 
-const count = Math.max(1, parseInt(process.argv[2] ?? "120", 10));
-const baseGameIdArg = process.argv[3];
+const DEFAULT_COUNT = 120;
+
+function parseCliArgs(): { count: number; baseGameIdArg?: string } {
+  const args = process.argv.slice(2);
+  const hasBadDash = args.some((a) => /[\u2013\u2014\u2212]/.test(a));
+  const numeric = args
+    .map((a) => parseInt(a, 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+  if (hasBadDash && numeric.length === 0) {
+    console.error(
+      "Invalid dash in arguments. Use ASCII hyphens only:\n" +
+        "  npm run inject:random -- 120\n" +
+        "  (not an em dash — before 120)\n" +
+        "Or omit the count (default 120):\n" +
+        "  npm run inject:random"
+    );
+    process.exit(1);
+  }
+
+  const count = numeric[0] ?? DEFAULT_COUNT;
+  const baseGameIdArg =
+    numeric.length >= 2 ? String(numeric[1]) : undefined;
+
+  if (!Number.isFinite(count) || count < 1) {
+    console.error(
+      `Invalid count. Usage: npm run inject:random [-- <count> [baseGameId]]\n` +
+        `Example: npm run inject:random -- 120`
+    );
+    process.exit(1);
+  }
+
+  return { count, baseGameIdArg };
+}
+
+const { count, baseGameIdArg } = parseCliArgs();
 
 function getRandomPrefs(n: number): number[] {
   const primeTime = [10, 12, 14, 16, 20];

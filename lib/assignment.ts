@@ -726,31 +726,6 @@ export async function promoteOnCancel(
     }
   }
 
-  const blockSlotIds = activeSlots
-    .filter((s) => s.block_start_utc === blockStart)
-    .map((s) => s.id);
-
-  const { data: assignedInBlock } = await supabase
-    .from("reservations")
-    .select("player_id")
-    .eq("cycle_id", cycleId)
-    .eq("status", "assigned")
-    .in("slot_id", blockSlotIds);
-
-  const assignedInBlockIds = new Set(
-    (assignedInBlock ?? []).map((r) => r.player_id)
-  );
-
-  const slotsInBlock = activeSlots.filter(
-    (s) => s.block_start_utc === blockStart
-  );
-  const rankPool: BatchApplicant[] = [];
-
-  for (const playerId of Array.from(assignedInBlockIds)) {
-    const a = applicantMap.get(playerId);
-    if (a?.blocks.has(blockStart)) rankPool.push(a);
-  }
-
   const { data: eliminated } = await supabase
     .from("reservations")
     .select("id, player_id, applied_at, players(speedup_vp, speedup_mo)")
@@ -758,7 +733,7 @@ export async function promoteOnCancel(
     .eq("cycle_id", cycleId)
     .is("slot_id", null);
 
-  if (!eliminated?.length && rankPool.length >= slotsInBlock.length) return;
+  if (!eliminated?.length) return;
 
   const elimByPlayer = new Map<
     number,
@@ -773,32 +748,33 @@ export async function promoteOnCancel(
       id: e.id as string,
       playerId: e.player_id,
       speedup: a.speedup,
-      appliedAt: e.applied_at,
+      appliedAt: e.applied_at ?? a.appliedAt,
     });
   }
 
-  for (const a of Array.from(elimByPlayer.values())) {
-    if (!rankPool.some((r) => r.playerId === a.playerId)) {
-      rankPool.push(applicantMap.get(a.playerId)!);
-    }
-  }
+  if (elimByPlayer.size === 0) return;
 
-  const eligibleTop = rankPool
-    .sort(compareBatchApplicants)
-    .slice(0, slotsInBlock.length);
-  const eligibleIds = new Set(eligibleTop.map((a) => a.playerId));
-
-  const candidates = Array.from(elimByPlayer.values())
-    .filter(
-      (c) =>
-        eligibleIds.has(c.playerId) && !assignedInBlockIds.has(c.playerId)
-    )
-    .sort((a, b) => {
+  const sortCandidates = (
+    list: { id: string; playerId: number; speedup: number; appliedAt: string }[]
+  ) =>
+    list.sort((a, b) => {
       if (b.speedup !== a.speedup) return b.speedup - a.speedup;
       return (
         new Date(a.appliedAt).getTime() - new Date(b.appliedAt).getTime()
       );
     });
+
+  const eligibleByBlock = computeEligibleByBlock(applicantMap, activeSlots);
+  const top4ForBlock = eligibleByBlock.get(blockStart) ?? new Set();
+
+  const phase1Pool = Array.from(elimByPlayer.values()).filter((c) =>
+    top4ForBlock.has(c.playerId)
+  );
+  let candidates = sortCandidates(phase1Pool);
+
+  if (candidates.length === 0) {
+    candidates = sortCandidates(Array.from(elimByPlayer.values()));
+  }
 
   if (candidates.length === 0) return;
 
@@ -875,6 +851,57 @@ export function computeEligibleByBlock(
     eligible.set(blockStart, new Set(ranked.map((a) => a.playerId)));
   }
   return eligible;
+}
+
+/** All block preferrers → empty slots in those blocks (no Top-4 cap). Excludes phase-1 matches. */
+export function buildSecondPassEdges(
+  applicants: Map<number, BatchApplicant>,
+  daySlots: DaySlotRow[],
+  emptySlotIds: Set<number>,
+  matchedPlayerIds: Set<number>
+): Map<number, number[]> {
+  const emptySlots = daySlots.filter((s) => emptySlotIds.has(s.id));
+  const slotByBlock = new Map<number, number[]>();
+  for (const slot of emptySlots) {
+    const list = slotByBlock.get(slot.block_start_utc) ?? [];
+    list.push(slot.id);
+    slotByBlock.set(slot.block_start_utc, list);
+  }
+
+  const blocksWithEmpty = new Set(emptySlots.map((s) => s.block_start_utc));
+  const edges = new Map<number, number[]>();
+
+  for (const [playerId, applicant] of Array.from(applicants.entries())) {
+    if (matchedPlayerIds.has(playerId)) continue;
+    const slotIds: number[] = [];
+    for (const blockStart of Array.from(blocksWithEmpty)) {
+      if (!applicant.blocks.has(blockStart)) continue;
+      for (const sid of slotByBlock.get(blockStart) ?? []) {
+        slotIds.push(sid);
+      }
+    }
+    if (slotIds.length) edges.set(playerId, slotIds);
+  }
+  return edges;
+}
+
+export function mergeMatchings(
+  primary: Map<number, number>,
+  secondary: Map<number, number>
+): Map<number, number> {
+  const merged = new Map(primary);
+  const usedSlots = new Set(primary.values());
+  for (const [playerId, slotId] of Array.from(secondary.entries())) {
+    if (merged.has(playerId)) {
+      throw new Error(`Duplicate player in merged matching: ${playerId}`);
+    }
+    if (usedSlots.has(slotId)) {
+      throw new Error(`Duplicate slot in merged matching: ${slotId}`);
+    }
+    merged.set(playerId, slotId);
+    usedSlots.add(slotId);
+  }
+  return merged;
 }
 
 export function buildMatchingEdges(
@@ -967,7 +994,8 @@ export function hopcroftKarp(
   return matchPlayer;
 }
 
-export function solveDayAssignment(
+/** 1st pass: Top-4 restricted global Hopcroft–Karp. */
+export function runFirstPassMatching(
   applicants: Map<number, BatchApplicant>,
   daySlots: DaySlotRow[],
   blockOrder?: number[]
@@ -981,6 +1009,47 @@ export function solveDayAssignment(
   const players = Array.from(applicants.keys());
   const slots = daySlots.map((s) => s.id);
   return hopcroftKarp(players, slots, edges);
+}
+
+/** 2nd pass: fill empty slots without Top-4 cap (excludes phase-1 matches). */
+export function runSecondPassMatching(
+  phase1: Map<number, number>,
+  applicants: Map<number, BatchApplicant>,
+  daySlots: DaySlotRow[]
+): Map<number, number> {
+  const allSlotIds = daySlots.map((s) => s.id);
+  const matchedSlotIds = new Set(phase1.values());
+  const emptySlotIds = new Set(
+    allSlotIds.filter((id) => !matchedSlotIds.has(id))
+  );
+  if (emptySlotIds.size === 0) return new Map();
+
+  const matchedPlayerIds = new Set(phase1.keys());
+  const phase2Edges = buildSecondPassEdges(
+    applicants,
+    daySlots,
+    emptySlotIds,
+    matchedPlayerIds
+  );
+  if (phase2Edges.size === 0) return new Map();
+
+  return hopcroftKarp(
+    Array.from(phase2Edges.keys()),
+    Array.from(emptySlotIds),
+    phase2Edges
+  );
+}
+
+export function solveDayAssignment(
+  applicants: Map<number, BatchApplicant>,
+  daySlots: DaySlotRow[],
+  blockOrder?: number[]
+): Map<number, number> {
+  const phase1 = runFirstPassMatching(applicants, daySlots, blockOrder);
+
+  const phase2 = runSecondPassMatching(phase1, applicants, daySlots);
+  if (phase2.size === 0) return phase1;
+  return mergeMatchings(phase1, phase2);
 }
 
 export async function runBatchAssignment(
