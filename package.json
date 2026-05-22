@@ -16,7 +16,8 @@
     "backfill:slots": "npx tsx scripts/backfill-empty-slots.ts",
     "reconcile:waitlist": "npx tsx scripts/reconcile-eliminated.ts",
     "purge:orphans": "npx tsx scripts/purge-orphan-players.ts",
-    "inject:random": "npx tsx scripts/inject-random.ts"
+    "inject:random": "npx tsx scripts/inject-random.ts",
+    "run:batch": "npx tsx scripts/run-batch-assignment.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
