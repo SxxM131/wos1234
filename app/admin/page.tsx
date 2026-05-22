@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 import { getAdminSession } from "@/lib/session";
 import { createServiceClient } from "@/lib/supabase";
-import { getCurrentCycleId } from "@/lib/assignment";
+import { getCurrentCycleId, getLastAssignmentRun } from "@/lib/assignment";
 import { AdminDashboard } from "./AdminDashboard";
 import { DayOfWeek } from "@/lib/types";
 
@@ -60,6 +60,55 @@ export default async function AdminPage() {
     })
   );
 
+  const { data: prefRows } = await supabase
+    .from("preferences")
+    .select(
+      "player_id, day_of_week, block_start_utc, players(game_id, name, alliance, speedup_vp, speedup_mo)"
+    )
+    .eq("cycle_id", cycleId);
+
+  const applicantMap = new Map<
+    number,
+    {
+      player_id: number;
+      players: {
+        game_id: number;
+        name: string;
+        alliance: string;
+        speedup_vp: number;
+        speedup_mo: number;
+      };
+      preferences: { day_of_week: string; block_start_utc: number }[];
+    }
+  >();
+
+  for (const row of prefRows ?? []) {
+    const players = row.players as unknown as {
+      game_id: number;
+      name: string;
+      alliance: string;
+      speedup_vp: number;
+      speedup_mo: number;
+    };
+    const pref = {
+      day_of_week: row.day_of_week as string,
+      block_start_utc: row.block_start_utc,
+    };
+    const existing = applicantMap.get(row.player_id);
+    if (existing) {
+      existing.preferences.push(pref);
+    } else {
+      applicantMap.set(row.player_id, {
+        player_id: row.player_id,
+        players,
+        preferences: [pref],
+      });
+    }
+  }
+
+  const applicants = Array.from(applicantMap.values());
+  const assignmentPublished = !!(await getLastAssignmentRun(supabase));
+
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL ||
     (process.env.VERCEL_URL
@@ -68,8 +117,18 @@ export default async function AdminPage() {
 
   return (
     <AdminDashboard
-      reservations={(reservations ?? []) as unknown as Parameters<typeof AdminDashboard>[0]["reservations"]}
-      eliminated={elimWithPrefs as unknown as Parameters<typeof AdminDashboard>[0]["eliminated"]}
+      reservations={
+        (assignmentPublished
+          ? reservations ?? []
+          : []) as unknown as Parameters<typeof AdminDashboard>[0]["reservations"]
+      }
+      eliminated={
+        (assignmentPublished
+          ? elimWithPrefs
+          : []) as unknown as Parameters<typeof AdminDashboard>[0]["eliminated"]
+      }
+      applicants={applicants}
+      assignmentPublished={assignmentPublished}
       slots={(slots ?? []).map((s) => ({
         ...s,
         day_of_week: s.day_of_week as DayOfWeek,

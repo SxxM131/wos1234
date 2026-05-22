@@ -48,6 +48,12 @@ interface SlotRow {
   is_active: boolean;
 }
 
+interface ApplicantRow {
+  player_id: number;
+  players: ReservationRow["players"];
+  preferences: { day_of_week: string; block_start_utc: number }[];
+}
+
 interface Props {
   reservations: ReservationRow[];
   eliminated: {
@@ -56,6 +62,8 @@ interface Props {
     players: ReservationRow["players"];
     preferences: { day_of_week: string; block_start_utc: number }[];
   }[];
+  applicants: ApplicantRow[];
+  assignmentPublished: boolean;
   slots: SlotRow[];
   accessToken: string;
   reservationOpen: boolean;
@@ -66,6 +74,8 @@ interface Props {
 export function AdminDashboard({
   reservations,
   eliminated,
+  applicants,
+  assignmentPublished,
   slots,
   accessToken,
   reservationOpen,
@@ -185,6 +195,27 @@ export function AdminDashboard({
     const idMatch = String(e.players.game_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
+
+  const speedupKey = DAY_CONFIG[activeDay].speedupKey;
+
+  const dayApplicants = applicants
+    .filter((a) =>
+      a.preferences.some((p) => p.day_of_week === activeDay)
+    )
+    .sort(
+      (a, b) =>
+        (b.players?.[speedupKey] ?? 0) - (a.players?.[speedupKey] ?? 0)
+    );
+
+  const searchResultsApplicants = applicants.filter((a) => {
+    if (!term || !a.players) return false;
+    const nameMatch = a.players.name?.toLowerCase().includes(term);
+    const allianceMatch = a.players.alliance?.toLowerCase().includes(term);
+    const idMatch = String(a.players.game_id ?? "").includes(term);
+    return nameMatch || allianceMatch || idMatch;
+  });
+
+  const showGrid = assignmentPublished || !!assignPreview?.lastRun;
 
   return (
     <div className="flex flex-col gap-4 pb-20">
@@ -380,9 +411,18 @@ export function AdminDashboard({
         )}
       </section>
 
+      {!showGrid && (
+        <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Assignment has not been run yet. Review applicants below, then use{" "}
+          <strong>Run full assignment</strong> to fill the schedule and waitlist.
+        </div>
+      )}
+
       {/* Search Bar */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-bold text-slate-700">Search Reservations</label>
+        <label className="text-sm font-bold text-slate-700">
+          {showGrid ? "Search Reservations" : "Search Applicants"}
+        </label>
         <input
           type="text"
           value={searchTerm}
@@ -396,9 +436,52 @@ export function AdminDashboard({
       {term && (
         <div className="card border-brand-200 bg-brand-50/20">
           <h2 className="mb-3 text-sm font-bold text-brand-900">
-            Search Results ({searchResultsRes.length + searchResultsElim.length})
+            Search Results (
+            {showGrid
+              ? searchResultsRes.length + searchResultsElim.length
+              : searchResultsApplicants.length}
+            )
           </h2>
-          {searchResultsRes.length === 0 && searchResultsElim.length === 0 ? (
+          {!showGrid ? (
+            searchResultsApplicants.length === 0 ? (
+              <p className="text-sm text-slate-500 italic">No matches found.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {searchResultsApplicants.map((a) => {
+                  const dayPrefs = a.preferences.filter(
+                    (p) => p.day_of_week === activeDay
+                  );
+                  const prefsLabel = Array.from(
+                    new Set(dayPrefs.map((p) => p.block_start_utc))
+                  )
+                    .sort((x, y) => x - y)
+                    .map((b) => formatBlockRange(b))
+                    .join(", ");
+                  return (
+                    <div
+                      key={a.player_id}
+                      className="border-b border-slate-100 pb-2.5 text-sm last:border-b-0 last:pb-0"
+                    >
+                      <p className="font-semibold text-slate-900">
+                        {a.players?.name ?? "Unknown"}{" "}
+                        <span className="text-xs font-normal text-slate-500">
+                          ({a.players?.alliance ?? "?"}) · ID{" "}
+                          {a.players?.game_id ?? "?"}
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-600">
+                        VP {a.players?.speedup_vp ?? 0}d · MO{" "}
+                        {a.players?.speedup_mo ?? 0}d
+                        {prefsLabel
+                          ? ` · ${dayLabel(activeDay)} prefs: ${prefsLabel}`
+                          : ""}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : searchResultsRes.length === 0 && searchResultsElim.length === 0 ? (
             <p className="text-sm text-slate-500 italic">No matches found.</p>
           ) : (
             <div className="flex flex-col gap-3">
@@ -482,14 +565,63 @@ export function AdminDashboard({
         </div>
       )}
 
-      {/* Schedule Table View */}
-      <div className="mt-2">
-        <h2 className="mb-3 text-sm font-bold text-slate-800">Schedule Grid (UTC)</h2>
+      {!showGrid ? (
+        <div className="mt-2">
+          <h2 className="mb-3 text-sm font-bold text-slate-800">
+            Applicants ({DAY_CONFIG[activeDay].office}) — {dayApplicants.length}
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Applications only (preferences). Schedule slots stay empty until you
+            run full assignment.
+          </p>
+          <DayTabs active={activeDay} onChange={setActiveDay} />
+          <div className="mt-4 flex flex-col gap-2">
+            {dayApplicants.length === 0 ? (
+              <p className="text-sm italic text-slate-500">
+                No applicants for this day.
+              </p>
+            ) : (
+              dayApplicants.map((a) => {
+                const prefs = Array.from(
+                  new Set(
+                    a.preferences
+                      .filter((p) => p.day_of_week === activeDay)
+                      .map((p) => p.block_start_utc)
+                  )
+                )
+                  .sort((x, y) => x - y)
+                  .map((b) => formatBlockRange(b))
+                  .join(", ");
+                return (
+                  <div key={a.player_id} className="card !px-3 !py-2.5 text-sm">
+                    <p className="font-semibold text-slate-900">
+                      {a.players?.name ?? "Unknown"}{" "}
+                      <span className="text-xs font-normal text-slate-500">
+                        ({a.players?.alliance ?? "?"}) · ID{" "}
+                        {a.players?.game_id ?? "?"}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      Speedup {a.players?.[speedupKey] ?? 0}d · Preferred{" "}
+                      {prefs || "—"}
+                    </p>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-2">
+            <h2 className="mb-3 text-sm font-bold text-slate-800">
+              Schedule Grid (UTC)
+            </h2>
 
-        <DayTabs active={activeDay} onChange={setActiveDay} />
+            <DayTabs active={activeDay} onChange={setActiveDay} />
 
-        <div className="mt-4 flex flex-col gap-3">
-          {TIME_BLOCKS.map((block) => {
+            <div className="mt-4 flex flex-col gap-3">
+              {TIME_BLOCKS.map((block) => {
             const blockSlots = daySlots
               .filter((s) => s.block_start_utc === block)
               .sort((a, b) => a.slot_index - b.slot_index);
@@ -567,13 +699,12 @@ export function AdminDashboard({
                 </div>
               </div>
             );
-          })}
-        </div>
-      </div>
+              })}
+            </div>
+          </div>
 
-      {/* Waitlist (Eliminated) */}
-      {dayEliminated.length > 0 && (
-        <div className="mt-6">
+          {dayEliminated.length > 0 && (
+            <div className="mt-6">
           <h2 className="mb-2 text-sm font-bold text-slate-700">
             Waitlist ({DAY_CONFIG[activeDay].office})
           </h2>
@@ -611,8 +742,10 @@ export function AdminDashboard({
                 </div>
               );
             })}
+            </div>
           </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );

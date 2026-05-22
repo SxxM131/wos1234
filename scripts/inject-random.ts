@@ -33,9 +33,10 @@ const supabase = createClient(
 
 const ALLIANCES = ["WOS", "LEO", "MOON", "SUN", "ZEUS"];
 const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);
-const BASE_GAME_ID = 300001;
+const DEFAULT_BASE_GAME_ID = 300001;
 
-const count = Math.max(1, parseInt(process.argv[2] ?? "90", 10));
+const count = Math.max(1, parseInt(process.argv[2] ?? "120", 10));
+const baseGameIdArg = process.argv[3];
 
 function getRandomPrefs(n: number): number[] {
   const primeTime = [10, 12, 14, 16, 20];
@@ -64,7 +65,25 @@ function randomSpeedup(): number {
 
 async function main() {
   const cycleId = await getCurrentCycleId(supabase);
-  console.log(`Injecting ${count} random applicants into cycle #${cycleId}...\n`);
+
+  let baseGameId = DEFAULT_BASE_GAME_ID;
+  if (baseGameIdArg) {
+    baseGameId = parseInt(baseGameIdArg, 10);
+  } else {
+    const { data: maxRow } = await supabase
+      .from("players")
+      .select("game_id")
+      .order("game_id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (maxRow?.game_id != null) {
+      baseGameId = Math.max(DEFAULT_BASE_GAME_ID, maxRow.game_id + 1);
+    }
+  }
+
+  console.log(
+    `Injecting ${count} random applicants into cycle #${cycleId} (game_id ${baseGameId}–${baseGameId + count - 1})...\n`
+  );
 
   await supabase
     .from("settings")
@@ -74,7 +93,7 @@ async function main() {
   let fail = 0;
 
   for (let i = 0; i < count; i++) {
-    const gameId = BASE_GAME_ID + i;
+    const gameId = baseGameId + i;
     const name = `테스터_${String(i + 1).padStart(2, "0")}`;
     const alliance = ALLIANCES[Math.floor(Math.random() * ALLIANCES.length)];
 

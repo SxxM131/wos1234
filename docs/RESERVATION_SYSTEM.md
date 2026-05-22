@@ -258,9 +258,10 @@ flowchart TD
 | Export Excel | 사이클별 시트(요일별 등) |
 | **Run full assignment** | `runFullBatchAssignment` — Search Reservations **위** 노란 패널 |
 | Reset cycle | `RESET` 입력 — players·preferences·reservations 전 삭제, `current_cycle_id` +1, `last_assignment_run` 삭제 |
-| Search Reservations | 이름·연맹·Game ID |
-| Schedule Grid | 요일 탭·UTC 그리드·슬롯별 Cancel |
-| Waitlist | 해당 요일 `eliminated` + 선호 블록 |
+| Search | 배정 전: 신청자 검색 / 배정 후: 예약·대기 검색 |
+| Applicants | 배정 전만 — `preferences` 기반 신청자 목록 (그리드 비표시) |
+| Schedule Grid | 배정 후만 — UTC 그리드·슬롯별 Cancel |
+| Waitlist | 배정 후만 — 해당 요일 `eliminated` + 선호 블록 |
 
 ---
 
@@ -310,7 +311,9 @@ flowchart TD
 
 | npm script | 설명 |
 |------------|------|
-| `inject:random -- N` | N명 무작위 신청 (preferences만) |
+| `inject:random -- N` | N명 무작위 신청 (기본 120, preferences만) |
+| `clear:assignments` | 현재 사이클 배정 결과만 삭제 (`last_assignment_run` 초기화) |
+| `seed:stress` | clear + 120명 주입 |
 | `run:batch` | Admin 버튼과 동일한 `runBatchAssignmentForCycle` |
 | `test:assignment` | 배정·승격 시나리오 테스트 |
 | `purge:orphans` | preferences 없는 고아 `players` 삭제 |
