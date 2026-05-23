@@ -284,7 +284,7 @@ export async function exportCsv(): Promise<string> {
   // Fetch all assigned reservations for this cycle
   const { data: reservations, error: resError } = await supabase
     .from("reservations")
-    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_vp, speedup_mo)")
+    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
   if (resError) {
@@ -332,8 +332,9 @@ export async function exportCsv(): Promise<string> {
                 game_id: number;
                 name: string;
                 alliance: string;
-                speedup_vp: number;
-                speedup_mo: number;
+                speedup_mon: number;
+                speedup_tue: number;
+                speedup_thu: number;
               } | null,
             }
           : undefined
@@ -363,7 +364,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
   // Fetch all assigned reservations for this cycle
   const { data: reservations, error: resError } = await supabase
     .from("reservations")
-    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_vp, speedup_mo)")
+    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
   if (resError) {
@@ -406,8 +407,9 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
                 game_id: number;
                 name: string;
                 alliance: string;
-                speedup_vp: number;
-                speedup_mo: number;
+                speedup_mon: number;
+                speedup_tue: number;
+                speedup_thu: number;
               } | null,
             }
           : undefined

@@ -18,7 +18,7 @@ interface ReservationData {
   slot_id: number;
   player_id: number;
   status: string;
-  players: { name: string; alliance: string; speedup_vp: number; speedup_mo: number };
+  players: { name: string; alliance: string; speedup_mon: number; speedup_tue: number; speedup_thu: number };
 }
 
 interface EliminatedData {
@@ -26,8 +26,9 @@ interface EliminatedData {
   players: {
     name: string;
     alliance: string;
-    speedup_vp: number;
-    speedup_mo: number;
+    speedup_mon: number;
+    speedup_tue: number;
+    speedup_thu: number;
   };
   preferences: { block_start_utc: number; day_of_week?: string }[];
 }
@@ -67,7 +68,7 @@ export function StatusView({
     const { data: resData } = await supabase
       .from("reservations")
       .select(
-        "slot_id, player_id, status, players(name, alliance, speedup_vp, speedup_mo), slots(day_of_week)"
+        "slot_id, player_id, status, players(name, alliance, speedup_mon, speedup_tue, speedup_thu), slots(day_of_week)"
       )
       .eq("cycle_id", cycleId)
       .eq("status", "assigned");
@@ -85,7 +86,7 @@ export function StatusView({
 
     const { data: elimData } = await supabase
       .from("reservations")
-      .select("player_id, players(name, alliance, speedup_vp, speedup_mo)")
+      .select("player_id, players(name, alliance, speedup_mon, speedup_tue, speedup_thu)")
       .eq("cycle_id", cycleId)
       .eq("status", "eliminated");
 
@@ -225,10 +226,9 @@ export function StatusView({
           </h2>
           <div className="flex flex-col gap-2">
             {dayEliminated.map((e, i) => {
-              const speedup =
-                config.speedupKey === "speedup_vp"
-                  ? e.players.speedup_vp
-                  : e.players.speedup_mo;
+              const speedup = e.players
+                ? e.players[config.speedupKey] ?? 0
+                : 0;
               const prefs = Array.from(
                 new Set(e.preferences?.map((p) => p.block_start_utc) ?? [])
               )
@@ -242,7 +242,7 @@ export function StatusView({
                     <span className="text-slate-500">({e.players.alliance})</span>
                   </p>
                   <p className="text-xs text-slate-500">
-                    Speedup {speedup}d · Preferred {prefs || "-"}
+                    {day === "mon" ? "Monday Speedup" : day === "tue" ? "Tuesday Speedup" : "Thursday Speedup"}: {speedup}d · Preferred {prefs || "-"}
                   </p>
                 </div>
               );

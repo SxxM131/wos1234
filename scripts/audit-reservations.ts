@@ -39,7 +39,7 @@ async function main() {
   const { data: reservations } = await supabase
     .from("reservations")
     .select(
-      "id, player_id, slot_id, status, applied_at, players(name, speedup_vp, speedup_mo)"
+      "id, player_id, slot_id, status, applied_at, players(name, speedup_mon, speedup_tue, speedup_thu)"
     )
     .eq("cycle_id", cycleId);
 

@@ -37,7 +37,7 @@ export default async function AdminPage() {
   const { data: reservations } = await supabase
     .from("reservations")
     .select(
-      "id, status, player_id, slot_id, players(game_id, name, alliance, speedup_vp, speedup_mo), slots(id, day_of_week, block_start_utc, slot_index, office_type, is_active)"
+      "id, status, player_id, slot_id, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu), slots(id, day_of_week, block_start_utc, slot_index, office_type, is_active)"
     )
     .eq("cycle_id", cycleId)
     .not("slot_id", "is", null)
@@ -45,7 +45,7 @@ export default async function AdminPage() {
 
   const { data: eliminated } = await supabase
     .from("reservations")
-    .select("id, player_id, players(game_id, name, alliance, speedup_vp, speedup_mo)")
+    .select("id, player_id, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
     .eq("cycle_id", cycleId)
     .eq("status", "eliminated");
 
@@ -63,7 +63,7 @@ export default async function AdminPage() {
   const { data: prefRows } = await supabase
     .from("preferences")
     .select(
-      "player_id, day_of_week, block_start_utc, players(game_id, name, alliance, speedup_vp, speedup_mo)"
+      "player_id, day_of_week, block_start_utc, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
     )
     .eq("cycle_id", cycleId);
 
@@ -75,8 +75,9 @@ export default async function AdminPage() {
         game_id: number;
         name: string;
         alliance: string;
-        speedup_vp: number;
-        speedup_mo: number;
+        speedup_mon: number;
+        speedup_tue: number;
+        speedup_thu: number;
       };
       preferences: { day_of_week: string; block_start_utc: number }[];
     }
@@ -87,8 +88,9 @@ export default async function AdminPage() {
       game_id: number;
       name: string;
       alliance: string;
-      speedup_vp: number;
-      speedup_mo: number;
+      speedup_mon: number;
+      speedup_tue: number;
+      speedup_thu: number;
     };
     const pref = {
       day_of_week: row.day_of_week as string,

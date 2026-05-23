@@ -20,8 +20,9 @@ interface Player {
   game_id: number;
   name: string;
   alliance: string;
-  speedup_vp: number;
-  speedup_mo: number;
+  speedup_mon: number;
+  speedup_tue: number;
+  speedup_thu: number;
 }
 
 const CHECK_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
@@ -133,10 +134,6 @@ export function CheckForm() {
             <p className="text-sm text-slate-500">
               {result.player.alliance} · ID {result.player.game_id}
             </p>
-            <p className="mt-2 text-sm">
-              VP Speedup: {result.player.speedup_vp}d · MO Speedup:{" "}
-              {result.player.speedup_mo}d
-            </p>
           </div>
 
           {CHECK_DAYS.map((day) => {
@@ -196,6 +193,11 @@ export function CheckForm() {
                     </p>
                   </>
                 )}
+                <div className="mt-2.5 border-t border-slate-100 pt-1.5 text-xs text-slate-500 font-medium">
+                  {day === "mon" && `Monday Speedup: ${result.player.speedup_mon}d`}
+                  {day === "tue" && `Tuesday Speedup: ${result.player.speedup_tue}d`}
+                  {day === "thu" && `Thursday Speedup: ${result.player.speedup_thu}d`}
+                </div>
               </div>
             );
           })}

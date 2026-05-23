@@ -246,7 +246,11 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   function DayStepContent({ day }: { day: DayOfWeek }) {
     const office = DAY_CONFIG[day].office;
     const speedupLabel =
-      office === "VP" ? "VP Speedup (days)" : "MO Speedup (days)";
+      day === "mon"
+        ? "Monday Speedup (days)"
+        : day === "tue"
+        ? "Tuesday Speedup (days)"
+        : "Thursday Speedup (days)";
     const isReserved = reservedDays.includes(day);
 
     return (

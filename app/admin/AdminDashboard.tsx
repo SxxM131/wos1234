@@ -26,8 +26,9 @@ interface ReservationRow {
     game_id: number;
     name: string;
     alliance: string;
-    speedup_vp: number;
-    speedup_mo: number;
+    speedup_mon: number;
+    speedup_tue: number;
+    speedup_thu: number;
   };
   slots: {
     id: number;
@@ -470,8 +471,9 @@ export function AdminDashboard({
                         </span>
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600">
-                        VP {a.players?.speedup_vp ?? 0}d · MO{" "}
-                        {a.players?.speedup_mo ?? 0}d
+                        Mon {a.players?.speedup_mon ?? 0}d · Tue{" "}
+                        {a.players?.speedup_tue ?? 0}d · Thu{" "}
+                        {a.players?.speedup_thu ?? 0}d
                         {prefsLabel
                           ? ` · ${dayLabel(activeDay)} prefs: ${prefsLabel}`
                           : ""}
@@ -487,10 +489,9 @@ export function AdminDashboard({
             <div className="flex flex-col gap-3">
               {searchResultsRes.map((r) => {
                 const config = DAY_CONFIG[r.slots.day_of_week as DayOfWeek];
-                const speedup =
-                  config?.speedupKey === "speedup_vp"
-                    ? r.players?.speedup_vp ?? 0
-                    : r.players?.speedup_mo ?? 0;
+                const speedup = r.players
+                  ? r.players[config?.speedupKey] ?? 0
+                  : 0;
                 return (
                   <div
                     key={r.id}
@@ -554,8 +555,9 @@ export function AdminDashboard({
                       </span>
                     </p>
                     <p className="text-xs text-amber-600 font-semibold mt-0.5">
-                      Status: Waitlist (VP: {e.players?.speedup_vp ?? 0}d / MO:{" "}
-                      {e.players?.speedup_mo ?? 0}d)
+                      Status: Waitlist (Mon: {e.players?.speedup_mon ?? 0}d / Tue:{" "}
+                      {e.players?.speedup_tue ?? 0}d / Thu:{" "}
+                      {e.players?.speedup_thu ?? 0}d)
                     </p>
                   </div>
                 </div>
@@ -654,9 +656,7 @@ export function AdminDashboard({
                             {res && res.players && (
                               <span className="text-[9px] bg-brand-100 px-1 py-0.5 rounded text-brand-800 font-medium">
                                 SU{" "}
-                                {slot.office_type === "VP"
-                                  ? res.players.speedup_vp
-                                  : res.players.speedup_mo}
+                                {res.players[DAY_CONFIG[activeDay].speedupKey]}
                                 d
                               </span>
                             )}
@@ -710,10 +710,9 @@ export function AdminDashboard({
           </h2>
           <div className="flex flex-col gap-2">
             {dayEliminated.map((e, i) => {
-              const speedup =
-                DAY_CONFIG[activeDay].speedupKey === "speedup_vp"
-                  ? e.players?.speedup_vp ?? 0
-                  : e.players?.speedup_mo ?? 0;
+              const speedup = e.players
+                ? e.players[DAY_CONFIG[activeDay].speedupKey] ?? 0
+                : 0;
               const prefs = Array.from(
                 new Set(
                   e.preferences

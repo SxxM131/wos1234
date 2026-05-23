@@ -128,6 +128,12 @@ export async function processReservation(
   };
 }
 
+function getSpeedup(player: { speedup_mon: number; speedup_tue: number; speedup_thu: number }, day: DayOfWeek): number {
+  if (day === "mon") return player.speedup_mon;
+  if (day === "tue") return player.speedup_tue;
+  return player.speedup_thu;
+}
+
 async function upsertPlayerForDays(
   supabase: SupabaseClient,
   gameId: number,
@@ -137,19 +143,23 @@ async function upsertPlayerForDays(
 ) {
   const { data: existing } = await supabase
     .from("players")
-    .select("speedup_vp, speedup_mo")
+    .select("speedup_mon, speedup_tue, speedup_thu")
     .eq("game_id", gameId)
     .maybeSingle();
 
-  let speedupVp = existing?.speedup_vp ?? 0;
-  let speedupMo = existing?.speedup_mo ?? 0;
+  let speedupMon = existing?.speedup_mon ?? 0;
+  let speedupTue = existing?.speedup_tue ?? 0;
+  let speedupThu = existing?.speedup_thu ?? 0;
 
   for (const d of days) {
-    if (d.dayOfWeek === "mon" || d.dayOfWeek === "tue") {
-      speedupVp = Math.max(speedupVp, d.speedup);
+    if (d.dayOfWeek === "mon") {
+      speedupMon = d.speedup;
+    }
+    if (d.dayOfWeek === "tue") {
+      speedupTue = d.speedup;
     }
     if (d.dayOfWeek === "thu") {
-      speedupMo = d.speedup;
+      speedupThu = d.speedup;
     }
   }
 
@@ -158,8 +168,9 @@ async function upsertPlayerForDays(
       game_id: gameId,
       name,
       alliance,
-      speedup_vp: speedupVp,
-      speedup_mo: speedupMo,
+      speedup_mon: speedupMon,
+      speedup_tue: speedupTue,
+      speedup_thu: speedupThu,
     },
     { onConflict: "game_id" }
   );
@@ -291,17 +302,16 @@ export async function assignToBlock(
 
   const { data: existing } = await supabase
     .from("reservations")
-    .select("player_id, applied_at, players(speedup_vp, speedup_mo)")
+    .select("player_id, applied_at, players(speedup_mon, speedup_tue, speedup_thu)")
     .in("slot_id", slotIds)
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
 
-  const config = DAY_CONFIG[day];
   const applicants: Applicant[] = (existing ?? []).map((r) => {
-    const p = r.players as unknown as { speedup_vp: number; speedup_mo: number };
+    const p = r.players as unknown as { speedup_mon: number; speedup_tue: number; speedup_thu: number };
     return {
       playerId: r.player_id,
-      speedup: p[config.speedupKey],
+      speedup: getSpeedup(p, day),
       appliedAt: r.applied_at,
       isNew: false,
     };
@@ -400,13 +410,12 @@ async function runReassignmentQueue(
 
     const { data: player } = await supabase
       .from("players")
-      .select("speedup_vp, speedup_mo")
+      .select("speedup_mon, speedup_tue, speedup_thu")
       .eq("game_id", playerId)
       .single();
     if (!player) continue;
 
-    const config = DAY_CONFIG[day];
-    const speedup = player[config.speedupKey];
+    const speedup = getSpeedup(player as any, day);
 
     const { data: prefs } = await supabase
       .from("preferences")
@@ -570,7 +579,7 @@ export async function backfillEmptySlotsForDay(
 
     const { data: eliminated } = await supabase
       .from("reservations")
-      .select("id, player_id, applied_at, players(speedup_vp, speedup_mo)")
+      .select("id, player_id, applied_at, players(speedup_mon, speedup_tue, speedup_thu)")
       .eq("status", "eliminated")
       .eq("cycle_id", cycleId)
       .is("slot_id", null);
@@ -587,13 +596,14 @@ export async function backfillEmptySlotsForDay(
         continue;
       }
       const p = e.players as unknown as {
-        speedup_vp: number;
-        speedup_mo: number;
+        speedup_mon: number;
+        speedup_tue: number;
+        speedup_thu: number;
       };
       const row = {
         id: e.id as string,
         playerId: e.player_id,
-        speedup: p[config.speedupKey],
+        speedup: getSpeedup(p, day),
         appliedAt: e.applied_at,
       };
       const prev = byPlayer.get(e.player_id);
@@ -695,7 +705,7 @@ export async function promoteOnCancel(
   const { data: prefRows } = await supabase
     .from("preferences")
     .select(
-      "player_id, block_start_utc, players(speedup_vp, speedup_mo, created_at)"
+      "player_id, block_start_utc, players(speedup_mon, speedup_tue, speedup_thu, created_at)"
     )
     .eq("day_of_week", day)
     .eq("cycle_id", cycleId);
@@ -703,8 +713,9 @@ export async function promoteOnCancel(
   const applicantMap = new Map<number, BatchApplicant>();
   for (const row of prefRows ?? []) {
     const p = row.players as unknown as {
-      speedup_vp: number;
-      speedup_mo: number;
+      speedup_mon: number;
+      speedup_tue: number;
+      speedup_thu: number;
       created_at: string;
     };
     const appliedAt = p.created_at ?? now;
@@ -719,7 +730,7 @@ export async function promoteOnCancel(
     } else {
       applicantMap.set(row.player_id, {
         playerId: row.player_id,
-        speedup: p[config.speedupKey],
+        speedup: getSpeedup(p, day),
         appliedAt,
         blocks: new Set([row.block_start_utc]),
       });
@@ -728,7 +739,7 @@ export async function promoteOnCancel(
 
   const { data: eliminated } = await supabase
     .from("reservations")
-    .select("id, player_id, applied_at, players(speedup_vp, speedup_mo)")
+    .select("id, player_id, applied_at, players(speedup_mon, speedup_tue, speedup_thu)")
     .eq("status", "eliminated")
     .eq("cycle_id", cycleId)
     .is("slot_id", null);
@@ -1091,7 +1102,7 @@ export async function runBatchAssignment(
   const { data: prefRows } = await supabase
     .from("preferences")
     .select(
-      "player_id, block_start_utc, players(speedup_vp, speedup_mo, created_at)"
+      "player_id, block_start_utc, players(speedup_mon, speedup_tue, speedup_thu, created_at)"
     )
     .eq("day_of_week", day)
     .eq("cycle_id", cycleId);
@@ -1099,8 +1110,9 @@ export async function runBatchAssignment(
   const applicantMap = new Map<number, BatchApplicant>();
   for (const row of prefRows ?? []) {
     const p = row.players as unknown as {
-      speedup_vp: number;
-      speedup_mo: number;
+      speedup_mon: number;
+      speedup_tue: number;
+      speedup_thu: number;
       created_at: string;
     };
     const appliedAt = p.created_at ?? now;
@@ -1115,7 +1127,7 @@ export async function runBatchAssignment(
     } else {
       applicantMap.set(row.player_id, {
         playerId: row.player_id,
-        speedup: p[config.speedupKey],
+        speedup: getSpeedup(p, day),
         appliedAt,
         blocks: new Set([row.block_start_utc]),
       });

@@ -36,8 +36,9 @@ interface ReservationRecord {
     game_id: number;
     name: string;
     alliance: string;
-    speedup_vp: number;
-    speedup_mo: number;
+    speedup_mon: number;
+    speedup_tue: number;
+    speedup_thu: number;
   } | null;
 }
 
@@ -71,7 +72,7 @@ export function buildSlotExportRow(
       name = p.name;
       alliance = p.alliance;
       const speedupVal =
-        slot.office_type === "VP" ? p.speedup_vp : p.speedup_mo;
+        day === "mon" ? p.speedup_mon : day === "tue" ? p.speedup_tue : p.speedup_thu;
       speedup = String(speedupVal);
     }
   }

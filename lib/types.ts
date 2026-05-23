@@ -6,8 +6,9 @@ export interface Player {
   game_id: number;
   name: string;
   alliance: string;
-  speedup_vp: number;
-  speedup_mo: number;
+  speedup_mon: number;
+  speedup_tue: number;
+  speedup_thu: number;
 }
 
 export interface Slot {
@@ -38,11 +39,11 @@ export interface Preference {
 
 export const DAY_CONFIG: Record<
   DayOfWeek,
-  { label: string; office: OfficeType; speedupKey: "speedup_vp" | "speedup_mo" }
+  { label: string; office: OfficeType; speedupKey: "speedup_mon" | "speedup_tue" | "speedup_thu" }
 > = {
-  mon: { label: "Monday", office: "VP", speedupKey: "speedup_vp" },
-  tue: { label: "Tuesday", office: "VP", speedupKey: "speedup_vp" },
-  thu: { label: "Thursday", office: "MO", speedupKey: "speedup_mo" },
+  mon: { label: "Monday", office: "VP", speedupKey: "speedup_mon" },
+  tue: { label: "Tuesday", office: "VP", speedupKey: "speedup_tue" },
+  thu: { label: "Thursday", office: "MO", speedupKey: "speedup_thu" },
 };
 
 export const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);

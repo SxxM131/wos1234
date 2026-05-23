@@ -76,7 +76,7 @@ async function main() {
     const { data: prefs } = await supabase
       .from("preferences")
       .select(
-        "player_id, block_start_utc, players(speedup_vp, speedup_mo, created_at)"
+        "player_id, block_start_utc, players(speedup_mon, speedup_tue, speedup_thu, created_at)"
       )
       .eq("cycle_id", cycleId)
       .eq("day_of_week", day);
@@ -84,8 +84,9 @@ async function main() {
     const applicantMap = new Map<number, BatchApplicant>();
     for (const row of prefs ?? []) {
       const p = row.players as {
-        speedup_vp: number;
-        speedup_mo: number;
+        speedup_mon: number;
+        speedup_tue: number;
+        speedup_thu: number;
         created_at: string;
       };
       const speedup = p[config.speedupKey];
