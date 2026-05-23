@@ -145,10 +145,16 @@ export function StatusView({
       .map((r) => r.player_id)
   );
 
-  const dayEliminated = eliminated.filter(
-    (e) =>
-      e.preferences.length > 0 && !assignedPlayerIdsOnDay.has(e.player_id)
-  );
+  const dayEliminated = eliminated
+    .filter(
+      (e) =>
+        e.preferences.length > 0 && !assignedPlayerIdsOnDay.has(e.player_id)
+    )
+    .sort((a, b) => {
+      const sa = a.players ? a.players[config.speedupKey] ?? 0 : 0;
+      const sb = b.players ? b.players[config.speedupKey] ?? 0 : 0;
+      return sb - sa;
+    });
 
   return (
     <div>

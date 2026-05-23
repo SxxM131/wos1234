@@ -171,13 +171,19 @@ export function AdminDashboard({
       .map((r) => r.player_id)
   );
 
+  const speedupKey = DAY_CONFIG[activeDay].speedupKey;
+
   // Waitlist = has prefs this day, not already assigned this day
-  const dayEliminated = eliminated.filter(
-    (e) =>
-      e.preferences?.some(
-        (p) => (p as { day_of_week?: string }).day_of_week === activeDay
-      ) && !assignedPlayerIdsOnDay.has(e.player_id)
-  );
+  const dayEliminated = eliminated
+    .filter(
+      (e) =>
+        e.preferences?.some(
+          (p) => (p as { day_of_week?: string }).day_of_week === activeDay
+        ) && !assignedPlayerIdsOnDay.has(e.player_id)
+    )
+    .sort(
+      (a, b) => (b.players?.[speedupKey] ?? 0) - (a.players?.[speedupKey] ?? 0)
+    );
 
   // Search logic across all reservations and waitlist
   const term = searchTerm.trim().toLowerCase();
@@ -196,8 +202,6 @@ export function AdminDashboard({
     const idMatch = String(e.players.game_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
-
-  const speedupKey = DAY_CONFIG[activeDay].speedupKey;
 
   const dayApplicants = applicants
     .filter((a) =>
