@@ -864,53 +864,7 @@ export function computeEligibleByBlock(
   return eligible;
 }
 
-/**
- * Build edges for the 2nd-pass Hopcroft–Karp matching.
- *
- * Rules:
- *  - Excludes phase-1 matched players (matchedPlayerIds).
- *  - Only connects a player → slots in blocks that actually have empty slots
- *    (i.e., the block's slot IDs intersect emptySlotIds).
- *    Blocks that are fully occupied are never added as edges, preventing
- *    Hopcroft–Karp from routing a player to a full block and leaving a
- *    genuinely empty block unfilled.
- *  - No Top-4 speedup cap — any unmatched player who preferred an empty block
- *    is eligible.
- */
-export function buildSecondPassEdges(
-  applicants: Map<number, BatchApplicant>,
-  daySlots: DaySlotRow[],
-  emptySlotIds: Set<number>,
-  matchedPlayerIds: Set<number>
-): Map<number, number[]> {
-  // Index only the slots that are actually empty.
-  const emptySlots = daySlots.filter((s) => emptySlotIds.has(s.id));
-  const slotByBlock = new Map<number, number[]>();
-  for (const slot of emptySlots) {
-    const list = slotByBlock.get(slot.block_start_utc) ?? [];
-    list.push(slot.id);
-    slotByBlock.set(slot.block_start_utc, list);
-  }
 
-  // Only blocks that contain at least one empty slot.
-  const emptyBlocks = new Set(emptySlots.map((s) => s.block_start_utc));
-  const edges = new Map<number, number[]>();
-
-  for (const [playerId, applicant] of Array.from(applicants.entries())) {
-    if (matchedPlayerIds.has(playerId)) continue;
-    const slotIds: number[] = [];
-    for (const blockStart of Array.from(applicant.blocks)) {
-      // Skip blocks with no empty slots — this prevents the matcher from
-      // sending a player to a full block when an empty one is available.
-      if (!emptyBlocks.has(blockStart)) continue;
-      for (const sid of slotByBlock.get(blockStart) ?? []) {
-        slotIds.push(sid);
-      }
-    }
-    if (slotIds.length) edges.set(playerId, slotIds);
-  }
-  return edges;
-}
 
 export function mergeMatchings(
   primary: Map<number, number>,
@@ -1038,7 +992,7 @@ export function runFirstPassMatching(
   return hopcroftKarp(players, slots, edges);
 }
 
-/** 2nd pass: fill empty slots without Top-4 cap (excludes phase-1 matches). */
+/** 2nd pass: fill empty slots without Top-4 cap, strictly respecting speedup. */
 export function runSecondPassMatching(
   phase1: Map<number, number>,
   applicants: Map<number, BatchApplicant>,
@@ -1052,19 +1006,54 @@ export function runSecondPassMatching(
   if (emptySlotIds.size === 0) return new Map();
 
   const matchedPlayerIds = new Set(phase1.keys());
-  const phase2Edges = buildSecondPassEdges(
-    applicants,
-    daySlots,
-    emptySlotIds,
-    matchedPlayerIds
-  );
-  if (phase2Edges.size === 0) return new Map();
+  
+  // Sort unmatched applicants by speedup DESC, then appliedAt ASC
+  const phase2Applicants = Array.from(applicants.values())
+    .filter(a => !matchedPlayerIds.has(a.playerId))
+    .sort(compareBatchApplicants);
 
-  return hopcroftKarp(
-    Array.from(phase2Edges.keys()),
-    Array.from(emptySlotIds),
-    phase2Edges
-  );
+  const emptySlots = daySlots.filter((s) => emptySlotIds.has(s.id));
+  const slotByBlock = new Map<number, number[]>();
+  for (const slot of emptySlots) {
+    const list = slotByBlock.get(slot.block_start_utc) ?? [];
+    list.push(slot.id);
+    slotByBlock.set(slot.block_start_utc, list);
+  }
+  const emptyBlocks = new Set(emptySlots.map((s) => s.block_start_utc));
+
+  const matchPlayer = new Map<number, number>();
+  const matchSlot = new Map<number, number>();
+
+  // Process from highest speedup to lowest
+  for (const applicant of phase2Applicants) {
+    const p = applicant.playerId;
+    const visited = new Set<number>();
+
+    function dfs(currP: number): boolean {
+      const currApplicant = applicants.get(currP);
+      if (!currApplicant) return false;
+      
+      for (const blockStart of Array.from(currApplicant.blocks)) {
+        if (!emptyBlocks.has(blockStart)) continue;
+        for (const s of slotByBlock.get(blockStart) ?? []) {
+          if (visited.has(s)) continue;
+          visited.add(s);
+          const nextP = matchSlot.get(s);
+          // If slot is unmatched, or we can move the occupying player
+          if (nextP === undefined || dfs(nextP)) {
+            matchPlayer.set(currP, s);
+            matchSlot.set(s, currP);
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    dfs(p);
+  }
+
+  return matchPlayer;
 }
 
 export function solveDayAssignment(
