@@ -1,110 +1,113 @@
+#!/usr/bin/env npx tsx
+/**
+ * Inject specific test data to verify the 2nd-pass matching logic (e.g. buildSecondPassEdges).
+ * Creates a scenario where a player is eliminated from a full block (10:00) but has preferred
+ * another block (12:00) which has empty slots.
+ * Under the corrected logic, this player must be assigned to the empty slot in block 12:00 during the 2nd pass.
+ */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { processMultiDayReservation, getCurrentCycleId } from "../lib/assignment";
-import { DayOfWeek } from "../lib/types";
+import {
+  processMultiDayReservation,
+  getCurrentCycleId,
+} from "../lib/assignment";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load env variables
-const root = resolve(__dirname, "..");
-const envPath = resolve(root, ".env.local");
-const content = readFileSync(envPath, "utf8");
-const vars = Object.fromEntries(
-  content
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const env = Object.fromEntries(
+  readFileSync(resolve(root, ".env.local"), "utf8")
     .split("\n")
     .filter((l) => l && !l.startsWith("#"))
-    .map((l) => l.split("="))
-    .map(([k, ...v]) => [k.trim(), v.join("=").trim()])
+    .map((l) => {
+      const i = l.indexOf("=");
+      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+    })
 );
 
 const supabase = createClient(
-  vars.NEXT_PUBLIC_SUPABASE_URL,
-  vars.SUPABASE_SERVICE_ROLE_KEY
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const ALLIANCES = ["WOS", "LEO", "MOON", "SUN", "ZEUS"];
-const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);
+async function main() {
+  const cycleId = await getCurrentCycleId(supabase);
+  console.log(`Current Cycle ID: ${cycleId}`);
 
-function getRandomPrefs(count: number): number[] {
-  const primeTime = [10, 12, 14, 16];
-  const pool = [...TIME_BLOCKS];
-  const prefs: number[] = [];
-  
-  while (prefs.length < count) {
-    const usePrime = Math.random() < 0.6 && primeTime.some(t => pool.includes(t));
-    let chosen: number;
-    
-    if (usePrime) {
-      const activePrimes = primeTime.filter(t => pool.includes(t));
-      chosen = activePrimes[Math.floor(Math.random() * activePrimes.length)];
-    } else {
-      chosen = pool[Math.floor(Math.random() * pool.length)];
-    }
-    
-    prefs.push(chosen);
-    pool.splice(pool.indexOf(chosen), 1);
-  }
-  return prefs;
-}
+  // We will insert 6 testers to verify the 2nd pass matching behavior.
+  // We use game_ids 990001 - 990006 to avoid conflicts.
+  const testData = [
+    {
+      gameId: 990001,
+      name: "테스터_A_100",
+      alliance: "WOS",
+      dayInputs: [{ dayOfWeek: "mon" as const, speedup: 100, preferredBlocks: [10] }],
+    },
+    {
+      gameId: 990002,
+      name: "테스터_B_90",
+      alliance: "WOS",
+      dayInputs: [{ dayOfWeek: "mon" as const, speedup: 90, preferredBlocks: [10] }],
+    },
+    {
+      gameId: 990003,
+      name: "테스터_C_80",
+      alliance: "WOS",
+      dayInputs: [{ dayOfWeek: "mon" as const, speedup: 80, preferredBlocks: [10] }],
+    },
+    {
+      gameId: 990004,
+      name: "테스터_D_70",
+      alliance: "WOS",
+      dayInputs: [{ dayOfWeek: "mon" as const, speedup: 70, preferredBlocks: [10] }],
+    },
+    {
+      gameId: 990005,
+      name: "테스터_E_50", // Preferred both 10 and 12. Block 10 will be full. Must go to Block 12 in 2nd pass.
+      alliance: "WOS",
+      dayInputs: [{ dayOfWeek: "mon" as const, speedup: 50, preferredBlocks: [10, 12] }],
+    },
+    {
+      gameId: 990006,
+      name: "테스터_F_60",
+      alliance: "WOS",
+      dayInputs: [{ dayOfWeek: "mon" as const, speedup: 60, preferredBlocks: [12] }],
+    },
+  ];
 
-// Generate 70 randomized players with prefixed names
-const testPlayers = Array.from({ length: 70 }, (_, i) => {
-  const id = 300001 + i;
-  return {
-    gameId: id,
-    name: `테스터_${String(i + 1).padStart(2, "0")}`,
-    alliance: ALLIANCES[Math.floor(Math.random() * ALLIANCES.length)],
-    speedupMon: Math.floor(Math.random() * 49) * 10 + 10,
-    speedupTue: Math.floor(Math.random() * 49) * 10 + 10,
-    speedupThu: Math.floor(Math.random() * 49) * 10 + 10,
-    prefMon: getRandomPrefs(3),
-    prefTue: getRandomPrefs(3),
-    prefThu: getRandomPrefs(3),
-  };
-});
-
-async function runInjection() {
-  const currentCycle = await getCurrentCycleId(supabase);
-  console.log(`🚨 WARNING: Preparing to inject 70 randomized test players directly into Active Cycle #${currentCycle}!`);
-  console.log("This will leave the test data inside your real database for live testing on your website.\n");
-
-  // Make sure reservations are open
+  console.log("Setting reservation_open to true...");
   await supabase
     .from("settings")
     .upsert({ key: "reservation_open", value: "true" });
 
-  console.log("⏳ Starting sequential reservation submissions...");
+  console.log("Injecting test reservation applications...");
 
-  for (let i = 0; i < testPlayers.length; i++) {
-    const p = testPlayers[i];
-    console.log(`[${i + 1}/70] Injecting ${p.name} into Cycle #${currentCycle}...`);
-
-    const daysInput = [
-      { dayOfWeek: "mon" as DayOfWeek, speedup: p.speedupMon, preferredBlocks: p.prefMon },
-      { dayOfWeek: "tue" as DayOfWeek, speedup: p.speedupTue, preferredBlocks: p.prefTue },
-      { dayOfWeek: "thu" as DayOfWeek, speedup: p.speedupThu, preferredBlocks: p.prefThu },
-    ];
-
-    await processMultiDayReservation(
+  for (const item of testData) {
+    const res = await processMultiDayReservation(
       supabase,
-      p.gameId,
-      p.name,
-      p.alliance,
-      daysInput
+      item.gameId,
+      item.name,
+      item.alliance,
+      item.dayInputs
     );
+
+    if (res.success) {
+      console.log(`  ✓ ${item.name} (Game ID: ${item.gameId}) submitted successfully.`);
+    } else {
+      console.log(`  ✗ ${item.name} (Game ID: ${item.gameId}) failed: ${res.message}`);
+    }
   }
 
   console.log("\n=========================================================");
-  console.log("🎉 SUCCESS: 70 players have been injected!");
-  console.log(`Open your browser and visit: https://wos1234.vercel.app/status`);
-  console.log("Log in to /admin with your configured admin password to check or download the CSV.");
-  console.log("\n💡 TO CLEAN UP LATER:");
-  console.log("You can easily clear this data by logging in to the admin panel");
-  console.log("and typing 'RESET' in the 'Reset cycle' section!");
+  console.log("Test data injection complete!");
+  console.log("Please run batch assignment on your admin dashboard or via terminal command.");
+  console.log("\nExpected Results (Monday):");
+  console.log(" - Block 10: 테스터_A_100, 테스터_B_90, 테스터_C_80, 테스터_D_70 assigned.");
+  console.log(" - Block 12: 테스터_F_60, 테스터_E_50 assigned (E must be assigned to 12 via 2nd-pass!).");
   console.log("=========================================================");
 }
 
-runInjection().catch(console.error);
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

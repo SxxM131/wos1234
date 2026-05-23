@@ -1,0 +1,540 @@
+================================================================================
+  WOS 예약 및 배정 알고리즘 상세 설명
+  (lib/assignment.ts 기반)
+================================================================================
+
+작성일: 2026-05-23
+대상 파일: lib/assignment.ts, lib/reservation-guard.ts, lib/types.ts
+
+--------------------------------------------------------------------------------
+목차
+--------------------------------------------------------------------------------
+1. 개요
+2. 핵심 데이터 구조
+3. 예약(신청) 단계
+4. 배정(Assignment) 단계
+   4-1. 배치 배정 (Batch Assignment)
+   4-2. 실시간 배정 (assignToBlock)
+5. 경쟁 우선순위 정렬 기준
+6. 탈락자 처리 및 재배정 큐
+7. 빈 슬롯 채우기 (Backfill)
+8. 취소 시 대기자 승격 (promoteOnCancel)
+9. 치유 처리 (healEliminatedReservations)
+10. Hopcroft-Karp 이분 매칭 알고리즘
+11. 2-Pass 매칭 전략
+12. 전체 흐름 요약
+
+================================================================================
+1. 개요
+================================================================================
+
+이 시스템은 WOS(World of Servers) 게임 내 "집무실 예약"을 관리하는 알고리즘이다.
+플레이어들은 특정 요일(월/화/목)에 원하는 시간 블록을 선택해 신청하고,
+알고리즘이 신청자들 중 자격 있는 플레이어를 슬롯에 자동 배정한다.
+
+- 요일: mon(월, VP집무실), tue(화, VP집무실), thu(목, MO집무실)
+- 각 요일마다 여러 개의 시간 블록(block)이 존재하며,
+  각 블록에는 최대 4개의 슬롯(slot)이 있다.
+- 배정 기준: 스피드업 수치(높을수록 우선), 동점 시 신청 시각(빠를수록 우선)
+
+================================================================================
+2. 핵심 데이터 구조
+================================================================================
+
+[Player]
+  - game_id      : 플레이어 고유 ID (게임 내 ID)
+  - name         : 플레이어 이름
+  - alliance     : 동맹명
+  - speedup_vp   : VP집무실 스피드업 수치 (월/화 배정 기준)
+  - speedup_mo   : MO집무실 스피드업 수치 (목 배정 기준)
+
+[Slot]
+  - id              : 슬롯 고유 ID
+  - day_of_week     : 요일 (mon/tue/thu)
+  - office_type     : 집무실 종류 (VP/MO)
+  - block_start_utc : 시간 블록 시작 시각 (UTC 기준 정수, 2시간 단위)
+  - slot_index      : 블록 내 슬롯 번호 (0~3)
+  - is_active       : 활성화 여부
+
+[Preference]
+  - player_id       : 신청한 플레이어 ID
+  - day_of_week     : 신청 요일
+  - block_start_utc : 신청한 시간 블록
+  - cycle_id        : 현재 사이클(회차) ID
+
+[Reservation]
+  - player_id  : 배정된 플레이어 ID
+  - slot_id    : 배정된 슬롯 ID (null이면 탈락 대기 상태)
+  - status     : "assigned"(배정완료) / "eliminated"(탈락) / "cancelled"(취소)
+  - cycle_id   : 사이클 ID
+  - applied_at : 신청 시각
+
+[STATUS 상태 전이]
+  신청 → [preferences에 저장] → 배정 실행
+    ↓
+  assigned   : 슬롯에 배정됨 (slot_id 있음)
+  eliminated : 슬롯 경쟁에서 탈락 (slot_id = null), 대기 상태
+  cancelled  : 어드민이 강제 취소
+
+[TIME_BLOCKS]
+  0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 (UTC 기준, 2시간 간격, 12개 블록)
+
+================================================================================
+3. 예약(신청) 단계
+================================================================================
+
+함수: processReservation() / processMultiDayReservation()
+
+[단일 요일 신청 - processReservation]
+  1. 예약 오픈 여부 확인
+     - settings 테이블의 "reservation_open" 값이 "false"면 신청 거부
+
+  2. 현재 사이클 ID 조회 (getCurrentCycleId)
+
+  3. 플레이어 정보 upsert
+     - game_id 기준으로 players 테이블에 이름/동맹/스피드업 저장
+     - skipPlayerUpsert=true 이면 생략 (멀티데이 신청 시 최적화)
+
+  4. 중복 신청 방지 (hasActiveDayReservation)
+     - 이미 같은 요일 preferences에 데이터가 있으면 거부
+     - 메시지: "You have already applied for this day."
+
+  5. 취소된 이전 preferences 정리 (clearCancelledDayReservations)
+     - 어드민이 취소한 적 있는 플레이어의 기존 preference를 삭제하여 재신청 허용
+
+  6. 선호 블록 저장
+     - 플레이어가 선택한 시간 블록들을 preferences 테이블에 upsert
+     - 중복 블록은 Set으로 제거 후 저장
+     - onConflict: "player_id, day_of_week, block_start_utc, cycle_id"
+
+  7. 성공 응답 반환
+     - "Your application has been received. Assignment results will be announced..."
+
+[복수 요일 신청 - processMultiDayReservation]
+  1. 예약 오픈 여부 확인
+  2. 플레이어 정보 일괄 upsert (upsertPlayerForDays)
+     - 월/화 신청이 있으면 speedup_vp = max(기존, 신청값)
+     - 목 신청이 있으면 speedup_mo = 신청값
+  3. 모든 요일에 대해 중복 신청 여부 미리 확인
+     (하나라도 중복이면 전체 거부)
+  4. 각 요일별로 processReservation 호출 (skipPlayerUpsert=true)
+  5. 요일별 결과 메시지를 합쳐서 반환
+
+================================================================================
+4. 배정(Assignment) 단계
+================================================================================
+
+배정에는 두 가지 모드가 있다:
+  A. 배치 배정 (runBatchAssignment): 관리자가 수동 실행, 전체 재계산
+  B. 실시간 배정 (assignToBlock): 신청 즉시 해당 블록 내에서 경쟁 처리
+
+--------------------------------------------------------------------
+4-1. 배치 배정 (Batch Assignment) - runBatchAssignment / runBatchAssignmentForCycle
+--------------------------------------------------------------------
+
+배치 배정은 예약 마감 후 관리자가 실행하는 전체 일괄 배정이다.
+
+[흐름]
+  1. 해당 요일의 활성 슬롯 목록 조회 (is_active=true, block_start_utc/slot_index 오름차순)
+
+  2. preferences 테이블에서 해당 요일 신청자 전체 조회
+     - player_id, block_start_utc + 플레이어 스피드업 정보 JOIN
+
+  3. applicantMap 구성 (Map<playerId, BatchApplicant>)
+     - 각 플레이어별로: playerId, speedup, appliedAt, blocks(신청한 블록 Set)
+     - 같은 플레이어가 여러 블록 신청 시 blocks에 추가 (earliest appliedAt 유지)
+
+  4. 기존 예약 데이터 초기화
+     - 해당 요일 슬롯에 물린 모든 reservations 삭제 (cycle_id 기준)
+     - 탈락(eliminated) 상태의 row도 정리
+
+  5. solveDayAssignment() 호출 → 매칭 결과(Map<playerId, slotId>) 생성
+
+  6. 매칭 결과 DB 저장
+     - matched 플레이어: reservations에 status="assigned"로 insert
+     - 미매칭 플레이어: reservations에 status="eliminated", slot_id=null로 insert
+
+  7. 결과 반환: { assigned: 배정수, eliminated: 탈락수, byBlock: 블록별 배정수 }
+
+[runBatchAssignmentForCycle]
+  - mon, tue, thu 순으로 runBatchAssignment 실행
+  - 완료 후 settings에 "last_assignment_run" 시각 저장
+
+--------------------------------------------------------------------
+4-2. 실시간 배정 (assignToBlock)
+--------------------------------------------------------------------
+
+신청 즉시(또는 관리자 액션 후) 특정 블록 내에서 경쟁하여 슬롯을 배정한다.
+
+[입력]
+  - playerId, speedup, day, blockStart, cycleId, appliedAt
+
+[흐름]
+  1. 해당 플레이어가 이 요일의 다른 블록에 이미 배정되어 있는지 확인
+     - 이미 배정된 경우: 이번 블록이 아닌 다른 블록이면 배정 불가 (return assigned:false)
+     - 이미 이 블록에 배정된 경우: 재배정 참여 허용
+
+  2. 해당 블록의 활성 슬롯 목록 조회 (is_active=true, slot_index 오름차순)
+     - 슬롯이 없으면 배정 불가
+
+  3. 해당 블록에 현재 배정된 플레이어 목록 조회 (status="assigned")
+     - 각 플레이어의 스피드업 값도 JOIN
+
+  4. 지원자 목록(applicants) 구성
+     - 기존 배정자들을 applicant로 변환
+     - 신규 신청자(isNew=true)를 추가
+
+  5. 우선순위 정렬 (compareBatchApplicants)
+     - 1순위: speedup 내림차순 (높을수록 우선)
+     - 2순위: appliedAt 오름차순 (빠를수록 우선)
+
+  6. 상위 4명(top4) 선발
+     - 블록당 최대 슬롯 수 = 4개이므로 상위 4명만 배정 대상
+
+  7. 신청자가 top4에 포함되는지 확인
+     - 포함 안 되면 배정 불가 (return assigned:false)
+
+  8. 탈락자 처리
+     - 기존 배정자 중 top4 밖으로 밀려난 플레이어:
+       reservations 상태를 "eliminated", slot_id=null로 업데이트
+
+  9. 기존 블록 슬롯의 "assigned" reservations 전체 삭제 (재배정 준비)
+
+  10. top4를 슬롯에 순서대로 배정
+      - top4[0] → slot_index 0
+      - top4[1] → slot_index 1
+      - ...
+      - reservations에 upsert
+
+  11. 반환: { assigned: true, slotId, slotIndex, displacedPlayerIds }
+      - displacedPlayerIds: 밀려난 플레이어들 (재배정 큐에 추가될 대상)
+
+================================================================================
+5. 경쟁 우선순위 정렬 기준
+================================================================================
+
+모든 경쟁 상황에서 동일한 정렬 기준을 사용한다.
+
+  [1순위] speedup 내림차순
+    - 스피드업 수치가 높을수록 우선권이 있다
+    - 월/화(VP집무실): speedup_vp 기준
+    - 목(MO집무실): speedup_mo 기준
+
+  [2순위] appliedAt 오름차순 (동점 브레이커)
+    - 스피드업이 동일한 경우, 먼저 신청한 플레이어가 우선권을 가진다
+    - 배치 배정에서는 플레이어의 created_at을 appliedAt으로 사용
+
+  [예시]
+    플레이어 A: speedup=500, appliedAt=10:00
+    플레이어 B: speedup=600, appliedAt=11:00
+    플레이어 C: speedup=500, appliedAt=09:00
+    플레이어 D: speedup=450, appliedAt=08:00
+
+    정렬 결과: B(600) > A(500, 10:00) > C(500, 09:00) > D(450)
+    ※ A와 C 동점이지만 C가 더 일찍 신청했으므로 C가 앞선다
+
+================================================================================
+6. 탈락자 처리 및 재배정 큐
+================================================================================
+
+함수: runReassignmentQueue()
+
+신청이 들어와 assignToBlock이 실행될 때, 새 신청자에게 밀려난 기존 배정자들이
+생긴다. 이들을 단순히 탈락 처리하는 것이 아니라, 다른 선호 블록에 재배정을 시도한다.
+
+[흐름]
+  1. 밀려난 플레이어 ID 목록으로 큐(queue) 초기화
+
+  2. 큐에서 플레이어를 하나씩 꺼내 처리
+     - 이미 처리한 플레이어는 건너뜀 (processed Set으로 중복 방지)
+
+  3. 해당 플레이어의 preferences에서 이 요일의 선호 블록 목록 조회
+
+  4. 선호 블록 순서대로 assignToBlock 시도
+     - 성공하면 해당 블록 확정, 반복 중단
+     - 실패하면 다음 블록 시도
+
+  5. 배정 성공 시 해당 블록에서 밀려난 플레이어들을 다시 큐에 추가
+     (연쇄 재배정)
+
+  6. 모든 선호 블록에서 실패한 플레이어는 탈락 상태로 남음
+
+[연쇄 재배정 예시]
+  플레이어 X가 블록A에 배정됨 → 플레이어 Y가 밀려남
+  → Y가 블록B 시도 → 플레이어 Z가 블록B에서 밀려남
+  → Z가 블록C 시도 → 성공
+  → 큐 소진, 종료
+
+================================================================================
+7. 빈 슬롯 채우기 (Backfill)
+================================================================================
+
+함수: backfillEmptySlotsForDay() / backfillEmptySlotsForCycle()
+
+배정 완료 후에도 일부 슬롯이 비어있을 수 있다 (신청자가 슬롯 수보다 적을 때).
+탈락(eliminated) 상태의 플레이어들 중 해당 블록에 관심을 표명한 이들을 승격시킨다.
+
+[흐름]
+  1. 해당 요일의 모든 활성 슬롯 조회
+
+  2. 이미 배정된 슬롯과 플레이어 ID 파악
+
+  3. 블록별로 빈 슬롯 목록 계산
+
+  4. 각 빈 슬롯 블록에 대해:
+     a. 해당 블록을 선호한 플레이어 ID 목록 조회 (preferences)
+     b. status="eliminated", slot_id=null인 탈락자 중
+        해당 블록 선호자이면서 아직 배정되지 않은 플레이어 추출
+     c. 동일 플레이어의 중복 탈락 row가 있으면 best(speedup↑, appliedAt↑) 선택
+     d. 후보자들을 정렬: speedup 내림차순, 동점 시 appliedAt 오름차순
+     e. 빈 슬롯 수만큼 상위 후보자를 승격(status="assigned", slot_id=slot.id)
+
+  5. 승격된 플레이어들에 대해 healEliminatedReservations 실행
+     (남은 eliminated row 정리)
+
+  6. 총 채운 슬롯 수 반환
+
+[backfillEmptySlotsForCycle]
+  - mon, tue, thu 모두에 대해 backfillEmptySlotsForDay 실행
+  - 전체 채운 슬롯 수 반환
+
+================================================================================
+8. 취소 시 대기자 승격 (promoteOnCancel)
+================================================================================
+
+함수: promoteOnCancel()
+
+관리자가 특정 슬롯의 예약을 취소할 때 호출된다.
+빈 슬롯을 즉시 대기자로 채운다.
+
+[흐름]
+  1. 취소된 슬롯의 요일(day)과 블록(blockStart) 조회
+
+  2. 해당 요일의 모든 활성 슬롯과 현재 배정 현황 파악
+
+  3. 해당 요일의 모든 preferences를 조회하여 applicantMap 구성
+     - 각 플레이어가 선호하는 블록 Set, speedup, appliedAt 포함
+
+  4. 탈락(eliminated) 상태의 플레이어들 조회
+
+  5. 2단계 후보 선정:
+
+     [Phase 1 - 우선 후보]
+     computeEligibleByBlock()을 이용해 취소된 블록의 "top-N 자격자"를 계산
+     → 탈락자 중 이 블록을 선호하면서 top-N에 해당하는 플레이어
+
+     [Phase 2 - Fallback]
+     Phase 1 후보가 없으면 해당 블록 선호 탈락자 전원을 후보로
+
+  6. 후보자 정렬 (speedup↓, appliedAt↑)
+
+  7. 1위 후보자를 취소된 슬롯에 승격 (status="assigned", slot_id=slotId)
+
+  8. 승격자에 대해 healEliminatedReservations 실행
+
+  9. backfillEmptySlotsForDay로 추가 빈 슬롯 채우기 시도
+
+================================================================================
+9. 치유 처리 (healEliminatedReservations)
+================================================================================
+
+함수: healEliminatedReservations()
+
+다중 탈락 row가 생기거나 배정 완료 후 불필요한 탈락 row가 남는 경우를 정리한다.
+
+[입력]
+  - playerIds: 처리할 플레이어 ID 목록
+  - cycleId, now
+
+[흐름]
+  각 플레이어에 대해:
+
+  1. 해당 플레이어의 모든 eliminated row 삭제
+
+  2. 해당 플레이어가 선호한 요일들 조회 (preferences에서)
+
+  3. 각 요일별로 배정(assigned) 슬롯이 있는지 확인
+
+  4. 배정 슬롯이 없는 요일 → 탈락 row 하나 다시 생성 (slot_id=null)
+     배정 슬롯이 있는 요일 → 탈락 row 불필요, 생성 안 함
+
+[목적]
+  - 연쇄 재배정 과정에서 "이미 다른 요일에 배정됐지만, 이 요일은 아직 탈락"인
+    상태를 정확히 표현한다
+  - 중복 탈락 row를 방지하고, 탈락 상태를 1요일 1row로 정규화한다
+
+================================================================================
+10. Hopcroft-Karp 이분 매칭 알고리즘
+================================================================================
+
+함수: hopcroftKarp()
+
+배치 배정에서 플레이어-슬롯 간의 최대 매칭을 구하는 알고리즘이다.
+이분 그래프(플레이어 집합 ↔ 슬롯 집합)에서 최대 매칭을 O(E√V) 시간에 해결한다.
+
+[입력]
+  - players: 플레이어 ID 목록
+  - slots: 슬롯 ID 목록
+  - edges: Map<playerId, slotId[]> - 각 플레이어가 배정 가능한 슬롯 목록
+
+[알고리즘]
+  BFS + DFS 기반의 Hopcroft-Karp 알고리즘:
+
+  1. BFS 단계 (bfs())
+     - 아직 매칭되지 않은 플레이어들부터 시작
+     - 레이어드 그래프(layered graph) 구성
+     - 매칭 가능한 경로가 있으면 거리 맵(dist) 반환, 없으면 null
+
+  2. DFS 단계 (dfs())
+     - BFS에서 구한 레이어드 그래프를 따라 증가 경로(augmenting path) 탐색
+     - 증가 경로 발견 시 매칭 업데이트 (matchPlayer, matchSlot)
+     - 경로 없으면 dist[p]=∞로 마킹하여 재방문 방지
+
+  3. BFS가 null을 반환할 때까지 반복
+
+  4. 최종 matchPlayer(Map<playerId, slotId>) 반환
+
+[왜 Hopcroft-Karp인가?]
+  - 단순 Hungarian 알고리즘보다 빠르다 (O(E√V) vs O(V³))
+  - 신청자와 슬롯 수가 수십~수백 명 규모일 때도 빠르게 동작
+  - 최대 매칭을 보장하므로 최대한 많은 플레이어를 배정할 수 있다
+
+================================================================================
+11. 2-Pass 매칭 전략
+================================================================================
+
+함수: solveDayAssignment() → runFirstPassMatching() + runSecondPassMatching()
+
+단순히 Hopcroft-Karp를 한 번 돌리는 것이 아니라, 2단계로 나누어 진행한다.
+
+--------------------------------------------------------------------
+[1st Pass - Top-N 제한 매칭] runFirstPassMatching / computeEligibleByBlock
+--------------------------------------------------------------------
+
+목적: 각 블록마다 스피드업 상위 N명만 경쟁에 참여시킴
+
+  1. computeEligibleByBlock()으로 블록별 "자격자" 집합 계산
+     - 각 블록의 슬롯 수 = N (최대 4)
+     - 해당 블록을 선호한 신청자들을 speedup↓, appliedAt↑으로 정렬
+     - 상위 N명만 자격자(eligible)로 선정
+
+  2. buildMatchingEdges()로 이분 그래프 엣지 구성
+     - 자격자인 플레이어만 해당 블록의 슬롯들과 연결
+     - 한 플레이어가 여러 블록 자격자라면 그 블록들의 슬롯 모두와 연결
+
+  3. hopcroftKarp()로 최대 매칭 계산
+
+[1st Pass의 의미]
+  블록 내 경쟁을 공정하게 만든다.
+  예: 블록A에 신청자 10명, 슬롯 4개라면 → 스피드업 상위 4명만 배정 가능
+  이를 통해 스피드업이 낮은 플레이어가 "경쟁이 없는 블록"을 노리는 것도 허용하되,
+  기본적으로는 실력(스피드업) 순서를 존중한다.
+
+--------------------------------------------------------------------
+[2nd Pass - 잔여 빈 슬롯 채우기] runSecondPassMatching / buildSecondPassEdges
+--------------------------------------------------------------------
+
+목적: 1st Pass 후 남은 빈 슬롯을 추가로 채움
+
+  1. 1st Pass에서 매칭되지 않은 슬롯 = emptySlotIds
+  2. 1st Pass에서 매칭되지 않은 플레이어 = 2nd Pass 후보
+  3. Top-N 제한 없이: 빈 슬롯 블록을 선호하는 모든 미배정 플레이어가 후보
+  4. buildSecondPassEdges()로 엣지 구성 후 hopcroftKarp() 재실행
+
+[2nd Pass의 의미]
+  1st Pass에서 경쟁에서 밀린 플레이어들도 빈 슬롯이 있으면 배정받을 기회가 생긴다.
+  "인기 없는 시간대"의 빈 슬롯을 최대한 채워 슬롯 활용률을 높인다.
+
+--------------------------------------------------------------------
+[mergeMatchings]
+--------------------------------------------------------------------
+  1st Pass 결과와 2nd Pass 결과를 합쳐 최종 매칭 반환.
+  같은 플레이어나 슬롯이 중복되면 오류 발생 (무결성 검사).
+
+================================================================================
+12. 전체 흐름 요약
+================================================================================
+
+[예약 신청 흐름]
+  플레이어 신청
+    → 오픈 여부 확인
+    → 중복 신청 방지
+    → 플레이어 정보 저장
+    → 선호 블록 preferences 저장
+    → 완료 (배정은 나중에)
+
+[배치 배정 흐름 (예약 마감 후 관리자 실행)]
+  runBatchAssignmentForCycle(cycleId)
+    → mon, tue, thu 각각 runBatchAssignment
+      → preferences 조회 → applicantMap 구성
+      → 기존 reservations 초기화
+      → solveDayAssignment (2-Pass Hopcroft-Karp)
+        → 1st Pass: Top-N 제한 매칭
+        → 2nd Pass: 잔여 빈 슬롯 채우기
+      → 결과 DB 저장 (assigned / eliminated)
+    → 실행 시각 저장
+
+[취소/승격 흐름]
+  관리자 슬롯 취소
+    → promoteOnCancel(slotId)
+      → 탈락 대기자 중 후보 선정 (Phase1: top-N 자격자 우선, Phase2: fallback)
+      → 최우선 후보 승격
+      → healEliminatedReservations (탈락 row 정규화)
+      → backfillEmptySlotsForDay (추가 빈 슬롯 채우기)
+
+[실시간 신청 후 즉시 배정 흐름 (assignToBlock 사용 시)]
+  신청 접수
+    → assignToBlock (블록 내 top4 경쟁)
+      → 밀려난 플레이어 발생
+    → runReassignmentQueue (연쇄 재배정 큐)
+      → 밀려난 플레이어들 다른 블록 시도
+      → 연쇄적으로 처리
+
+================================================================================
+부록: 함수 목록 및 역할 요약
+================================================================================
+
+[예약 처리]
+  processReservation()           - 단일 요일 신청 처리
+  processMultiDayReservation()   - 복수 요일 일괄 신청 처리
+  upsertPlayerForDays()          - 멀티데이 신청 시 플레이어 정보 저장
+
+[예약 보호]
+  hasActiveDayReservation()      - 중복 신청 확인
+  clearCancelledDayReservations()- 취소 후 재신청 허용 처리
+  getReservedDaysForPlayer()     - 플레이어의 예약된 요일 목록 조회
+
+[배정 핵심]
+  assignToBlock()                - 특정 블록 실시간 경쟁 배정
+  runReassignmentQueue()         - 탈락자 연쇄 재배정 큐
+  solveDayAssignment()           - 2-Pass 매칭 실행 (배치용)
+  runFirstPassMatching()         - 1st Pass: Top-N 제한 Hopcroft-Karp
+  runSecondPassMatching()        - 2nd Pass: 잔여 빈 슬롯 채우기
+  hopcroftKarp()                 - 이분 매칭 알고리즘 (BFS+DFS)
+  computeEligibleByBlock()       - 블록별 Top-N 자격자 계산
+  buildMatchingEdges()           - 1st Pass 이분 그래프 엣지 구성
+  buildSecondPassEdges()         - 2nd Pass 이분 그래프 엣지 구성
+  mergeMatchings()               - 1st+2nd Pass 결과 병합
+
+[배치 배정]
+  runBatchAssignment()           - 단일 요일 배치 배정
+  runBatchAssignmentForCycle()   - 전체 사이클 배치 배정 (mon+tue+thu)
+
+[Backfill / 치유]
+  backfillEmptySlotsForDay()     - 빈 슬롯 탈락 대기자로 채우기 (단일 요일)
+  backfillEmptySlotsForCycle()   - 빈 슬롯 채우기 (전체 사이클)
+  promoteOnCancel()              - 취소 슬롯 대기자 승격
+  healEliminatedReservations()   - 탈락 row 정규화 처리
+
+[유틸]
+  getCurrentCycleId()            - 현재 사이클 ID 조회
+  isReservationOpen()            - 예약 오픈 여부 확인
+  getAssignedPlayerIdsOnDay()    - 해당 요일 배정된 플레이어 ID Set 조회
+  compareBatchApplicants()       - 배정 우선순위 정렬 비교 함수
+  getLastAssignmentRun()         - 마지막 배정 실행 시각 조회
+  saveLastAssignmentRun()        - 마지막 배정 실행 시각 저장
+  getAssignmentApplicantCounts() - 요일별 신청자 수 조회
+
+================================================================================
+END OF DOCUMENT
+================================================================================

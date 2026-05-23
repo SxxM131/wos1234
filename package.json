@@ -10,9 +10,6 @@
     "check-env": "node scripts/check-env.mjs",
     "setup:secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "set-admin-password": "node scripts/set-admin-password.mjs",
-    "test:assignment": "npx tsx scripts/test-assignment.ts",
-    "test:assignment:unit": "npx tsx test/assignment.test.ts",
-    "test:150": "npx tsx scripts/test-150-reservations.ts",
     "recover:waitlist": "npx tsx scripts/recover-waitlist.ts",
     "backfill:slots": "npx tsx scripts/backfill-empty-slots.ts",
     "reconcile:waitlist": "npx tsx scripts/reconcile-eliminated.ts",
@@ -20,7 +17,8 @@
     "inject:random": "npx tsx scripts/inject-random.ts",
     "run:batch": "npx tsx scripts/run-batch-assignment.ts",
     "clear:assignments": "npx tsx scripts/clear-cycle-assignments.ts",
-    "seed:stress": "npx tsx scripts/clear-cycle-assignments.ts && npx tsx scripts/inject-random.ts 120"
+    "seed:stress": "npx tsx scripts/clear-cycle-assignments.ts && npx tsx scripts/inject-random.ts 120",
+    "inject:test": "npx tsx scripts/inject-real-test-data.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
