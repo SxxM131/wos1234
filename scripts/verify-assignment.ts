@@ -131,11 +131,16 @@ async function main() {
   for (const day of ["mon", "tue", "thu"]) {
     console.log(`\n--- [${day.toUpperCase()}] ---`);
     const daySlotsMap = activeSlotsByBlock.get(day) ?? new Map();
-    const dayAssignedMap = assignedByBlock.get(day) ?? new Map();
 
-    for (const [block, activeSlots] of daySlotsMap.entries()) {
-      const assignedCount = dayAssignedMap.get(block)?.length ?? 0;
-      const assignedList = dayAssignedMap.get(block) ?? [];
+    for (const block of Array.from(daySlotsMap.keys()).sort((a, b) => a - b)) {
+      const activeSlotsForBlock = slots.filter(
+        (s) => s.day_of_week === day && s.block_start_utc === block && s.is_active
+      );
+      const activeSlotIds = activeSlotsForBlock.map((s) => s.id);
+      const activeSlotIdsSet = new Set(activeSlotIds);
+
+      const assignedForThisBlock = assigned.filter((r) => activeSlotIdsSet.has(r.slot_id));
+      const assignedCount = assignedForThisBlock.length;
 
       // Find eliminated players who wanted this block and are not assigned on this day
       const elimWanted = eliminated.filter((e) => {
@@ -145,26 +150,34 @@ async function main() {
         return wants;
       });
 
+      const emptyCount = activeSlotsForBlock.length - assignedCount;
+
       // V1
-      if (assignedCount < activeSlots.length && elimWanted.length > 0) {
+      if (emptyCount > 0 && elimWanted.length > 0) {
         console.warn(
-          `[경고] V1: ${day} 블록 ${block}에 빈 자리(${activeSlots.length - assignedCount}개)가 있지만 대기자(${elimWanted.length}명)가 존재합니다.`
+          `[경고] V1: ${day} 블록 ${block}에 빈 자리(${emptyCount}개)가 있지만 대기자(${elimWanted.length}명)가 존재합니다.`
         );
         warnings++;
       }
 
       // V4
-      const applicantCount = assignedList.length + elimWanted.length;
-      if (applicantCount >= activeSlots.length && assignedList.length > 0 && elimWanted.length > 0) {
-        const assignedSpeedups = assignedList.map((r) => getSpeedup(r.player_id, day));
-        const elimSpeedups = elimWanted.map((r) => getSpeedup(r.player_id, day));
-        const minAssigned = Math.min(...assignedSpeedups);
-        const maxElim = Math.max(...elimSpeedups);
-        if (maxElim > minAssigned) {
-          console.warn(
-            `[경고] V4: ${day} 블록 ${block}에서 스피드업 역전 발생 (배정 최소: ${minAssigned}, 대기자 최대: ${maxElim})`
-          );
-          warnings++;
+      if (emptyCount > 0) {
+        const assignedListWhoPreferred = assignedForThisBlock.filter((r) => {
+          const hasPref = prefByPlayerDayBlock.get(r.player_id)?.get(day)?.has(block);
+          return hasPref;
+        });
+
+        if (assignedListWhoPreferred.length > 0 && elimWanted.length > 0) {
+          const assignedSpeedups = assignedListWhoPreferred.map((r) => getSpeedup(r.player_id, day));
+          const elimSpeedups = elimWanted.map((r) => getSpeedup(r.player_id, day));
+          const minAssigned = Math.min(...assignedSpeedups);
+          const maxElim = Math.max(...elimSpeedups);
+          if (maxElim > minAssigned) {
+            console.warn(
+              `[경고] V4: ${day} 블록 ${block}에서 스피드업 역전 발생 (배정 최소: ${minAssigned}, 대기자 최대: ${maxElim})`
+            );
+            warnings++;
+          }
         }
       }
     }
