@@ -5,8 +5,9 @@ CREATE TABLE IF NOT EXISTS archived_players (
   game_id INTEGER NOT NULL,
   name TEXT NOT NULL,
   alliance TEXT NOT NULL,
-  speedup_vp INTEGER NOT NULL DEFAULT 0,
-  speedup_mo INTEGER NOT NULL DEFAULT 0,
+  speedup_mon INTEGER NOT NULL DEFAULT 0,
+  speedup_tue INTEGER NOT NULL DEFAULT 0,
+  speedup_thu INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ,
   archived_at TIMESTAMPTZ DEFAULT now()
 );
@@ -36,8 +37,8 @@ CREATE TABLE IF NOT EXISTS archived_reservations (
 CREATE OR REPLACE FUNCTION archive_and_reset_cycle() RETURNS void AS $$
 BEGIN
   -- Copy data
-  INSERT INTO archived_players (game_id, name, alliance, speedup_vp, speedup_mo, created_at)
-  SELECT game_id, name, alliance, speedup_vp, speedup_mo, created_at FROM players;
+  INSERT INTO archived_players (game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu, created_at)
+  SELECT game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu, created_at FROM players;
 
   INSERT INTO archived_preferences (original_id, player_id, day_of_week, block_start_utc, cycle_id, applied_at)
   SELECT id, player_id, day_of_week, block_start_utc, cycle_id, applied_at FROM preferences;
