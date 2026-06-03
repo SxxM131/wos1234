@@ -944,11 +944,11 @@ export function solveDayAssignmentMCMF(
     slotByBlock.set(slot.block_start_utc, list);
   }
 
-  applicants.forEach((applicant, playerId) => {
+  for (const [playerId, applicant] of applicants.entries()) {
     const rank = playerToRank.get(playerId)!;
     const pNode = playerToIndex.get(playerId)!;
 
-    applicant.blocks.forEach((blockStart) => {
+    for (const blockStart of applicant.blocks) {
       const isTopN = eligibleByBlock.get(blockStart)?.has(playerId) ?? false;
       const cost = isTopN ? rank : rank + 1000000;
       
@@ -956,8 +956,8 @@ export function solveDayAssignmentMCMF(
       for (const sid of sids) {
         addEdge(pNode, slotToIndex.get(sid)!, 1, cost);
       }
-    });
-  });
+    }
+  }
 
   const dist = new Float64Array(numNodes);
   const parentNode = new Int32Array(numNodes);

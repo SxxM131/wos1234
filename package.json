@@ -18,7 +18,8 @@
     "run:batch": "npx tsx scripts/run-batch-assignment.ts",
     "clear:assignments": "npx tsx scripts/clear-cycle-assignments.ts",
     "seed:stress": "npx tsx scripts/clear-cycle-assignments.ts && npx tsx scripts/inject-random.ts 120",
-    "inject:test": "npx tsx scripts/inject-real-test-data.ts"
+    "inject:test": "npx tsx scripts/inject-real-test-data.ts",
+    "verify:assignment": "npx tsx scripts/verify-assignment.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

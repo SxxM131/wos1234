@@ -1,5 +1,8 @@
 -- Migration v4: Create archive tables and reset cycle RPC
 
+-- 0. Ensure preferences table has applied_at
+ALTER TABLE preferences ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ DEFAULT now();
+
 CREATE TABLE IF NOT EXISTS archived_players (
   archive_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   game_id INTEGER NOT NULL,
