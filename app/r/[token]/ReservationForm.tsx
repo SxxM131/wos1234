@@ -35,6 +35,129 @@ function emptyDayState(): Record<DayOfWeek, DayFormState> {
   };
 }
 
+function speedupLabelFor(day: DayOfWeek): string {
+  if (day === "mon") return "Monday Speedup (days)";
+  if (day === "tue") return "Tuesday Speedup (days)";
+  return "Thursday Speedup (days)";
+}
+
+interface DayStepContentProps {
+  day: DayOfWeek;
+  speedup: string;
+  blocks: number[];
+  isReserved: boolean;
+  pending: boolean;
+  onSpeedupChange: (value: string) => void;
+  onToggleBlock: (block: number) => void;
+  onBack: () => void;
+  onNext: () => void;
+  onSubmit: () => void;
+}
+
+function DayStepContent({
+  day,
+  speedup,
+  blocks,
+  isReserved,
+  pending,
+  onSpeedupChange,
+  onToggleBlock,
+  onBack,
+  onNext,
+  onSubmit,
+}: DayStepContentProps) {
+  const office = DAY_CONFIG[day].office;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>Step {day === "mon" ? 1 : day === "tue" ? 2 : 3} of 3</span>
+        <span>
+          {DAY_CONFIG[day].label} · {office}
+        </span>
+      </div>
+
+      {isReserved ? (
+        <div className="card border-green-200 bg-green-50">
+          <span className="inline-block rounded-full bg-green-200 px-2 py-0.5 text-xs font-semibold text-green-900">
+            Already reserved
+          </span>
+          <p className="mt-2 text-sm text-green-800">
+            You already have a reservation for {DAY_CONFIG[day].label}. Check
+            your status on the reservation check page.
+          </p>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-slate-600">
+            Set speedup and time slots for {DAY_CONFIG[day].label}, or leave
+            blank to skip.
+          </p>
+
+          <div className="card">
+            <label className="mb-1 block text-sm font-medium text-slate-600">
+              {speedupLabelFor(day)}
+            </label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={speedup}
+              onChange={(e) => onSpeedupChange(e.target.value)}
+              className="input-field"
+              placeholder="Whole numbers only"
+              onKeyDown={(e) => {
+                if (e.key === "." || e.key === "e" || e.key === "-")
+                  e.preventDefault();
+              }}
+            />
+          </div>
+
+          <div className="card">
+            <label className="mb-3 block text-sm font-medium text-slate-600">
+              Preferred time slots (UTC)
+            </label>
+            <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
+              {TIME_BLOCKS.map((block) => (
+                <TimeBlockCheckbox
+                  key={block}
+                  blockStart={block}
+                  checked={blocks.includes(block)}
+                  onChange={() => onToggleBlock(block)}
+                />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="flex gap-2">
+        <button type="button" onClick={onBack} className="btn-secondary flex-1">
+          Back
+        </button>
+        {day === "thu" ? (
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={pending}
+            className="btn-primary flex-1"
+          >
+            Submit
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onNext}
+            className="btn-primary flex-1"
+          >
+            Next
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ReservationForm({ reservationOpen, token }: Props) {
   const [step, setStep] = useState<Step>("info");
   const [gameId, setGameId] = useState("");
@@ -79,6 +202,13 @@ export function ReservationForm({ reservationOpen, token }: Props) {
       fetchReservedDays(gameId);
     }
   }, [step, gameId, fetchReservedDays]);
+
+  const setSpeedupForDay = useCallback((day: DayOfWeek, value: string) => {
+    setDayState((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], speedup: value },
+    }));
+  }, []);
 
   function clearDay(day: DayOfWeek) {
     setDayState((prev) => ({
@@ -243,111 +373,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     );
   }
 
-  function DayStepContent({ day }: { day: DayOfWeek }) {
-    const office = DAY_CONFIG[day].office;
-    const speedupLabel =
-      day === "mon"
-        ? "Monday Speedup (days)"
-        : day === "tue"
-        ? "Tuesday Speedup (days)"
-        : "Thursday Speedup (days)";
-    const isReserved = reservedDays.includes(day);
-
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>
-            Step {day === "mon" ? 1 : day === "tue" ? 2 : 3} of 3
-          </span>
-          <span>{DAY_CONFIG[day].label} · {office}</span>
-        </div>
-
-        {isReserved ? (
-          <div className="card border-green-200 bg-green-50">
-            <span className="inline-block rounded-full bg-green-200 px-2 py-0.5 text-xs font-semibold text-green-900">
-              Already reserved
-            </span>
-            <p className="mt-2 text-sm text-green-800">
-              You already have a reservation for {DAY_CONFIG[day].label}. Check
-              your status on the reservation check page.
-            </p>
-          </div>
-        ) : (
-          <>
-            <p className="text-sm text-slate-600">
-              Set speedup and time slots for {DAY_CONFIG[day].label}, or leave
-              blank to skip.
-            </p>
-
-            <div className="card">
-              <label className="mb-1 block text-sm font-medium text-slate-600">
-                {speedupLabel}
-              </label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={dayState[day].speedup}
-                onChange={(e) =>
-                  setDayState((prev) => ({
-                    ...prev,
-                    [day]: { ...prev[day], speedup: e.target.value },
-                  }))
-                }
-                className="input-field"
-                placeholder="Whole numbers only"
-                onKeyDown={(e) => {
-                  if (e.key === "." || e.key === "e" || e.key === "-")
-                    e.preventDefault();
-                }}
-              />
-            </div>
-
-            <div className="card">
-              <label className="mb-3 block text-sm font-medium text-slate-600">
-                Preferred time slots (UTC)
-              </label>
-              <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
-                {TIME_BLOCKS.map((block) => (
-                  <TimeBlockCheckbox
-                    key={block}
-                    blockStart={block}
-                    checked={dayState[day].blocks.includes(block)}
-                    onChange={() => toggleBlock(day, block)}
-                  />
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="flex gap-2">
-          <button type="button" onClick={goBack} className="btn-secondary flex-1">
-            Back
-          </button>
-          {day === "thu" ? (
-            <button
-              type="button"
-              onClick={openConfirmDialog}
-              disabled={pending}
-              className="btn-primary flex-1"
-            >
-              Submit
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => goNextFromDay(day)}
-              className="btn-primary flex-1"
-            >
-              Next
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex gap-1">
@@ -422,9 +447,48 @@ export function ReservationForm({ reservationOpen, token }: Props) {
         </div>
       )}
 
-      {step === "mon" && <DayStepContent day="mon" />}
-      {step === "tue" && <DayStepContent day="tue" />}
-      {step === "thu" && <DayStepContent day="thu" />}
+      {step === "mon" && (
+        <DayStepContent
+          day="mon"
+          speedup={dayState.mon.speedup}
+          blocks={dayState.mon.blocks}
+          isReserved={reservedDays.includes("mon")}
+          pending={pending}
+          onSpeedupChange={(value) => setSpeedupForDay("mon", value)}
+          onToggleBlock={(block) => toggleBlock("mon", block)}
+          onBack={goBack}
+          onNext={() => goNextFromDay("mon")}
+          onSubmit={openConfirmDialog}
+        />
+      )}
+      {step === "tue" && (
+        <DayStepContent
+          day="tue"
+          speedup={dayState.tue.speedup}
+          blocks={dayState.tue.blocks}
+          isReserved={reservedDays.includes("tue")}
+          pending={pending}
+          onSpeedupChange={(value) => setSpeedupForDay("tue", value)}
+          onToggleBlock={(block) => toggleBlock("tue", block)}
+          onBack={goBack}
+          onNext={() => goNextFromDay("tue")}
+          onSubmit={openConfirmDialog}
+        />
+      )}
+      {step === "thu" && (
+        <DayStepContent
+          day="thu"
+          speedup={dayState.thu.speedup}
+          blocks={dayState.thu.blocks}
+          isReserved={reservedDays.includes("thu")}
+          pending={pending}
+          onSpeedupChange={(value) => setSpeedupForDay("thu", value)}
+          onToggleBlock={(block) => toggleBlock("thu", block)}
+          onBack={goBack}
+          onNext={() => goNextFromDay("thu")}
+          onSubmit={openConfirmDialog}
+        />
+      )}
 
       {message && (
         <div
