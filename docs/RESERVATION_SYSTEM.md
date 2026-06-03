@@ -201,31 +201,35 @@ erDiagram
 
 - 각 2시간 블록마다, 그 블록을 선호에 넣은 신청자 중 **스피드업 내림차순 → appliedAt 오름차순** 정렬.
 - 상위 **N명**만 자격 (N = 그 블록의 활성 슬롯 수, 최대 4).
-- 블록마다 독립 — 같은 사람이 여러 블록에서 자격을 가질 수 있음.
+- 전역적으로 중복 제약을 해소하기 위해 `countedPlayers`를 통해 한 플레이어가 여러 블록의 Top-N 정원을 중복 점유하지 않도록 제한합니다.
 
-### 7.3 이분 매칭 (Hopcroft-Karp)
+### 7.3 최소 비용 최대 유량 (Min-Cost Max-Flow)
 
-`buildMatchingEdges` → `hopcroftKarp`:
+`solveDayAssignmentMCMF`:
 
-- **왼쪽:** 자격 있는 플레이어.
-- **오른쪽:** 빈 슬롯(활성).
-- **간선:** 플레이어가 그 블록에서 Top-N에 들었고, 해당 블록의 슬롯 ID.
-
-목표: **최대 매칭 수** (전역적으로 배정 인원 최대화).  
-동률 스피드업·신청 시각은 자격 단계에서 이미 반영됩니다.
+- **네트워크 모델링:**
+  - Source(0) $\to$ 플레이어 노드 (용량: 1, 비용: 0)
+  - 플레이어 노드 $\to$ 슬롯 노드 (용량: 1, 비용: 가중치)
+  - 슬롯 노드 $\to$ Sink(1) (용량: 1, 비용: 0)
+- **비용(Cost) 정책:**
+  - 플레이어의 스피드업 전체 통합 순위 $R$ (1위=1, 2위=2...)를 기준으로 설계합니다.
+  - **Top-N 자격 통과 간선:** $\text{Cost} = R$
+  - **Top-N 자격 미달 간선:** $\text{Cost} = R + 1,000,000$ (용량 한계 도달 시 후순위 백필)
+- **알고리즘:** SPFA (Shortest Path Faster Algorithm) 기반의 MCMF 알고리즘을 사용합니다.
+- **목표:** 최대 매칭 수(Max Flow)를 확보하면서 스피드업이 높은(Min Cost) 인원을 우선하여 단일 Phase 내에 최적 배정합니다.
 
 ```mermaid
 flowchart TD
-  P[preferences 로드] --> E[블록별 Top-N 자격]
-  E --> G[플레이어-슬롯 간선]
-  G --> H[Hopcroft-Karp]
+  P[preferences 로드] --> E[블록별 Top-N 자격 계산]
+  E --> G[MCMF 네트워크 그래프 생성]
+  G --> H[SPFA 기반 MCMF 실행]
   H --> A[assigned insert]
   H --> W[eliminated insert]
 ```
 
 ### 7.4 appliedAt
 
-일괄 배정 시 `players.created_at`을 신청 시각 대용으로 사용합니다. (다중 블록 preference 시 가장 이른 시각.)
+일괄 배정 시 `preferences.applied_at`을 신청 시각으로 사용합니다. (다중 블록 preference 시 가장 이른 시각.)
 
 ---
 
