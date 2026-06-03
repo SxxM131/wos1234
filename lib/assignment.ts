@@ -705,7 +705,7 @@ export async function promoteOnCancel(
   const { data: prefRows } = await supabase
     .from("preferences")
     .select(
-      "player_id, block_start_utc, players(speedup_mon, speedup_tue, speedup_thu, created_at)"
+      "player_id, block_start_utc, applied_at, players(speedup_mon, speedup_tue, speedup_thu)"
     )
     .eq("day_of_week", day)
     .eq("cycle_id", cycleId);
@@ -716,9 +716,8 @@ export async function promoteOnCancel(
       speedup_mon: number;
       speedup_tue: number;
       speedup_thu: number;
-      created_at: string;
     };
-    const appliedAt = p.created_at ?? now;
+    const appliedAt = row.applied_at ?? now;
     const existing = applicantMap.get(row.player_id);
     if (existing) {
       existing.blocks.add(row.block_start_utc);
@@ -849,6 +848,8 @@ export function computeEligibleByBlock(
     Array.from(slotsByBlock.keys()).sort((a, b) => a - b);
 
   const eligible = new Map<number, Set<number>>();
+  const countedPlayers = new Set<number>();
+
   for (const blockStart of blockStarts) {
     const slotsForBlock = slotsByBlock.get(blockStart) ?? [];
     const cap = slotsForBlock.length;
@@ -856,10 +857,23 @@ export function computeEligibleByBlock(
 
     const ranked = Array.from(applicants.values())
       .filter((a) => a.blocks.has(blockStart))
-      .sort(compareBatchApplicants)
-      .slice(0, cap);
+      .sort(compareBatchApplicants);
 
-    eligible.set(blockStart, new Set(ranked.map((a) => a.playerId)));
+    const blockEligible = new Set<number>();
+    let usedCap = 0;
+
+    for (const a of ranked) {
+      blockEligible.add(a.playerId);
+      if (!countedPlayers.has(a.playerId)) {
+        countedPlayers.add(a.playerId);
+        usedCap++;
+      }
+      if (usedCap >= cap) {
+        break;
+      }
+    }
+
+    eligible.set(blockStart, blockEligible);
   }
   return eligible;
 }
@@ -1029,7 +1043,7 @@ export function runSecondPassMatching(
     const p = applicant.playerId;
     const visited = new Set<number>();
 
-    function dfs(currP: number): boolean {
+    const dfs = (currP: number): boolean => {
       const currApplicant = applicants.get(currP);
       if (!currApplicant) return false;
       
@@ -1091,7 +1105,7 @@ export async function runBatchAssignment(
   const { data: prefRows } = await supabase
     .from("preferences")
     .select(
-      "player_id, block_start_utc, players(speedup_mon, speedup_tue, speedup_thu, created_at)"
+      "player_id, block_start_utc, applied_at, players(speedup_mon, speedup_tue, speedup_thu)"
     )
     .eq("day_of_week", day)
     .eq("cycle_id", cycleId);
@@ -1102,9 +1116,8 @@ export async function runBatchAssignment(
       speedup_mon: number;
       speedup_tue: number;
       speedup_thu: number;
-      created_at: string;
     };
-    const appliedAt = p.created_at ?? now;
+    const appliedAt = row.applied_at ?? now;
     const existing = applicantMap.get(row.player_id);
     if (existing) {
       existing.blocks.add(row.block_start_utc);
