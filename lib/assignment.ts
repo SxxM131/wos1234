@@ -5,6 +5,7 @@ import {
   SUBMIT_SUCCESS_MESSAGE,
   hasActiveDayReservation,
   clearCancelledDayReservations,
+  normalizeEmail,
 } from "./reservation-guard";
 
 export interface SubmitInput {
@@ -14,6 +15,7 @@ export interface SubmitInput {
   dayOfWeek: DayOfWeek;
   speedup: number;
   preferredBlocks: number[];
+  email?: string | null;
   skipPlayerUpsert?: boolean;
   /** When true, caller runs healEliminatedReservations once after all days (multi-day submit). */
   deferHeal?: boolean;
@@ -89,7 +91,15 @@ export async function processReservation(
     }
   }
 
-  if (await hasActiveDayReservation(supabase, input.gameId, input.dayOfWeek, cycleId)) {
+  if (
+    await hasActiveDayReservation(
+      supabase,
+      input.gameId,
+      input.dayOfWeek,
+      cycleId,
+      input.email
+    )
+  ) {
     return { success: false, message: DUPLICATE_DAY_MESSAGE };
   }
 
@@ -139,7 +149,8 @@ async function upsertPlayerForDays(
   gameId: number,
   name: string,
   alliance: string,
-  days: DaySubmit[]
+  days: DaySubmit[],
+  email?: string | null
 ) {
   const { data: existing } = await supabase
     .from("players")
@@ -163,17 +174,22 @@ async function upsertPlayerForDays(
     }
   }
 
-  const { error } = await supabase.from("players").upsert(
-    {
-      game_id: gameId,
-      name,
-      alliance,
-      speedup_mon: speedupMon,
-      speedup_tue: speedupTue,
-      speedup_thu: speedupThu,
-    },
-    { onConflict: "game_id" }
-  );
+  const playerRow: Record<string, unknown> = {
+    game_id: gameId,
+    name,
+    alliance,
+    speedup_mon: speedupMon,
+    speedup_tue: speedupTue,
+    speedup_thu: speedupThu,
+  };
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    playerRow.email = normalizedEmail;
+  }
+
+  const { error } = await supabase
+    .from("players")
+    .upsert(playerRow, { onConflict: "game_id" });
   return error;
 }
 
@@ -182,7 +198,8 @@ export async function processMultiDayReservation(
   gameId: number,
   name: string,
   alliance: string,
-  days: DaySubmit[]
+  days: DaySubmit[],
+  email?: string | null
 ): Promise<AssignmentResult> {
   const open = await isReservationOpen(supabase);
   if (!open) {
@@ -193,12 +210,15 @@ export async function processMultiDayReservation(
     return { success: false, message: "Select at least one day." };
   }
 
+  const normalizedEmail = normalizeEmail(email);
+
   const playerError = await upsertPlayerForDays(
     supabase,
     gameId,
     name,
     alliance,
-    days
+    days,
+    normalizedEmail
   );
   if (playerError) {
     return {
@@ -210,7 +230,15 @@ export async function processMultiDayReservation(
   const cycleId = await getCurrentCycleId(supabase);
 
   for (const day of days) {
-    if (await hasActiveDayReservation(supabase, gameId, day.dayOfWeek, cycleId)) {
+    if (
+      await hasActiveDayReservation(
+        supabase,
+        gameId,
+        day.dayOfWeek,
+        cycleId,
+        normalizedEmail
+      )
+    ) {
       return {
         success: false,
         message: `${DAY_CONFIG[day.dayOfWeek].label}: ${DUPLICATE_DAY_MESSAGE}`,
@@ -229,6 +257,7 @@ export async function processMultiDayReservation(
       dayOfWeek: day.dayOfWeek,
       speedup: day.speedup,
       preferredBlocks: day.preferredBlocks,
+      email: normalizedEmail,
       skipPlayerUpsert: true,
     });
     messages.push(result.message);

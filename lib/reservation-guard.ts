@@ -10,15 +10,77 @@ export const DUPLICATE_DAY_MESSAGE =
 export const SUBMIT_SUCCESS_MESSAGE =
   "Your application has been received. Assignment results will be announced after the booking window closes.";
 
+export function normalizeEmail(
+  email: string | null | undefined
+): string | null {
+  const trimmed = email?.trim().toLowerCase();
+  return trimmed || null;
+}
+
+async function getGameIdsForEmail(
+  supabase: SupabaseClient,
+  email: string
+): Promise<number[]> {
+  const { data: players } = await supabase
+    .from("players")
+    .select("game_id")
+    .eq("email", email);
+  return (players ?? []).map((p) => p.game_id);
+}
+
+async function hasPreferencesForGameIds(
+  supabase: SupabaseClient,
+  gameIds: number[],
+  day: DayOfWeek,
+  cycleId: number
+): Promise<boolean> {
+  if (gameIds.length === 0) return false;
+
+  const { data: prefs } = await supabase
+    .from("preferences")
+    .select("id")
+    .in("player_id", gameIds)
+    .eq("day_of_week", day)
+    .eq("cycle_id", cycleId)
+    .limit(1);
+  return !!prefs?.length;
+}
+
+/**
+ * Returns true if any player with this email already has preferences
+ * for this day in the cycle (cross-channel duplicate check).
+ */
+async function hasActiveDayReservationByEmail(
+  supabase: SupabaseClient,
+  email: string,
+  day: DayOfWeek,
+  cycleId: number
+): Promise<boolean> {
+  const gameIds = await getGameIdsForEmail(supabase, email);
+  return hasPreferencesForGameIds(supabase, gameIds, day, cycleId);
+}
+
 /**
  * Returns true if the player already has preferences for this day in the cycle.
+ * When email is provided, checks email + cycle_id (+ day) first; otherwise game_id + day + cycle_id.
  */
 export async function hasActiveDayReservation(
   supabase: SupabaseClient,
   gameId: number,
   day: DayOfWeek,
-  cycleId: number
+  cycleId: number,
+  email?: string | null
 ): Promise<boolean> {
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    return hasActiveDayReservationByEmail(
+      supabase,
+      normalizedEmail,
+      day,
+      cycleId
+    );
+  }
+
   const { data: prefs } = await supabase
     .from("preferences")
     .select("id")
@@ -31,12 +93,13 @@ export async function hasActiveDayReservation(
 
 export async function getReservedDaysForPlayer(
   supabase: SupabaseClient,
-  gameId: number
+  gameId: number,
+  email?: string | null
 ): Promise<DayOfWeek[]> {
   const cycleId = await getCurrentCycleId(supabase);
   const reserved: DayOfWeek[] = [];
   for (const day of ALL_DAYS) {
-    if (await hasActiveDayReservation(supabase, gameId, day, cycleId)) {
+    if (await hasActiveDayReservation(supabase, gameId, day, cycleId, email)) {
       reserved.push(day);
     }
   }

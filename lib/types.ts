@@ -6,6 +6,7 @@ export interface Player {
   game_id: number;
   name: string;
   alliance: string;
+  email?: string | null;
   speedup_mon: number;
   speedup_tue: number;
   speedup_thu: number;
