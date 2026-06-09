@@ -14,8 +14,6 @@ export async function submitReservation(formData: FormData) {
   const gameId = parseInt(formData.get("game_id") as string, 10);
   const name = (formData.get("name") as string)?.trim();
   const alliance = (formData.get("alliance") as string)?.trim();
-  const emailRaw = (formData.get("email") as string)?.trim() ?? "";
-  const email = emailRaw || null;
   const selectedDays = formData.getAll("days") as DayOfWeek[];
 
   if (!gameId || !name || !alliance) {
@@ -67,8 +65,7 @@ export async function submitReservation(formData: FormData) {
     gameId,
     name,
     alliance,
-    daySubmits,
-    email
+    daySubmits
   );
 }
 

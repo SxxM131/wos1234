@@ -38,8 +38,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 1. [Supabase](https://supabase.com)에서 프로젝트 생성
 2. SQL Editor에서 `supabase/schema.sql` 전체 실행
-3. SQL Editor에서 `supabase/migrations/v5.sql` 실행 (email 컬럼 등 추가)
-4. Project Settings → API에서 URL, anon key, service_role key 복사
+3. Project Settings → API에서 URL, anon key, service_role key 복사
 
 ---
 
@@ -78,6 +77,7 @@ Vercel 콜드스타트 우회 목적으로 구글 폼을 통한 신청을 병행
 - 두 경로 모두 **동일한 DB 테이블**에 저장되며 배정 알고리즘은 그대로 적용됩니다.
 - 중복 방지: 구글 폼 응답 1회 제한 + Apps Script에서 `game_id + cycle_id + day_of_week` 기준 체크
 - cycle_id는 Supabase settings 테이블에서 동적 조회하므로 **Reset cycle 후 코드 수정 불필요**
+- Apps Script 코드: [`scripts/appscript/onFormSubmit.gs`](scripts/appscript/onFormSubmit.gs)
 
 설정 방법은 [docs/RESERVATION_SYSTEM.md §17](docs/RESERVATION_SYSTEM.md#17-구글-폼-연동-apps-script-파이프라인)을 참고하세요.
 
@@ -140,9 +140,11 @@ wos1234/
 ├── components/            # UI 컴포넌트
 ├── docs/                  # 문서
 │   ├── RESERVATION_SYSTEM.md
+│   ├── RESERVATION_SYSTEM_EN.md
 │   ├── SETUP.md
 │   └── implementation_plan.md
 ├── scripts/
+│   ├── appscript/         # onFormSubmit.gs (구글 폼 연동)
 │   ├── dev/               # inject-random, clear-cycle-assignments 등
 │   ├── verify/            # verify-assignment, audit-reservations 등
 │   ├── maintenance/       # run-batch-assignment, recover-waitlist 등

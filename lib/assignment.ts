@@ -5,7 +5,6 @@ import {
   SUBMIT_SUCCESS_MESSAGE,
   hasActiveDayReservation,
   clearCancelledDayReservations,
-  normalizeEmail,
 } from "./reservation-guard";
 
 export interface SubmitInput {
@@ -15,7 +14,6 @@ export interface SubmitInput {
   dayOfWeek: DayOfWeek;
   speedup: number;
   preferredBlocks: number[];
-  email?: string | null;
   skipPlayerUpsert?: boolean;
   /** When true, caller runs healEliminatedReservations once after all days (multi-day submit). */
   deferHeal?: boolean;
@@ -96,8 +94,7 @@ export async function processReservation(
       supabase,
       input.gameId,
       input.dayOfWeek,
-      cycleId,
-      input.email
+      cycleId
     )
   ) {
     return { success: false, message: DUPLICATE_DAY_MESSAGE };
@@ -149,8 +146,7 @@ async function upsertPlayerForDays(
   gameId: number,
   name: string,
   alliance: string,
-  days: DaySubmit[],
-  email?: string | null
+  days: DaySubmit[]
 ) {
   const { data: existing } = await supabase
     .from("players")
@@ -182,10 +178,6 @@ async function upsertPlayerForDays(
     speedup_tue: speedupTue,
     speedup_thu: speedupThu,
   };
-  const normalizedEmail = normalizeEmail(email);
-  if (normalizedEmail) {
-    playerRow.email = normalizedEmail;
-  }
 
   const { error } = await supabase
     .from("players")
@@ -198,8 +190,7 @@ export async function processMultiDayReservation(
   gameId: number,
   name: string,
   alliance: string,
-  days: DaySubmit[],
-  email?: string | null
+  days: DaySubmit[]
 ): Promise<AssignmentResult> {
   const open = await isReservationOpen(supabase);
   if (!open) {
@@ -210,15 +201,12 @@ export async function processMultiDayReservation(
     return { success: false, message: "Select at least one day." };
   }
 
-  const normalizedEmail = normalizeEmail(email);
-
   const playerError = await upsertPlayerForDays(
     supabase,
     gameId,
     name,
     alliance,
-    days,
-    normalizedEmail
+    days
   );
   if (playerError) {
     return {
@@ -235,8 +223,7 @@ export async function processMultiDayReservation(
         supabase,
         gameId,
         day.dayOfWeek,
-        cycleId,
-        normalizedEmail
+        cycleId
       )
     ) {
       return {
@@ -257,7 +244,6 @@ export async function processMultiDayReservation(
       dayOfWeek: day.dayOfWeek,
       speedup: day.speedup,
       preferredBlocks: day.preferredBlocks,
-      email: normalizedEmail,
       skipPlayerUpsert: true,
     });
     messages.push(result.message);

@@ -163,7 +163,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   const [gameId, setGameId] = useState("");
   const [name, setName] = useState("");
   const [alliance, setAlliance] = useState("");
-  const [email, setEmail] = useState("");
   const [dayState, setDayState] = useState(emptyDayState);
   const [reservedDays, setReservedDays] = useState<DayOfWeek[]>([]);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -174,7 +173,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     step === "info" ? 0 : step === "mon" ? 1 : step === "tue" ? 2 : 3;
 
   const fetchReservedDays = useCallback(
-    async (id: string, emailValue: string) => {
+    async (id: string) => {
       const parsed = parseInt(id, 10);
       if (!id.trim() || isNaN(parsed)) {
         setReservedDays([]);
@@ -182,10 +181,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
       }
       try {
         const query = new URLSearchParams({ gameId: String(parsed) });
-        const trimmedEmail = emailValue.trim();
-        if (trimmedEmail) {
-          query.set("email", trimmedEmail);
-        }
         const res = await fetch(`/r/${token}/api/existing?${query}`);
         const data = await res.json();
         setReservedDays((data.reservedDays ?? []) as DayOfWeek[]);
@@ -197,15 +192,15 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   );
 
   useEffect(() => {
-    const t = setTimeout(() => fetchReservedDays(gameId, email), 400);
+    const t = setTimeout(() => fetchReservedDays(gameId), 400);
     return () => clearTimeout(t);
-  }, [gameId, email, fetchReservedDays]);
+  }, [gameId, fetchReservedDays]);
 
   useEffect(() => {
     if (step !== "info" && gameId.trim()) {
-      fetchReservedDays(gameId, email);
+      fetchReservedDays(gameId);
     }
-  }, [step, gameId, email, fetchReservedDays]);
+  }, [step, gameId, fetchReservedDays]);
 
   const setSpeedupForDay = useCallback((day: DayOfWeek, value: string) => {
     setDayState((prev) => ({
@@ -340,9 +335,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     fd.set("game_id", gameId);
     fd.set("name", name);
     fd.set("alliance", alliance);
-    if (email.trim()) {
-      fd.set("email", email.trim());
-    }
 
     selected.forEach((day) => {
       fd.append("days", day);
@@ -364,11 +356,10 @@ export function ReservationForm({ reservationOpen, token }: Props) {
         setGameId("");
         setName("");
         setAlliance("");
-        setEmail("");
         setDayState(emptyDayState());
         setReservedDays([]);
       } else {
-        await fetchReservedDays(gameId, email);
+        await fetchReservedDays(gameId);
       }
     });
   }
@@ -408,25 +399,10 @@ export function ReservationForm({ reservationOpen, token }: Props) {
                   required
                   value={gameId}
                   onChange={(e) => setGameId(e.target.value)}
-                  onBlur={() => fetchReservedDays(gameId, email)}
+                  onBlur={() => fetchReservedDays(gameId)}
                   className="input-field"
                   placeholder="e.g. 12345678"
                 />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600">
-                  Email <span className="font-normal text-slate-400">(optional)</span>
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onBlur={() => fetchReservedDays(gameId, email)}
-                  className="input-field"
-                  placeholder="Same email as Google Form, if any"
-                  autoComplete="email"
-                />
-              </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600">
                   Name
