@@ -403,16 +403,18 @@ export function ReservationForm({ reservationOpen, token }: Props) {
                   placeholder="e.g. 12345678"
                 />
               </div>
-              <label className="mb-1 block text-sm font-medium text-slate-600">
-                Name
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input-field"
-              />
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-600">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="input-field"
+                />
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">
@@ -427,85 +429,79 @@ export function ReservationForm({ reservationOpen, token }: Props) {
               />
             </div>
           </div>
-        </div>
+
           {reservedDays.length > 0 && (
-        <p className="text-sm text-amber-800">
-          Already reserved:{" "}
-          {reservedDays.map((d) => DAY_CONFIG[d].label).join(", ")}. Those
-          days cannot be submitted again.
-        </p>
+            <p className="text-sm text-amber-800">
+              Already reserved:{" "}
+              {reservedDays.map((d) => DAY_CONFIG[d].label).join(", ")}. Those
+              days cannot be submitted again.
+            </p>
+          )}
+          <p className="text-sm text-slate-500">
+            Monday → Tuesday → Thursday. You cannot edit after submitting.
+          </p>
+          <button type="button" onClick={handleInfoNext} className="btn-primary">
+            Next — Monday
+          </button>
+        </div>
       )}
-      <p className="text-sm text-slate-500">
-        Monday → Tuesday → Thursday. You cannot edit after submitting.
-      </p>
-      <button type="button" onClick={handleInfoNext} className="btn-primary">
-        Next — Monday
-      </button>
-    </div>
-  )
-}
 
-{
-  step === "mon" && (
-    <DayStepContent
-      day="mon"
-      speedup={dayState.mon.speedup}
-      blocks={dayState.mon.blocks}
-      isReserved={reservedDays.includes("mon")}
-      pending={pending}
-      onSpeedupChange={(value) => setSpeedupForDay("mon", value)}
-      onToggleBlock={(block) => toggleBlock("mon", block)}
-      onBack={goBack}
-      onNext={() => goNextFromDay("mon")}
-      onSubmit={openConfirmDialog}
-    />
-  )
-}
-{
-  step === "tue" && (
-    <DayStepContent
-      day="tue"
-      speedup={dayState.tue.speedup}
-      blocks={dayState.tue.blocks}
-      isReserved={reservedDays.includes("tue")}
-      pending={pending}
-      onSpeedupChange={(value) => setSpeedupForDay("tue", value)}
-      onToggleBlock={(block) => toggleBlock("tue", block)}
-      onBack={goBack}
-      onNext={() => goNextFromDay("tue")}
-      onSubmit={openConfirmDialog}
-    />
-  )
-}
-{
-  step === "thu" && (
-    <DayStepContent
-      day="thu"
-      speedup={dayState.thu.speedup}
-      blocks={dayState.thu.blocks}
-      isReserved={reservedDays.includes("thu")}
-      pending={pending}
-      onSpeedupChange={(value) => setSpeedupForDay("thu", value)}
-      onToggleBlock={(block) => toggleBlock("thu", block)}
-      onBack={goBack}
-      onNext={() => goNextFromDay("thu")}
-      onSubmit={openConfirmDialog}
-    />
-  )
-}
+      {step === "mon" && (
+        <DayStepContent
+          day="mon"
+          speedup={dayState.mon.speedup}
+          blocks={dayState.mon.blocks}
+          isReserved={reservedDays.includes("mon")}
+          pending={pending}
+          onSpeedupChange={(value) => setSpeedupForDay("mon", value)}
+          onToggleBlock={(block) => toggleBlock("mon", block)}
+          onBack={goBack}
+          onNext={() => goNextFromDay("mon")}
+          onSubmit={openConfirmDialog}
+        />
+      )}
 
-{
-  message && (
-    <div
-      className={`rounded-xl px-4 py-3 text-sm whitespace-pre-line ${message.type === "ok"
-          ? "bg-green-50 text-green-800"
-          : "bg-amber-50 text-amber-800"
-        }`}
-    >
-      {message.text}
-    </div>
-  )
-}
+      {step === "tue" && (
+        <DayStepContent
+          day="tue"
+          speedup={dayState.tue.speedup}
+          blocks={dayState.tue.blocks}
+          isReserved={reservedDays.includes("tue")}
+          pending={pending}
+          onSpeedupChange={(value) => setSpeedupForDay("tue", value)}
+          onToggleBlock={(block) => toggleBlock("tue", block)}
+          onBack={goBack}
+          onNext={() => goNextFromDay("tue")}
+          onSubmit={openConfirmDialog}
+        />
+      )}
+
+      {step === "thu" && (
+        <DayStepContent
+          day="thu"
+          speedup={dayState.thu.speedup}
+          blocks={dayState.thu.blocks}
+          isReserved={reservedDays.includes("thu")}
+          pending={pending}
+          onSpeedupChange={(value) => setSpeedupForDay("thu", value)}
+          onToggleBlock={(block) => toggleBlock("thu", block)}
+          onBack={goBack}
+          onNext={() => goNextFromDay("thu")}
+          onSubmit={openConfirmDialog}
+        />
+      )}
+
+      {message && (
+        <div
+          className={`rounded-xl px-4 py-3 text-sm whitespace-pre-line ${
+            message.type === "ok"
+              ? "bg-green-50 text-green-800"
+              : "bg-amber-50 text-amber-800"
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
 
       <ConfirmReservationDialog
         open={confirmOpen}
@@ -521,6 +517,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
       >
         Check my reservation
       </a>
-    </div >
+    </div>
   );
 }
