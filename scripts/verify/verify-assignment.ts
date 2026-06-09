@@ -4,7 +4,7 @@ import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(
   readFileSync(resolve(root, ".env.local"), "utf8")
     .split("\n")
