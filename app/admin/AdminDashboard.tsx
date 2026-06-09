@@ -100,6 +100,8 @@ export function AdminDashboard({
   } | null>(null);
   const [assignResult, setAssignResult] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   const loadAssignPreview = useCallback(() => {
     startAssignTransition(async () => {
@@ -115,6 +117,28 @@ export function AdminDashboard({
   useEffect(() => {
     loadAssignPreview();
   }, [loadAssignPreview]);
+
+  const showToast = useCallback((type: "success" | "error", msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const handleCancelReservation = useCallback(
+    async (id: string, playerName: string) => {
+      if (!confirm(`${playerName}의 예약을 취소하시겠습니까?`)) return;
+      setCancellingId(id);
+      try {
+        await cancelReservation(id);
+        showToast("success", "취소 완료. 대기자가 있으면 자동 승격됩니다.");
+        router.refresh();
+      } catch {
+        showToast("error", "취소 실패. 다시 시도해주세요.");
+      } finally {
+        setCancellingId(null);
+      }
+    },
+    [showToast, router]
+  );
 
   function handleRunFullAssignment() {
     if (
@@ -531,16 +555,19 @@ export function AdminDashboard({
                     {r.status === "assigned" && (
                       <button
                         type="button"
-                        className="rounded border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 font-medium transition"
-                        onClick={() => {
-                          if (
-                            confirm(`Cancel reservation for ${r.players?.name ?? "Unknown"}?`)
-                          ) {
-                            startTransition(() => cancelReservation(r.id));
-                          }
-                        }}
+                        disabled={cancellingId === r.id}
+                        className="rounded border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
+                        onClick={() => handleCancelReservation(r.id, r.players?.name ?? "Unknown")}
                       >
-                        Cancel
+                        {cancellingId === r.id ? (
+                          <>
+                            <svg className="animate-spin h-3 w-3 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                            </svg>
+                            취소 중…
+                          </>
+                        ) : "Cancel"}
                       </button>
                     )}
                   </div>
@@ -683,18 +710,19 @@ export function AdminDashboard({
                         {res && (
                           <button
                             type="button"
-                            className="mt-3 w-full rounded bg-red-50 hover:bg-red-100 border border-red-200 py-1 text-[11px] text-red-600 font-semibold transition"
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  `Cancel reservation for ${res.players?.name ?? "Unknown"}?`
-                                )
-                              ) {
-                                startTransition(() => cancelReservation(res.id));
-                              }
-                            }}
+                            disabled={cancellingId === res.id}
+                            className="mt-3 w-full rounded bg-red-50 hover:bg-red-100 border border-red-200 py-1 text-[11px] text-red-600 font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                            onClick={() => handleCancelReservation(res.id, res.players?.name ?? "Unknown")}
                           >
-                            Cancel
+                            {cancellingId === res.id ? (
+                              <>
+                                <svg className="animate-spin h-3 w-3 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                </svg>
+                                취소 중…
+                              </>
+                            ) : "Cancel"}
                           </button>
                         )}
                       </div>
@@ -749,6 +777,29 @@ export function AdminDashboard({
           </div>
           )}
         </>
+      )}
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold shadow-xl transition-all animate-fade-in ${
+            toast.type === "success"
+              ? "bg-green-600 text-white"
+              : "bg-red-600 text-white"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {toast.type === "success" ? (
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          {toast.msg}
+        </div>
       )}
     </div>
   );
