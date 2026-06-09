@@ -1,6 +1,28 @@
 # SVS Reservation
 
-Next.js 14 + Supabase + Vercel 기반의 연맹 SVS(성) 예약·배정 웹앱입니다. Mobile-first UI.
+> **Next.js 14 + Supabase + Vercel** 기반의 연맹 SVS(성) 예약·배정 웹앱
+
+![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-Deployed-black?logo=vercel&logoColor=white)
+![Algorithm](https://img.shields.io/badge/Algorithm-Min--Cost%20Max--Flow-blue)
+![Mobile First](https://img.shields.io/badge/UI-Mobile--first-orange)
+
+---
+
+## 목차
+
+- [로컬 개발](#-로컬-개발)
+- [환경 변수](#-환경-변수)
+- [Supabase 설정](#-supabase-설정)
+- [배포](#-배포-vercel)
+- [예약 수정 방법](#-예약-수정-방법)
+- [예약 배정 알고리즘](#-예약-배정-알고리즘)
+- [구글 폼 연동](#-구글-폼-연동-선택)
+- [npm 스크립트](#-npm-스크립트)
+- [페이지 구조](#-페이지-구조)
+- [폴더 구조](#-폴더-구조)
+- [기술 스택](#-기술-스택)
 
 ---
 
@@ -13,7 +35,7 @@ npm run check-env             # 환경 변수 검증
 npm run dev
 ```
 
-**상세 설정 가이드:** [docs/SETUP.md](docs/SETUP.md)
+> 상세 설정 가이드: [docs/SETUP.md](docs/SETUP.md)
 
 ---
 
@@ -23,7 +45,7 @@ npm run dev
 |------|------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL (예: `https://xxxx.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | service role key — **서버 전용, 절대 클라이언트 노출 금지** |
+| `SUPABASE_SERVICE_ROLE_KEY` | service role key — **️ 서버 전용, 절대 클라이언트 노출 금지** |
 | `IRON_SESSION_SECRET` | 32자 이상 랜덤 문자열 |
 
 세션 시크릿 생성:
@@ -34,76 +56,132 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ---
 
-## Supabase 설정
+## ️ Supabase 설정
 
 1. [Supabase](https://supabase.com)에서 프로젝트 생성
 2. SQL Editor에서 `supabase/schema.sql` 전체 실행
-3. Project Settings → API에서 URL, anon key, service_role key 복사
+3. **Project Settings → API** 에서 URL, anon key, service_role key 복사
 
 ---
 
-## 배포 (Vercel)
+## ️ 배포 (Vercel)
 
 1. GitHub에 push
-2. Vercel에서 Import → 환경 변수 4개 등록
+2. Vercel에서 **Import** → 환경 변수 4개 등록
 3. 배포 후 `/admin/setup`에서 관리자 비밀번호 설정
 4. `/admin`에서 비밀 URL 확인 후 연맹원에게 공유
 
 ---
 
-## 예약 배정 알고리즘
+## ️ 예약 수정 방법
+
+제출한 예약을 수정해야 할 경우, 아래 상황에 맞는 방법을 따르세요.
+
+### 경우 1 — 구글 폼 마감 전
+
+본인이 직접 수정할 수 있습니다.
+
+1. 제출 당시 수신한 **이메일의 구글 폼 응답 확인 링크**를 클릭
+2. 응답을 수정한 뒤 다시 제출
+
+### 경우 2 — 구글 폼 마감 후
+
+각 연맹의 **R4**에게 문의하세요.
+
+```
+요청 내용:
+https://wos1234.vercel.app/admin 에서
+전체 배정 실행 후 본인 예약 삭제 요청
+```
+
+R4가 삭제를 완료하면, **전달받은 시크릿 URL**(`/r/[token]`)로 다시 예약을 제출하세요.
+
+> ️ 삭제 후 재제출하지 않으면 해당 사이클에서 배정 대상에서 제외됩니다.
+
+---
+
+## ️ 예약 배정 알고리즘
 
 현재 시스템은 즉시 배정이 아닌 **일괄 배정(Batch Assignment)** 방식을 사용합니다.
 
-1. 플레이어는 비밀 URL(`/r/[token]`) 또는 **구글 폼**에서 **선호 시간(preferences)만** 제출합니다.
-2. 마감 후 관리자가 `/admin`에서 **Run full assignment**를 실행하면, **Min-Cost Max-Flow (MCMF)** 알고리즘이 스피드업 내림차순 → 신청 시각 오름차순 기준으로 자동 배정합니다.
-3. 배정받지 못한 인원은 대기열(Waitlist)로 이동하며, 기존 예약 취소 시 대기열 1순위가 빈 자리에 자동 승격됩니다.
+```mermaid
+flowchart TD
+    A[플레이어: 선호 시간 제출\n비밀 URL 또는 구글 폼] --> B[마감]
+    B --> C[관리자: Run full assignment 실행]
+    C --> D{MCMF 알고리즘\n스피드업 내림차순\n신청 시각 오름차순}
+    D -->|배정 성공| E[ 예약 확정]
+    D -->|슬롯 없음| F[⏳ 대기열 Waitlist]
+    G[기존 예약 취소] --> H[대기열 1순위 자동 승격]
+    F --> H
+```
 
-> **MCMF 교체 이유:** 이전 Hopcroft-Karp 방식에서 발생하던 ① 빈 슬롯 + 대기자 동시 존재(V1), ② 스피드업 역전(V4) 문제를 해결했습니다. `verify:assignment` 기준 에러 0건·경고 0건.
+> **MCMF 도입 이유:** 이전 Hopcroft-Karp 방식에서 발생하던 ① 빈 슬롯 + 대기자 동시 존재(V1), ② 스피드업 역전(V4) 문제를 해결했습니다. `verify:assignment` 기준 에러 0건·경고 0건.
 
-상세 동작은 [docs/RESERVATION_SYSTEM.md](docs/RESERVATION_SYSTEM.md)를 참고하세요.
+ 상세 동작: [docs/RESERVATION_SYSTEM.md](docs/RESERVATION_SYSTEM.md)
 
 ---
 
 ## 구글 폼 연동 (선택)
 
-Vercel 콜드스타트 우회 목적으로 구글 폼을 통한 신청을 병행 운영할 수 있습니다.
+Vercel 콜드스타트 우회 목적으로 구글 폼 신청을 병행 운영할 수 있습니다.
 
+```mermaid
+flowchart LR
+    A[구글 폼 제출] -->|onFormSubmit| B[Apps Script]
+    C[시크릿 링크 /r/token] -->|Server Action| D[Supabase\nplayers / preferences]
+    B --> D
+    D --> E[배정 알고리즘]
 ```
-구글 폼 제출 → Apps Script (onFormSubmit) → Supabase players / preferences
-시크릿 링크 (/r/[token]) → Server Action → Supabase players / preferences
-```
 
-- 두 경로 모두 **동일한 DB 테이블**에 저장되며 배정 알고리즘은 그대로 적용됩니다.
-- 중복 방지: 구글 폼 응답 1회 제한 + Apps Script에서 `game_id + cycle_id + day_of_week` 기준 체크
-- cycle_id는 Supabase settings 테이블에서 동적 조회하므로 **Reset cycle 후 코드 수정 불필요**
-- Apps Script 코드: [`scripts/appscript/onFormSubmit.gs`](scripts/appscript/onFormSubmit.gs)
+| 항목 | 내용 |
+|------|------|
+| 중복 방지 | 구글 폼 응답 1회 제한 + `game_id + cycle_id + day_of_week` 기준 체크 |
+| cycle_id | Supabase settings 테이블에서 동적 조회 — Reset 후 코드 수정 불필요 |
+| Apps Script | [`scripts/appscript/onFormSubmit.gs`](scripts/appscript/onFormSubmit.gs) |
 
-설정 방법은 [docs/RESERVATION_SYSTEM.md §17](docs/RESERVATION_SYSTEM.md#17-구글-폼-연동-apps-script-파이프라인)을 참고하세요.
+ 설정 방법: [docs/RESERVATION_SYSTEM.md §17](docs/RESERVATION_SYSTEM.md#17-구글-폼-연동-apps-script-파이프라인)
 
 ---
 
-## npm 스크립트
+## ️ npm 스크립트
 
-| 스크립트 | 위치 | 설명 |
-|----------|------|------|
-| `npm run dev` | — | 로컬 개발 서버 |
-| `npm run check-env` | `scripts/admin/` | 환경 변수 검증 |
-| `npm run set-admin-password` | `scripts/admin/` | Admin 비밀번호 설정 |
-| `npm run inject:random -- N` | `scripts/dev/` | N명 무작위 신청 주입 (기본 120) |
-| `npm run inject:test` | `scripts/dev/` | 실제 테스트 데이터 주입 |
-| `npm run clear:assignments` | `scripts/dev/` | 현재 사이클 배정 결과만 삭제 |
-| `npm run seed:stress` | `scripts/dev/` | clear + 120명 주입 |
-| `npm run run:batch` | `scripts/maintenance/` | Admin 버튼과 동일한 일괄 배정 실행 |
-| `npm run verify:assignment` | `scripts/verify/` | 배정 결과 검증 (V1~V5) — 에러 시 exit(1) |
-| `npm run audit:reservations` | `scripts/verify/` | 사이클 전체 감사 |
-| `npm run validate:assignment` | `scripts/verify/` | 배정 유효성 검사 |
-| `npm run recover:waitlist` | `scripts/maintenance/` | 대기열 복구 |
-| `npm run backfill:slots` | `scripts/maintenance/` | 빈 슬롯 백필 |
-| `npm run reconcile:waitlist` | `scripts/maintenance/` | eliminated 정합성 정리 |
-| `npm run purge:orphans` | `scripts/maintenance/` | 고아 players 삭제 |
+### 개발
 
-**배정 테스트 플로우:**
+| 스크립트 | 설명 |
+|----------|------|
+| `npm run dev` | 로컬 개발 서버 |
+| `npm run check-env` | 환경 변수 검증 |
+| `npm run set-admin-password` | Admin 비밀번호 설정 |
+
+### 테스트 데이터
+
+| 스크립트 | 설명 |
+|----------|------|
+| `npm run inject:random -- N` | N명 무작위 신청 주입 (기본 120) |
+| `npm run inject:test` | 실제 테스트 데이터 주입 |
+| `npm run clear:assignments` | 현재 사이클 배정 결과만 삭제 |
+| `npm run seed:stress` | clear + 120명 주입 |
+
+### 배정 실행 및 검증
+
+| 스크립트 | 설명 |
+|----------|------|
+| `npm run run:batch` | Admin 버튼과 동일한 일괄 배정 실행 |
+| `npm run verify:assignment` | 배정 결과 검증 (V1~V5) — 에러 시 exit(1) |
+| `npm run audit:reservations` | 사이클 전체 감사 |
+| `npm run validate:assignment` | 배정 유효성 검사 |
+
+### 유지보수
+
+| 스크립트 | 설명 |
+|----------|------|
+| `npm run recover:waitlist` | 대기열 복구 |
+| `npm run backfill:slots` | 빈 슬롯 백필 |
+| `npm run reconcile:waitlist` | eliminated 정합성 정리 |
+| `npm run purge:orphans` | 고아 players 삭제 |
+
+<details>
+<summary>배정 테스트 플로우</summary>
 
 ```bash
 npm run inject:random -- 10
@@ -111,20 +189,25 @@ npm run run:batch
 npm run verify:assignment
 ```
 
+</details>
+
 ---
 
-## 페이지
+## 페이지 구조
 
-| 경로 | 설명 |
-|------|------|
-| `/r/[token]` | 예약 신청 (비밀 URL) |
-| `/r/[token]/check` | 본인 예약 확인 |
-| `/status` | 공개 현황 조회 |
-| `/admin` | 운영자 관리 |
+| 경로 | 대상 | 설명 |
+|------|------|------|
+| `/r/[token]` | 연맹원 | 예약 신청 (비밀 URL) |
+| `/r/[token]/check` | 연맹원 | 본인 예약 확인 |
+| `/status` | 전체 공개 | 현황 조회 |
+| `/admin` | 운영자 | 관리 패널 |
 
 ---
 
 ## 폴더 구조
+
+<details>
+<summary>펼쳐서 보기</summary>
 
 ```
 wos1234/
@@ -138,13 +221,13 @@ wos1234/
 │   └── api/
 ├── lib/                   # 공유 로직 (assignment, reservation-guard 등)
 ├── components/            # UI 컴포넌트
-├── docs/                  # 문서
+├── docs/
 │   ├── RESERVATION_SYSTEM.md
 │   ├── RESERVATION_SYSTEM_EN.md
 │   ├── SETUP.md
 │   └── implementation_plan.md
 ├── scripts/
-│   ├── appscript/         # onFormSubmit.gs (구글 폼 연동)
+│   ├── appscript/         # onFormSubmit.gs
 │   ├── dev/               # inject-random, clear-cycle-assignments 등
 │   ├── verify/            # verify-assignment, audit-reservations 등
 │   ├── maintenance/       # run-batch-assignment, recover-waitlist 등
@@ -154,12 +237,17 @@ wos1234/
     └── migrations/        # v4.sql, v5.sql
 ```
 
+</details>
+
 ---
 
 ## 기술 스택
 
-- Next.js 14 (App Router, Server Actions)
-- Supabase (PostgreSQL + Realtime)
-- Tailwind CSS
-- iron-session + bcryptjs
-- Min-Cost Max-Flow (MCMF) 배정 알고리즘
+| 분류 | 기술 |
+|------|------|
+| 프레임워크 | Next.js 14 (App Router, Server Actions) |
+| 데이터베이스 | Supabase (PostgreSQL + Realtime) |
+| 스타일 | Tailwind CSS |
+| 인증 | iron-session + bcryptjs |
+| 배정 알고리즘 | Min-Cost Max-Flow (MCMF) |
+| 배포 | Vercel |
