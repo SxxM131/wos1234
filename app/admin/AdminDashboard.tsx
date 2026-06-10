@@ -127,14 +127,14 @@ export function AdminDashboard({
 
   const handleCancelReservation = useCallback(
     async (id: string, playerName: string) => {
-      if (!confirm(`${playerName}의 예약을 취소하시겠습니까?`)) return;
+      if (!confirm(`Cancel ${playerName}'s reservation?`)) return;
       setCancellingId(id);
       try {
         await cancelReservation(id);
-        showToast("success", "취소 완료. 대기자가 있으면 자동 승격됩니다.");
+        showToast("success", "Cancelled. Waitlisted players will be promoted automatically.");
         router.refresh();
       } catch {
-        showToast("error", "취소 실패. 다시 시도해주세요.");
+        showToast("error", "Cancellation failed. Please try again.");
       } finally {
         setCancellingId(null);
       }
@@ -513,18 +513,18 @@ export function AdminDashboard({
                               disabled={isDeleting}
                               className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                               onClick={async () => {
-                                if (!confirm(`정말 ${a.players?.name ?? "이 플레이어"}의 ${day.toUpperCase()} 신청을 삭제하시겠습니까?`)) return;
+                                if (!confirm(`Delete ${a.players?.name ?? "this player"}'s ${day.toUpperCase()} application?`)) return;
                                 setDeletingPref(prefKey);
                                 try {
                                   const result = await deletePreferenceByDay(a.player_id, day, cycleId);
                                   if (result.success) {
-                                    showToast("success", `${day.toUpperCase()} 신청이 삭제되었습니다.`);
+                                    showToast("success", `${day.toUpperCase()} application deleted.`);
                                     router.refresh();
                                   } else {
-                                    showToast("error", result.error ?? "삭제 실패. 다시 시도해주세요.");
+                                    showToast("error", result.error ?? "Deletion failed. Please try again.");
                                   }
                                 } catch {
-                                  showToast("error", "삭제 중 오류가 발생했습니다.");
+                                  showToast("error", "An error occurred while deleting.");
                                 } finally {
                                   setDeletingPref(null);
                                 }
@@ -602,7 +602,7 @@ export function AdminDashboard({
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                             </svg>
-                            취소 중…
+                            Cancelling…
                           </>
                         ) : "Cancel"}
                       </button>
@@ -757,7 +757,7 @@ export function AdminDashboard({
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                                 </svg>
-                                취소 중…
+                                Cancelling…
                               </>
                             ) : "Cancel"}
                           </button>
