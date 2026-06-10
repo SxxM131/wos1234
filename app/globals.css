@@ -59,6 +59,9 @@
 .guide-prose h1 {
   @apply mb-4 mt-8 border-b-2 border-slate-200 pb-2 text-2xl font-bold first:mt-0;
 }
+.guide-prose h1#svs-reservation-system-technical-reference {
+  @apply mt-14 border-b-4 border-brand-600 pb-3;
+}
 .guide-prose h2 {
   @apply mb-3 mt-7 text-xl font-bold;
 }

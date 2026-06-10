@@ -1,137 +1,127 @@
 # Admin Quick Reference
 
-Short operational reference for R4+ admins. Full technical details follow in the next section.
+For R4+ admins with access to this site. Explains how the reservation system works and how to run each cycle on the dashboard.
+
+## How the system works
+
+| Phase | What happens |
+|-------|----------------|
+| Application window | Members submit **preferences only** (day, speedup, preferred UTC blocks). No slot assignment yet. |
+| After deadline | You close reservations, verify speedups, then **Run full assignment**. |
+| After assignment | Results appear on **`/status`**. Members can check their own status via the secret link. |
+
+**Application channels**
+
+| Channel | When to use |
+|---------|-------------|
+| **Google Form** | Main path during the normal application window |
+| **Secret link** (`/r/...`) | Late or special cases **after the form closes** — share the URL from the dashboard only when needed |
+
+Duplicate rule (both channels): same **Player ID + day + cycle** → second submission is rejected.
+
+```mermaid
+flowchart TD
+  A[Open Google Form window] --> B[Members submit preferences]
+  B --> C[Close reservations on dashboard]
+  C --> D[Verify speedups in Search / Export]
+  D --> E[Run full assignment]
+  E --> F[Share /status link]
+```
+
+## Dashboard workflow (each cycle)
+
+| Step | Action on `/admin` |
+|------|---------------------|
+| 1 | Confirm **reservations open**; distribute the Google Form link |
+| 2 | When the window ends → **Close reservations** |
+| 3 | **Search** or **Export Excel** — cross-check speedup values; edit if needed |
+| 4 | **Run full assignment** (yellow panel) |
+| 5 | Share **`/status`** with the alliance |
+| 6 | After assignment: use **Schedule Grid** for slot cancellations; **Waitlist** to review eliminated players |
+
+> Before assignment, the schedule grid is expected to be empty — only `preferences` exist until you run assignment.
+
+## Handling member changes
+
+| # | Timing | Member | R4 action |
+|---|--------|--------|-----------|
+| A | Google Form still open | Edit via email response link | — |
+| B | After form close · before assignment | Contact R4 → re-apply **via secret link** | Search → **Delete mon/tue/thu** for that day |
+| C | After assignment | Request change from R4 (case by case — may affect others) | Schedule Grid **Cancel** only when appropriate |
+
+Full scenario tables: **Technical Reference → §3.5 Operational Scenarios** below.
+
+## Site pages (this deployment)
+
+| Path | Who | Purpose |
+|------|-----|---------|
+| `/admin` | R4+ | Dashboard — open/close, assign, search, grid |
+| `/admin/guide` | R4+ | This page |
+| `/status` | Public | Live schedule and waitlist after assignment |
+| `/r/[token]` | Members (late/special) | Application form |
+| `/r/[token]/check` | Members | Check application / assignment by Player ID |
+
+## Warnings
+
+- **Do not press Reset cycle** during an active booking period unless you intentionally want to archive and wipe the entire cycle’s data and start a new cycle number.
+- Regenerating the **secret URL** on the dashboard invalidates all existing `/r/...` links immediately.
+
+---
 
 # Player Quick Reference
 
-Short guide for alliance members. **Share this section** when opening the Google Form for applications.
+How members apply and what they experience — useful when answering questions or handling change requests.
 
-## Before you start
+## Before they apply
 
-- You need your **Player ID**, **Player Name**, and **alliance** (NWO / BOS / MAR / SXY).
-- All times are **UTC** (not KST). Pick every block you can realistically show up for.
-- Submitting only saves your **preferences**. Final slot assignment happens **after the booking window closes**.
+- **Player ID**, **Player Name**, and **alliance** (NWO / BOS / MAR / SXY).
+- All times are **UTC** (not KST).
+- Submitting saves **preferences only**; slots are assigned after the booking window closes.
 
 ## How to apply
 
-**Main — Google Form** (use this during the normal application window)
+**Google Form** (main, during the application window)
 
-1. Open the Google Form link shared by R4.
-2. Enter Player ID, Player Name, and alliance.
-3. For each day you want (**Monday VP**, **Tuesday VP**, **Thursday MO**):
-   - Enter your **speedup (days)** for that day.
-   - Select **one or more** preferred time blocks (UTC).
-4. Submit the form.
+1. Enter Player ID, Player Name, and alliance.
+2. For each day (**Monday VP**, **Tuesday VP**, **Thursday MO**): speedup (days) + one or more UTC blocks.
+3. Submit.
 
-- Use the **edit link in your confirmation email** to change answers while the form is still open.
-- After the form closes, contact R4 for any changes.
+- While the form is open: change answers via the **edit link** in the confirmation email.
+- After the form closes: contact R4.
 
-**Secret link** (`/r/...`) — **only when R4 tells you to**
+**Secret link** (`/r/...`) — only when R4 provides it
 
-- For members who missed the Google Form window or other **special cases after the form has closed**.
-- Same fields as above: Player ID, Player Name, alliance, speedup, and preferred blocks per day.
-- Do **not** use the secret link if you already applied for that day via the Google Form (duplicate will be rejected).
+- For missed form window or other special cases after the form has closed.
+- Do not use if they already applied for that day via the Google Form (duplicate rejected).
 
-> You can skip days you do not want — only fill in days you are applying for.
-
-## Rules to know
+## Rules members should know
 
 | Rule | Detail |
 |------|--------|
-| One application per day | Same **Player ID** cannot apply twice for the same day in the current cycle — the second submission is rejected |
-| Google account vs Player ID | The same Google account **can** submit multiple times (e.g. for different Player IDs). The limit is **per Player ID per day**, not per Google account |
-| Deadline | Submissions are rejected after R4 closes reservations |
-| Google Form + secret link | Using both for the **same day** and same Player ID counts as a duplicate — the second attempt is rejected |
-| Assignment | Higher speedup improves priority; results are announced after admin runs assignment |
+| One application per day | Same **Player ID** cannot apply twice for the same day in the current cycle |
+| Google account vs Player ID | Same Google account **can** submit for different Player IDs; limit is **per Player ID per day** |
+| Deadline | Rejected after R4 closes reservations |
+| Both channels | Same Player ID + same day on Form and secret link → second attempt rejected |
 
-## Check your status
+## Check status
 
-| When | Where | What you see |
-|------|-------|--------------|
-| Anytime | Secret link → **Check my application** (`/r/.../check`) | Enter Player ID to view your status |
-| After assignment | Public schedule **`/status`** | Live slots and waitlist (no login) |
+| When | Where | What they see |
+|------|-------|---------------|
+| Anytime | `/r/.../check` | Application / assigned / waitlist by Player ID |
+| After assignment | `/status` | Public schedule (no login) |
 
 | Status | Meaning |
 |--------|---------|
-| Application received | Saved successfully; assignment not run yet |
-| Assigned | You got a slot — time shown |
-| On waitlist | No slot this round — your preferred blocks are listed |
+| Application received | Saved; assignment not run yet |
+| Assigned | Slot confirmed with time |
+| On waitlist | No slot; preferred blocks listed |
 
-## Need to change something?
+## Member change requests
 
-| Situation | What to do |
-|-----------|------------|
-| Google Form still open | Use the **edit response** link in your email |
-| After form close, before assignment | Contact R4 — they can delete that day so you can **re-apply via the secret link** |
-| After assignment | Contact R4 — a change **may** be possible, but canceling or moving slots can affect other players, so R4 will decide case by case |
-
-## Important (R4 admins)
-
-- **Do not press Reset cycle** on the admin dashboard during an active booking period unless you intentionally want to archive and wipe the entire cycle’s applications and assignments.
-
----
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | service role — **server only, never expose to client** |
-| `IRON_SESSION_SECRET` | Admin session key (32+ random characters) |
-
-Generate session secret:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
----
-
-## Deployment (Vercel)
-
-1. Push to GitHub
-2. Vercel **Import** → register all 4 environment variables
-3. After deploy: `/admin/setup` — set admin password (one-time)
-4. `/admin` — share the **Google Form** link with members; use the **secret URL** only for late or special cases after the form closes
-
----
-
-## Page Routes
-
-| Path | Audience | Description |
-|------|----------|-------------|
-| `/r/[token]` | Members (late/special) | Application form — after Google Form closes |
-| `/r/[token]/check` | Members | Check own application / assignment by Player ID |
-| `/status` | Public | Live schedule and waitlist |
-| `/admin` | R4+ | Admin dashboard |
-| `/admin/login` | R4+ | Password login |
-| `/admin/setup` | R4+ | Initial password setup |
-| `/admin/guide` | R4+ | This guide |
-
----
-
-## npm Scripts (maintenance)
-
-| Script | Description |
-|--------|-------------|
-| `npm run check-env` | Validate environment variables |
-| `npm run set-admin-password` | Set admin password from CLI |
-| `npm run run:batch` | Run batch assignment (same as Admin button) |
-| `npm run verify:assignment` | Verify assignment (V1–V5) |
-| `npm run inject:random -- N` | Inject N random test applications |
-| `npm run clear:assignments` | Clear current cycle assignments only |
-
----
-
-## Reservation Changes (summary)
-
-| # | Timing | Player | R4+ Admin |
-|---|--------|--------|-----------|
-| A | Google Form edit window open | Edit via email response link | — |
-| B | After close · before assignment | Contact R4 → re-apply **via secret link** | Search → **Delete mon/tue/thu** |
-| C | After assignment | Request change from R4 (case by case — may affect others) | Grid **Cancel** only when appropriate |
-
-See **§3.5 Operational Scenarios** below for full tables.
+| Situation | Member action |
+|-----------|---------------|
+| Google Form still open | Edit via confirmation email |
+| After form close, before assignment | Contact R4 → re-apply **via secret link** after R4 deletes that day |
+| After assignment | Contact R4 — changes depend on situation and may affect other players |
 
 ---
