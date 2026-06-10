@@ -501,7 +501,7 @@ export function AdminDashboard({
                         {a.players?.speedup_tue ?? 0}d · Thu{" "}
                         {a.players?.speedup_thu ?? 0}d
                       </p>
-                      {/* 요일별 삭제 버튼 (배정 전에만 표시) */}
+                      {/* Day-level delete buttons (pre-assignment only) */}
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {appliedDays.map((day) => {
                           const prefKey = `${a.player_id}-${day}`;
@@ -511,7 +511,7 @@ export function AdminDashboard({
                               key={day}
                               type="button"
                               disabled={isDeleting}
-                              className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="rounded border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
                               onClick={async () => {
                                 if (!confirm(`Delete ${a.players?.name ?? "this player"}'s ${day.toUpperCase()} application?`)) return;
                                 setDeletingPref(prefKey);
@@ -531,14 +531,14 @@ export function AdminDashboard({
                               }}
                             >
                               {isDeleting ? (
-                                <svg className="animate-spin h-2.5 w-2.5 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                </svg>
-                              ) : (
-                                <span aria-hidden="true">❌</span>
-                              )}
-                              {day}
+                                <>
+                                  <svg className="animate-spin h-3 w-3 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                  </svg>
+                                  Deleting…
+                                </>
+                              ) : `Delete ${day}`}
                             </button>
                           );
                         })}
