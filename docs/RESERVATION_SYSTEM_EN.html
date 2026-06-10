@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>SVS Reservation System — Technical Reference</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --link: #2563eb;
+      --code-bg: #f1f5f9;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 1rem 1rem 3rem;
+    }
+    header.doc-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(248, 250, 252, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      margin: -1rem -1rem 1.25rem;
+    }
+    header.doc-header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+    header.doc-header p {
+      margin: 0.25rem 0 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    article h1 { font-size: 1.5rem; margin-top: 2rem; border-bottom: 2px solid var(--border); padding-bottom: 0.35rem; }
+    article h2 { font-size: 1.25rem; margin-top: 1.75rem; }
+    article h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+    article p, article li { word-break: break-word; }
+    article a { color: var(--link); }
+    article hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    article blockquote {
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      border-left: 4px solid var(--link);
+      background: var(--card);
+      border-radius: 0 0.5rem 0.5rem 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    article table {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 1rem 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+    }
+    article th, article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+      min-width: 5rem;
+    }
+    article th { background: #f1f5f9; font-weight: 600; white-space: nowrap; }
+    article code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85em;
+      background: var(--code-bg);
+      padding: 0.12em 0.35em;
+      border-radius: 0.25rem;
+    }
+    article pre:not(.mermaid) {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    article pre:not(.mermaid) code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    pre.mermaid {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 1rem 0.5rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 1rem 0;
+      text-align: center;
+    }
+    details {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+    }
+    details summary { cursor: pointer; font-weight: 600; }
+    @media (max-width: 480px) {
+      body { font-size: 15px; }
+      article h1 { font-size: 1.35rem; }
+      article table { font-size: 0.8rem; }
+    }
+    @media print {
+      header.doc-header { position: static; }
+      pre.mermaid { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="doc-header">
+      <h1>SVS Reservation System</h1>
+      <p>Technical reference · Generated from RESERVATION_SYSTEM_EN.md</p>
+    </header>
+    <article id="content">
+<h1>SVS Reservation System — Technical Reference</h1>
+<p>Next.js 14 + Supabase based alliance SVS (castle) reservation and assignment system.
+Players <strong>submit only their preferred time slots</strong> during the application window, and R4+ admins run a <strong>batch assignment after the deadline</strong>.
+The assignment algorithm uses <strong>Min-Cost Max-Flow (MCMF)</strong>.</p>
+<blockquote>
+<p>한국어 버전: <a href="RESERVATION_SYSTEM.md">RESERVATION_SYSTEM.md</a> · <strong>Mobile HTML:</strong> <a href="RESERVATION_SYSTEM_EN.html">RESERVATION_SYSTEM_EN.html</a></p>
+</blockquote>
+<hr>
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-overview">Overview</a></li>
+<li><a href="#2-environment-variables">Environment Variables</a></li>
+<li><a href="#3-operations-workflow">Operations Workflow</a><ul>
+<li><a href="#35-operational-scenarios--responses">3.5 Operational Scenarios &amp; Responses</a></li>
+</ul>
+</li>
+<li><a href="#4-pages--urls">Pages &amp; URLs</a></li>
+<li><a href="#5-data-model">Data Model</a></li>
+<li><a href="#6-time--slot-structure-utc">Time &amp; Slot Structure</a></li>
+<li><a href="#7-player-application-flow">Player Application Flow</a></li>
+<li><a href="#8-batch-assignment-algorithm">Batch Assignment Algorithm</a></li>
+<li><a href="#9-post-assignment-behavior-cancellation--promotion">Post-Assignment Behavior</a></li>
+<li><a href="#10-admin-features">Admin Features</a></li>
+<li><a href="#11-public-status-status">Public Status Page</a></li>
+<li><a href="#12-cycles">Cycles</a></li>
+<li><a href="#13-settings-keys">Settings Keys</a></li>
+<li><a href="#14-security--access-control">Security &amp; Access Control</a></li>
+<li><a href="#15-dev--test-scripts">Dev &amp; Test Scripts</a></li>
+<li><a href="#16-source-files">Source Files</a></li>
+<li><a href="#17-google-form-integration-apps-script-pipeline">Google Form Integration</a></li>
+<li><a href="#18-changelog-from-previous-version">Changelog from Previous Version</a></li>
+</ol>
+<hr>
+<h2>1. Overview</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Purpose</td>
+<td>Fair assignment of Mon/Tue (VP) and Thu (MO) castle slots, prioritized by speedup</td>
+</tr>
+<tr>
+<td>Application</td>
+<td>Secret URL <code>/r/[token]</code> or Google Form — only <strong>preferences</strong> are saved to DB, no slot assignment</td>
+</tr>
+<tr>
+<td>Assignment</td>
+<td>Admin <strong>Run full assignment</strong> — recalculates entire cycle in Mon → Tue → Thu order</td>
+</tr>
+<tr>
+<td>Algorithm</td>
+<td>Min-Cost Max-Flow (MCMF) — resolves empty-slot-with-waitlist and speedup reversal bugs</td>
+</tr>
+<tr>
+<td>Timezone</td>
+<td>UTC only (no KST toggle)</td>
+</tr>
+<tr>
+<td>Auth</td>
+<td>Players: URL token / Admins: password via iron-session</td>
+</tr>
+</tbody></table>
+<pre class="mermaid">flowchart LR
+  A[Player application\n/r/token or Google Form] --> B[(preferences DB)]
+  C[Booking deadline] --> D[Speedup verification]
+  D --> E[Run full assignment]
+  E --> F[(reservations assigned)]
+  F --> G[/status announcement]
+</pre>
+<hr>
+<h2>2. Environment Variables</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>NEXT_PUBLIC_SUPABASE_URL</code></td>
+<td>Supabase project URL (e.g. <code>https://xxxx.supabase.co</code>)</td>
+</tr>
+<tr>
+<td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td>
+<td>Supabase anon public key</td>
+</tr>
+<tr>
+<td><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+<td>Service role key — <strong>server-only, never expose to client</strong></td>
+</tr>
+<tr>
+<td><code>IRON_SESSION_SECRET</code></td>
+<td>Admin session encryption key (32+ random characters)</td>
+</tr>
+</tbody></table>
+<pre><code class="language-bash"># Generate session secret
+node -e &quot;console.log(require(&#39;crypto&#39;).randomBytes(32).toString(&#39;hex&#39;))&quot;
+
+# Validate environment variables
+npm run check-env
+</code></pre>
+<hr>
+<h2>3. Operations Workflow</h2>
+<pre class="mermaid">flowchart TD
+  A[Application window\nPlayers submit via /r/token or Google Form] --> B[Close bookings\nAdmin: Close reservations]
+  B --> C[Speedup verification\nCross-check actual values in reservation list]
+  C --> D[Run assignment\nAdmin: Run full assignment]
+  D --> E[Announce results\nShare /status link]
+</pre>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Owner</th>
+<th>Action</th>
+<th>DB Change</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Application window</td>
+<td>Players</td>
+<td>Submit day, speedup, preferred blocks via <code>/r/[token]</code> or Google Form</td>
+<td><code>players</code>, <code>preferences</code></td>
+</tr>
+<tr>
+<td>Close bookings</td>
+<td>R4+ Admin</td>
+<td>Toggle <strong>Close reservations</strong></td>
+<td><code>settings.reservation_open = false</code></td>
+</tr>
+<tr>
+<td>Speedup verification</td>
+<td>R4+ Admin</td>
+<td>Cross-check and edit actual speedup values in the reservation list</td>
+<td><code>players</code> (if needed)</td>
+</tr>
+<tr>
+<td>Run assignment</td>
+<td>R4+ Admin</td>
+<td><strong>Run full assignment</strong></td>
+<td><code>reservations</code> (assigned / eliminated), <code>last_assignment_run</code></td>
+</tr>
+<tr>
+<td>Announce results</td>
+<td>R4+</td>
+<td>Share <code>/status</code> link</td>
+<td>— (read only)</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Note:</strong> During the application window, no <code>assigned</code> rows are created in <code>reservations</code>. An empty grid at this stage is expected.</p>
+</blockquote>
+<h3>3.5 Operational Scenarios &amp; Responses</h3>
+<p>The tables below summarize <strong>situation-specific responses</strong> from production testing and code review. (Summary in <a href="../README.md#%EC%9A%B4%EC%98%81-%EC%8B%9C%EB%82%98%EB%A6%AC%EC%98%A4-%EC%9A%94%EC%95%BD">README</a>)</p>
+<h4>Reservation Changes &amp; Edits</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Timing</th>
+<th>Application path</th>
+<th>Player action</th>
+<th>R4+ Admin action</th>
+<th>DB change</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A</td>
+<td>Google Form <strong>edit window open</strong></td>
+<td>Google Form</td>
+<td>Use <strong>edit response link</strong> from submission email</td>
+<td>—</td>
+<td>Apps Script updates <code>preferences</code></td>
+</tr>
+<tr>
+<td>B</td>
+<td>After form close · <strong>before Run full assignment</strong></td>
+<td>Google Form / <code>/r/[token]</code></td>
+<td>Contact R4</td>
+<td>Search → <strong>Delete mon/tue/thu</strong></td>
+<td>Deletes that day&#39;s <code>preferences</code></td>
+</tr>
+<tr>
+<td>B-2</td>
+<td>After B</td>
+<td><code>/r/[token]</code></td>
+<td>Re-apply for that day only</td>
+<td>—</td>
+<td><code>preferences</code> recreated</td>
+</tr>
+<tr>
+<td>C</td>
+<td><strong>After assignment run</strong></td>
+<td>Either</td>
+<td>Request cancellation from R4</td>
+<td>Schedule Grid <strong>Cancel</strong></td>
+<td><code>cancelled</code> + <code>preferences</code> deleted</td>
+</tr>
+<tr>
+<td>C-2</td>
+<td>After C</td>
+<td><code>/r/[token]</code></td>
+<td>Re-apply</td>
+<td>—</td>
+<td>New <code>preferences</code></td>
+</tr>
+<tr>
+<td>D</td>
+<td>After admin cancel/delete · <strong>no re-apply</strong></td>
+<td>—</td>
+<td>Excluded from assignment that cycle/day</td>
+<td>—</td>
+<td>No preferences → not eligible</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Delete vs Cancel:</strong> Delete appears in Search <strong>only before assignment</strong> (<code>last_assignment_run</code> unset). Cancel is per-slot on the Schedule Grid after assignment, with waitlist promotion.</p>
+</blockquote>
+<h4>Player Application</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Situation</th>
+<th>Condition</th>
+<th>Result</th>
+<th>User message</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>First valid submission</td>
+<td><code>reservation_open = true</code>, no duplicate</td>
+<td><code>players</code> upsert + <code>preferences</code> insert</td>
+<td><em>Application received…</em></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Same-day re-apply</td>
+<td><code>game_id + cycle_id + day_of_week</code> exists</td>
+<td>Rejected</td>
+<td><code>DUPLICATE_DAY_MESSAGE</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>After deadline</td>
+<td><code>reservation_open = false</code></td>
+<td>Rejected</td>
+<td><em>Reservations are closed</em></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Cross-channel duplicate</td>
+<td>Google Form then secret link (same Game ID + day)</td>
+<td>Second attempt rejected</td>
+<td><code>DUPLICATE_DAY_MESSAGE</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Empty day (no blocks)</td>
+<td>speedup/blocks blank</td>
+<td>Day skipped</td>
+<td>—</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Status check</td>
+<td><code>/r/[token]/check</code></td>
+<td>Before/after assignment</td>
+<td>Application received / Assigned / On waitlist</td>
+</tr>
+</tbody></table>
+<h4>Admin Operational Phases</h4>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th><code>last_assignment_run</code></th>
+<th>Admin UI</th>
+<th>Key actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1. Open window</td>
+<td>unset</td>
+<td>Secret URL, Open</td>
+<td>Share <code>access_token</code>, <code>reservation_open = true</code></td>
+</tr>
+<tr>
+<td>2. Collect applications</td>
+<td>unset</td>
+<td>Applicants, Search</td>
+<td>Review applicants and speedups</td>
+</tr>
+<tr>
+<td>3. Close</td>
+<td>unset</td>
+<td>Close reservations</td>
+<td><code>reservation_open = false</code></td>
+</tr>
+<tr>
+<td>4. Verify</td>
+<td>unset</td>
+<td>Search, Export</td>
+<td>Cross-check actual speedup values</td>
+</tr>
+<tr>
+<td>5. Assign</td>
+<td>unset → set</td>
+<td><strong>Run full assignment</strong></td>
+<td>MCMF batch: mon → tue → thu</td>
+</tr>
+<tr>
+<td>6. Announce</td>
+<td>set</td>
+<td><code>/status</code></td>
+<td>Share status link</td>
+</tr>
+<tr>
+<td>7. Post-adjust</td>
+<td>set</td>
+<td>Grid Cancel, Waitlist</td>
+<td>Cancel, promotion, re-apply</td>
+</tr>
+<tr>
+<td>8. End cycle</td>
+<td>—</td>
+<td>Reset cycle (<code>RESET</code>)</td>
+<td>Backup to <code>archived_*</code>, <code>cycle_id</code> +1</td>
+</tr>
+</tbody></table>
+<h4>Post-Assignment Cancel &amp; Promotion</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Situation</th>
+<th>Admin action</th>
+<th>Algorithm / DB</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Cancel assigned slot</td>
+<td>Grid <strong>Cancel</strong></td>
+<td><code>status = cancelled</code>, delete day <code>preferences</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Waitlisted player available</td>
+<td>(automatic)</td>
+<td><code>promoteOnCancel</code> → 1 <code>eliminated</code> → <code>assigned</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>No waitlist</td>
+<td>Cancel only</td>
+<td>Slot stays empty (<code>healEliminated</code> / backfill)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Cancelled player re-applies</td>
+<td>Player uses <code>/r/[token]</code></td>
+<td><code>clearCancelledDayReservations</code> then new <code>preferences</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Re-run assignment</td>
+<td>Run full assignment again</td>
+<td>Deletes that day&#39;s assignments, full MCMF recalc</td>
+</tr>
+</tbody></table>
+<h4>Assignment Verification (<code>verify:assignment</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Severity</th>
+<th>Meaning</th>
+<th>After MCMF</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V1</td>
+<td>Warning</td>
+<td>Empty slot + waitlist simultaneously</td>
+<td><strong>Target: 0</strong> (occurred with Hopcroft-Karp)</td>
+</tr>
+<tr>
+<td>V2</td>
+<td>Error</td>
+<td>Duplicate assignment same day</td>
+<td>Must always be 0</td>
+</tr>
+<tr>
+<td>V3</td>
+<td>Error</td>
+<td>Assignment to inactive slot</td>
+<td>Must always be 0</td>
+</tr>
+<tr>
+<td>V4</td>
+<td>Warning</td>
+<td>Speedup reversal</td>
+<td><strong>Target: 0</strong></td>
+</tr>
+<tr>
+<td>V5</td>
+<td>Error</td>
+<td>Assignment without preferences</td>
+<td>Must always be 0</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Pages &amp; URLs</h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Access</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/r/[token]</code></td>
+<td>Matching secret token</td>
+<td>Multi-step application form (info → Mon → Tue → Thu)</td>
+</tr>
+<tr>
+<td><code>/r/[token]/check</code></td>
+<td>Same token</td>
+<td>Check application, assignment, and waitlist status by Game ID</td>
+</tr>
+<tr>
+<td><code>/status</code></td>
+<td>Public</td>
+<td>Live schedule and waitlist (different text before/after assignment)</td>
+</tr>
+<tr>
+<td><code>/admin</code></td>
+<td>After login</td>
+<td>URL, close, assign, search, grid, reset</td>
+</tr>
+<tr>
+<td><code>/admin/login</code></td>
+<td>—</td>
+<td>Password login</td>
+</tr>
+<tr>
+<td><code>/admin/setup</code></td>
+<td>One-time setup</td>
+<td>Store admin password hash</td>
+</tr>
+</tbody></table>
+<p><strong>API (admin session required)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Body</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/admin/login</code></td>
+<td><code>{ password }</code></td>
+<td>Create session</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/admin/action</code></td>
+<td><code>{ action: &quot;run_batch_assignment&quot; }</code></td>
+<td>Same as button</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/admin/assignment-preview</code></td>
+<td>—</td>
+<td>Applicant count and last assignment time</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5. Data Model</h2>
+<h3>Table Structure</h3>
+<pre class="mermaid">erDiagram
+  players ||--o{ preferences : submits
+  players ||--o{ reservations : has
+  slots ||--o{ reservations : fills
+  players ||--o{ archived_players : "archived on reset"
+
+  players {
+    integer game_id PK
+    text name
+    text alliance
+    integer speedup_mon
+    integer speedup_tue
+    integer speedup_thu
+  }
+  preferences {
+    integer player_id FK
+    text day_of_week
+    integer block_start_utc
+    integer cycle_id
+  }
+  reservations {
+    integer player_id FK
+    integer slot_id FK
+    text status
+    integer cycle_id
+  }
+  slots {
+    integer id PK
+    text day
+    integer block_start_utc
+    integer slot_index
+    boolean active
+  }
+</pre>
+<h3><code>reservations.status</code> Values</h3>
+<table>
+<thead>
+<tr>
+<th>status</th>
+<th>slot_id</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>assigned</code></td>
+<td>Slot ID</td>
+<td>Assigned to a 30-minute slot</td>
+</tr>
+<tr>
+<td><code>eliminated</code></td>
+<td><code>NULL</code></td>
+<td>No slot available for that day (waitlist)</td>
+</tr>
+<tr>
+<td><code>cancelled</code></td>
+<td>(original slot)</td>
+<td>Admin cancelled — player&#39;s <code>preferences</code> deleted, re-application allowed</td>
+</tr>
+</tbody></table>
+<h3>Archive Tables</h3>
+<p>Current cycle data is backed up before deletion when Reset cycle is executed.</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>archived_players</code></td>
+<td><code>players</code></td>
+</tr>
+<tr>
+<td><code>archived_preferences</code></td>
+<td><code>preferences</code></td>
+</tr>
+<tr>
+<td><code>archived_reservations</code></td>
+<td><code>reservations</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>6. Time &amp; Slot Structure (UTC)</h2>
+<h3>Day &amp; Role Mapping</h3>
+<table>
+<thead>
+<tr>
+<th>Day</th>
+<th>Role</th>
+<th>Speedup Field</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Monday</td>
+<td>VP</td>
+<td><code>speedup_mon</code></td>
+</tr>
+<tr>
+<td>Tuesday</td>
+<td>VP</td>
+<td><code>speedup_tue</code></td>
+</tr>
+<tr>
+<td>Thursday</td>
+<td>MO</td>
+<td><code>speedup_thu</code></td>
+</tr>
+</tbody></table>
+<p>Wednesday, Friday, Saturday, and Sunday are not part of the system.</p>
+<h3>Block &amp; Slot Structure</h3>
+<pre><code>One day (UTC)
+├── Block 0  (00:00~02:00)  ── Slots 0~3 (30 min each)
+├── Block 2  (02:00~04:00)  ── Slots 0~3
+├── ...
+└── Block 22 (22:00~24:00)  ── Slots 0~3
+
+Total: 12 blocks × 4 slots = 48 slots / day
+</code></pre>
+<hr>
+<h2>7. Player Application Flow</h2>
+<h3>Application Steps</h3>
+<pre class="mermaid">flowchart LR
+  A[Your info\nGame ID / Name / Alliance] --> B[Monday\nSpeedup + preferred blocks]
+  B --> C[Tuesday\nSpeedup + preferred blocks]
+  C --> D[Thursday\nSpeedup + preferred blocks]
+  D --> E[Submit\nConfirmation dialog]
+  E --> F[(preferences upsert\nno reservations insert)]
+</pre>
+<h3>Server-Side Rules</h3>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>reservation_open = false</code></td>
+<td>Rejected</td>
+</tr>
+<tr>
+<td><code>preferences</code> already exist for same cycle + day</td>
+<td>Rejected (<code>DUPLICATE_DAY_MESSAGE</code>)</td>
+</tr>
+<tr>
+<td>Valid</td>
+<td><code>players</code> upsert + <code>preferences</code> upsert</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>Success message: <em>&quot;Your application has been received. Assignment results will be announced after the booking window closes.&quot;</em></p>
+</blockquote>
+<h3>Duplicate Prevention</h3>
+<p>Duplicates are detected by the combination <code>game_id + cycle_id + day_of_week</code>. Applications from different <code>game_id</code> values are always allowed.</p>
+<h3>Self-Check (<code>/r/[token]/check</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Timing</th>
+<th>Status Displayed</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Before assignment</td>
+<td><strong>Application received</strong></td>
+</tr>
+<tr>
+<td>After assignment — slot found</td>
+<td><strong>Assigned</strong> + time</td>
+</tr>
+<tr>
+<td>After assignment — no slot</td>
+<td><strong>On waitlist</strong> + preferred blocks</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>8. Batch Assignment Algorithm</h2>
+<p>Entry point: <code>runBatchAssignmentForCycle</code> → per-day <code>runBatchAssignment</code> (order: <strong>mon → tue → thu</strong>)</p>
+<h3>Processing Flow</h3>
+<pre class="mermaid">flowchart TD
+  P[Load preferences] --> E[Compute Top-N eligibility per block\ncomputeEligibleByBlock]
+  E --> G[Build MCMF network graph]
+  G --> H[Run SPFA-based MCMF]
+  H --> A[Insert assigned]
+  H --> W[Insert eliminated]
+  A --> Z[Update last_assignment_run]
+  W --> Z
+</pre>
+<h3>Block-Level Eligibility (Top-N)</h3>
+<p>For each 2-hour block, applicants who listed that block as a preference are sorted by:</p>
+<ol>
+<li>Speedup descending</li>
+<li>Application time (<code>appliedAt</code>) ascending</li>
+<li><code>player_id</code> ascending (tiebreaker)</li>
+</ol>
+<p>Only the top N are eligible (N = number of active slots in that block, max 4). A single player cannot occupy Top-N seats in multiple blocks simultaneously.</p>
+<h3>MCMF Network Model</h3>
+<pre><code>Source
+  └── Player node (capacity: 1, cost: 0)
+        ├── Top-N eligible slot node (capacity: 1, cost: R)
+        └── Top-N ineligible slot node (capacity: 1, cost: R + 1,000,000)
+              └── Sink (capacity: 1, cost: 0)
+
+R = player&#39;s global speedup rank (1st = 1, 2nd = 2, ...)
+</code></pre>
+<ul>
+<li>Algorithm: MCMF using SPFA (Shortest Path Faster Algorithm)</li>
+<li>Goal: Maximize total assignments (Max Flow) while prioritizing higher speedup players (Min Cost)</li>
+</ul>
+<blockquote>
+<p><strong>Why MCMF replaced Hopcroft-Karp:</strong> The previous 2-phase Hopcroft-Karp approach had two known bugs — empty slots coexisting with waitlisted players (V1), and lower-speedup players receiving better slots than higher-speedup ones (V4). MCMF encodes priority directly into the cost function and resolves both in a single pass.</p>
+</blockquote>
+<p><strong>Re-run behavior:</strong> Running assignment again on the same cycle deletes and fully recalculates that day&#39;s assignments.</p>
+<hr>
+<h2>9. Post-Assignment Behavior (Cancellation &amp; Promotion) and Pre-Assignment Deletion</h2>
+<h3>Pre-Assignment: Delete Application per Day</h3>
+<pre class="mermaid">flowchart LR
+  A[Admin: Search → Delete mon/tue/thu button] --> B[Delete preferences for that day]
+  B --> C[Refresh search results]
+</pre>
+<ul>
+<li><strong>Visibility:</strong> Delete buttons appear in search results only when <code>last_assignment_run</code> is not set (pre-assignment)</li>
+<li>Buttons are automatically hidden after assignment is run</li>
+<li><code>players</code> table is not affected — only <code>preferences</code> are deleted</li>
+<li>Server action: <code>deletePreferenceByDay(player_id, day_of_week, cycle_id)</code></li>
+<li>Confirmation dialog → loading spinner → completion toast notification</li>
+</ul>
+<h3>Post-Assignment: Admin Slot Cancellation</h3>
+<pre class="mermaid">flowchart LR
+  A[Admin: Cancel button] --> B[reservations.status = cancelled]
+  B --> C[Delete preferences for that day]
+  C --> D[Run promoteOnCancel]
+  D --> E{Waitlisted player?}
+  E -->|Yes| F[Promote 1 eliminated → assigned]
+  E -->|No| G[Slot remains empty]
+  F --> H[healEliminatedReservations\nbackfillEmptySlotsForDay]
+</pre>
+<ul>
+<li>The cancelled player can re-apply</li>
+<li>Admin UI shows a completion toast notification</li>
+</ul>
+<h3>Waitlist Promotion (<code>promoteOnCancel</code>)</h3>
+<p>From <code>eliminated</code> players who preferred that block and are unassigned for that day, the same Top-N eligibility criteria are applied to promote 1 player to <code>assigned</code>.</p>
+<hr>
+<h2>10. Admin Features</h2>
+<p>Login: bcrypt hash (<code>settings.admin_password_hash</code>) + iron-session cookie</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Secret URL</td>
+<td>Show, copy, or regenerate <code>access_token</code> (regenerating invalidates existing <code>/r/...</code> links)</td>
+</tr>
+<tr>
+<td>Open / Close reservations</td>
+<td>Toggle <code>reservation_open</code></td>
+</tr>
+<tr>
+<td>Export Excel</td>
+<td>Per-cycle sheets (by day, etc.)</td>
+</tr>
+<tr>
+<td><strong>Run full assignment</strong></td>
+<td><code>runFullBatchAssignment</code> — yellow panel above Search Reservations</td>
+</tr>
+<tr>
+<td>Reset cycle</td>
+<td>Type <code>RESET</code> — archives then deletes players/preferences/reservations, increments <code>current_cycle_id</code></td>
+</tr>
+<tr>
+<td>Search</td>
+<td>Before assignment: search applicants (with per-day Delete buttons) / After: search reservations and waitlist</td>
+</tr>
+<tr>
+<td>Delete application per day</td>
+<td>Before assignment only — delete a player&#39;s specific day <code>preferences</code> from search results</td>
+</tr>
+<tr>
+<td>Applicants</td>
+<td>Before assignment only — applicant list from <code>preferences</code></td>
+</tr>
+<tr>
+<td>Schedule Grid</td>
+<td>After assignment only — UTC grid with per-slot Cancel button</td>
+</tr>
+<tr>
+<td>Waitlist</td>
+<td>After assignment only — <code>eliminated</code> players with preferred blocks</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. Public Status (/status)</h2>
+<ul>
+<li>Anonymous (anon) read access + Supabase Realtime subscription on <code>reservations</code></li>
+<li>No <code>last_assignment_run</code> → shows &quot;assignment not yet published&quot;, empty grid</li>
+<li>After assignment → displays <code>assigned</code> slots + Waitlist (VP/MO)</li>
+<li>Closed banner: <code>reservation_open === false</code></li>
+</ul>
+<hr>
+<h2>12. Cycles</h2>
+<ul>
+<li><code>settings.current_cycle_id</code> (integer, default 1)</li>
+<li>All <code>preferences</code> / <code>reservations</code> are scoped by <code>cycle_id</code></li>
+<li><strong>Reset cycle</strong> backs up data to <code>archived_*</code> tables before deletion, then increments the ID</li>
+</ul>
+<hr>
+<h2>13. Settings Keys</h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>access_token</code></td>
+<td>Secret string for <code>/r/[token]</code></td>
+</tr>
+<tr>
+<td><code>admin_password_hash</code></td>
+<td>Admin bcrypt hash</td>
+</tr>
+<tr>
+<td><code>current_cycle_id</code></td>
+<td>Current cycle number</td>
+</tr>
+<tr>
+<td><code>reservation_open</code></td>
+<td><code>&quot;true&quot;</code> / <code>&quot;false&quot;</code></td>
+</tr>
+<tr>
+<td><code>last_assignment_run</code></td>
+<td>ISO timestamp of last batch assignment</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>14. Security &amp; Access Control</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>RLS</td>
+<td>anon can SELECT only (<code>players</code>, <code>slots</code>, <code>reservations</code>, <code>preferences</code>, <code>reservation_open</code>)</td>
+</tr>
+<tr>
+<td>Writes</td>
+<td>Server Actions / API use service role (<code>createServiceClient</code>)</td>
+</tr>
+<tr>
+<td>Admin</td>
+<td><code>requireAdmin()</code> fails without a valid session</td>
+</tr>
+<tr>
+<td>Token URL</td>
+<td>Token validated in both middleware and server</td>
+</tr>
+</tbody></table>
+<p><code>SUPABASE_SERVICE_ROLE_KEY</code> in <code>.env.local</code> is server-only — never expose to the client.</p>
+<hr>
+<h2>15. Dev &amp; Test Scripts</h2>
+<p><strong>Development</strong></p>
+<table>
+<thead>
+<tr>
+<th>npm script</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>inject:random -- N</code></td>
+<td>Inject N random applications (default 120, preferences only)</td>
+</tr>
+<tr>
+<td><code>inject:test</code></td>
+<td>Inject real test data</td>
+</tr>
+<tr>
+<td><code>clear:assignments</code></td>
+<td>Delete only current cycle&#39;s assignment results</td>
+</tr>
+<tr>
+<td><code>seed:stress</code></td>
+<td>clear + inject 120 random players</td>
+</tr>
+</tbody></table>
+<p><strong>Assignment &amp; Verification</strong></p>
+<table>
+<thead>
+<tr>
+<th>npm script</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>run:batch</code></td>
+<td>Run batch assignment (same as Admin button)</td>
+</tr>
+<tr>
+<td><code>verify:assignment</code></td>
+<td>Verify assignment results (V1~V5) — exits with code 1 on error</td>
+</tr>
+<tr>
+<td><code>audit:reservations</code></td>
+<td>Full cycle audit</td>
+</tr>
+<tr>
+<td><code>validate:assignment</code></td>
+<td>Assignment validity check</td>
+</tr>
+</tbody></table>
+<p><strong>Maintenance</strong></p>
+<table>
+<thead>
+<tr>
+<th>npm script</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>recover:waitlist</code></td>
+<td>Recover waitlist</td>
+</tr>
+<tr>
+<td><code>backfill:slots</code></td>
+<td>Backfill empty slots</td>
+</tr>
+<tr>
+<td><code>reconcile:waitlist</code></td>
+<td>Fix eliminated consistency</td>
+</tr>
+<tr>
+<td><code>purge:orphans</code></td>
+<td>Delete players with no preferences</td>
+</tr>
+</tbody></table>
+<h3><code>verify:assignment</code> Checks</h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Severity</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V1</td>
+<td>Warning</td>
+<td>Empty slot with waitlisted player simultaneously</td>
+</tr>
+<tr>
+<td>V2</td>
+<td>Error</td>
+<td>Same player assigned to the same day twice</td>
+</tr>
+<tr>
+<td>V3</td>
+<td>Error</td>
+<td>Assignment to an inactive slot</td>
+</tr>
+<tr>
+<td>V4</td>
+<td>Warning</td>
+<td>Speedup reversal (lower rank gets better slot)</td>
+</tr>
+<tr>
+<td>V5</td>
+<td>Error</td>
+<td>Assignment without corresponding preferences</td>
+</tr>
+</tbody></table>
+<p>Exits with <code>process.exit(1)</code> if any error is found.</p>
+<details>
+<summary>Local assignment test flow</summary>
+
+<pre><code class="language-bash">npm run inject:random -- 10
+npm run run:batch
+npm run verify:assignment
+</code></pre>
+</details>
+
+<hr>
+<h2>16. Source Files</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>File</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Assignment &amp; MCMF</td>
+<td><code>lib/assignment.ts</code></td>
+</tr>
+<tr>
+<td>Duplicate check &amp; messages</td>
+<td><code>lib/reservation-guard.ts</code></td>
+</tr>
+<tr>
+<td>Day &amp; block constants</td>
+<td><code>lib/types.ts</code></td>
+</tr>
+<tr>
+<td>UTC formatting</td>
+<td><code>lib/utils.ts</code></td>
+</tr>
+<tr>
+<td>Admin UI</td>
+<td><code>app/admin/AdminDashboard.tsx</code>, <code>app/admin/actions.ts</code></td>
+</tr>
+<tr>
+<td>Application &amp; check</td>
+<td><code>app/r/[token]/ReservationForm.tsx</code>, <code>app/r/[token]/actions.ts</code></td>
+</tr>
+<tr>
+<td>Public status</td>
+<td><code>app/status/StatusView.tsx</code>, <code>app/status/page.tsx</code></td>
+</tr>
+<tr>
+<td>Assignment verification</td>
+<td><code>scripts/verify/verify-assignment.ts</code></td>
+</tr>
+<tr>
+<td>Audit &amp; validation</td>
+<td><code>scripts/verify/audit-reservations.ts</code>, <code>scripts/verify/validate-assignment.ts</code></td>
+</tr>
+<tr>
+<td>Maintenance</td>
+<td><code>scripts/maintenance/</code></td>
+</tr>
+<tr>
+<td>Dev tools</td>
+<td><code>scripts/dev/</code></td>
+</tr>
+<tr>
+<td>Admin scripts</td>
+<td><code>scripts/admin/</code></td>
+</tr>
+<tr>
+<td>Apps Script</td>
+<td><code>scripts/appscript/onFormSubmit.gs</code></td>
+</tr>
+<tr>
+<td>Schema</td>
+<td><code>supabase/schema.sql</code></td>
+</tr>
+<tr>
+<td>Migrations</td>
+<td><code>supabase/migrations/</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>17. Google Form Integration (Apps Script Pipeline)</h2>
+<p>A Google Form submission path runs in parallel to work around Vercel cold starts and improve accessibility.</p>
+<h3>Architecture</h3>
+<pre class="mermaid">flowchart LR
+  GF[Google Form submission] --> AS[Apps Script\nonFormSubmit]
+  AS --> SB[(Supabase\nplayers / preferences)]
+  RL[Secret link /r/token] --> SA[Server Action]
+  SA --> SB
+  SB --> BA[Assignment algorithm]
+</pre>
+<p>Both paths write to the same <code>players</code> / <code>preferences</code> tables.</p>
+<h3>Google Form Fields</h3>
+<table>
+<thead>
+<tr>
+<th>row index</th>
+<th>Field</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>row[0]</code></td>
+<td>Timestamp</td>
+<td>Auto</td>
+</tr>
+<tr>
+<td><code>row[1]</code></td>
+<td>Email address</td>
+<td>Auto-collected (for edit response feature)</td>
+</tr>
+<tr>
+<td><code>row[2]</code></td>
+<td>Game ID</td>
+<td>Short answer — integer validation</td>
+</tr>
+<tr>
+<td><code>row[3]</code></td>
+<td>Game Name</td>
+<td>Short answer</td>
+</tr>
+<tr>
+<td><code>row[4]</code></td>
+<td>Alliance</td>
+<td>Short answer</td>
+</tr>
+<tr>
+<td><code>row[5]</code></td>
+<td>Monday Speedups (days)</td>
+<td>Short answer — integer validation</td>
+</tr>
+<tr>
+<td><code>row[6]</code></td>
+<td>Preferred time on Monday</td>
+<td>Checkboxes</td>
+</tr>
+<tr>
+<td><code>row[7]</code></td>
+<td>Tuesday Speedups (days)</td>
+<td>Short answer — integer validation</td>
+</tr>
+<tr>
+<td><code>row[8]</code></td>
+<td>Preferred time on Tuesday</td>
+<td>Checkboxes</td>
+</tr>
+<tr>
+<td><code>row[9]</code></td>
+<td>Thursday Speedups (days)</td>
+<td>Short answer — integer validation</td>
+</tr>
+<tr>
+<td><code>row[10]</code></td>
+<td>Preferred time on Thursday</td>
+<td>Checkboxes</td>
+</tr>
+</tbody></table>
+<p>Checkbox block options (same for all three days):</p>
+<pre><code>0  (00:00~02:00 UTC)      12 (12:00~14:00 UTC)
+2  (02:00~04:00 UTC)      14 (14:00~16:00 UTC)
+4  (04:00~06:00 UTC)      16 (16:00~18:00 UTC)
+6  (06:00~08:00 UTC)      18 (18:00~20:00 UTC)
+8  (08:00~10:00 UTC)      20 (20:00~22:00 UTC)
+10 (10:00~12:00 UTC)      22 (22:00~24:00 UTC)
+</code></pre>
+<h3>Form Setup</h3>
+<ol>
+<li>Create a new form at <a href="https://forms.google.com">Google Forms</a></li>
+<li>Form settings (gear icon) → <strong>Responses</strong> tab:<ul>
+<li>Collect email addresses: <strong>On</strong> (required for edit response feature)</li>
+<li>Limit to 1 response: <strong>On</strong></li>
+<li>Allow response editing: <strong>On</strong></li>
+</ul>
+</li>
+<li>After building the form: Responses tab → spreadsheet icon → <strong>Create new spreadsheet</strong></li>
+</ol>
+<h3>Apps Script Setup</h3>
+<ol>
+<li>Open the linked Google Sheet → <strong>Extensions → Apps Script</strong></li>
+<li>Delete all existing code and paste the contents of <a href="../scripts/appscript/onFormSubmit.gs"><code>scripts/appscript/onFormSubmit.gs</code></a></li>
+<li>Replace <code>SUPABASE_URL</code> and <code>SUPABASE_SERVICE_KEY</code> with your project values</li>
+<li>Set up the trigger:<ul>
+<li>Left menu clock icon (Triggers) → <strong>Add trigger</strong></li>
+<li>Function to run: <code>onFormSubmit</code></li>
+<li>Event source: <strong>From spreadsheet</strong></li>
+<li>Event type: <strong>On form submit</strong></li>
+</ul>
+</li>
+<li>Submit a test response and confirm data appears in Supabase <code>players</code> and <code>preferences</code> tables</li>
+</ol>
+<h3>Duplicate Prevention</h3>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>First check</th>
+<th>Second check</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Google Form</td>
+<td>1 response limit per Google account</td>
+<td>Apps Script: <code>game_id + cycle_id + day_of_week</code></td>
+</tr>
+<tr>
+<td>Secret link</td>
+<td><code>game_id + cycle_id + day_of_week</code></td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p>If the same <code>game_id</code> submits for the same day via both paths, the second attempt is silently ignored.</p>
+<h3>Security Notes</h3>
+<ul>
+<li>Keep <code>SUPABASE_SERVICE_KEY</code> only in Apps Script code — <strong>never share it on GitHub, chat, or anywhere else.</strong> If leaked, regenerate it immediately from the Supabase dashboard.</li>
+<li>Apps Script runs on Google&#39;s servers only and is never exposed to clients, so storing the service role key there is safe.</li>
+</ul>
+<hr>
+<h2>18. Changelog from Previous Version</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Previous</th>
+<th>Current</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>On application</td>
+<td>Immediately assigned via <code>assignToBlock</code></td>
+<td>Only <code>preferences</code> saved</td>
+</tr>
+<tr>
+<td>Assignment timing</td>
+<td>Real-time on each submission</td>
+<td>Admin <strong>Run full assignment</strong> batch</td>
+</tr>
+<tr>
+<td>Waitlist creation</td>
+<td><code>eliminated</code> created immediately</td>
+<td>Created after batch assignment with <code>slot_id = null</code></td>
+</tr>
+<tr>
+<td>Algorithm</td>
+<td>Hopcroft-Karp</td>
+<td>Min-Cost Max-Flow (MCMF)</td>
+</tr>
+<tr>
+<td>Speedup fields</td>
+<td><code>speedup_vp</code>, <code>speedup_mo</code></td>
+<td><code>speedup_mon</code>, <code>speedup_tue</code>, <code>speedup_thu</code></td>
+</tr>
+<tr>
+<td>Duplicate check</td>
+<td>Mixed email + game_id</td>
+<td><code>game_id + cycle_id + day_of_week</code> only</td>
+</tr>
+<tr>
+<td>Reset behavior</td>
+<td>Data permanently deleted</td>
+<td>Backed up to <code>archived_*</code> tables before deletion</td>
+</tr>
+<tr>
+<td>Application paths</td>
+<td>Secret link only</td>
+<td>Secret link + Google Form</td>
+</tr>
+<tr>
+<td>Time display</td>
+<td>UTC/KST toggle</td>
+<td>UTC only</td>
+</tr>
+<tr>
+<td>Cancel button</td>
+<td>Instant cancel</td>
+<td>Loading spinner + completion toast</td>
+</tr>
+<tr>
+<td>Pre-assignment deletion</td>
+<td>Not available</td>
+<td>Delete per-day <code>preferences</code> from search results (pre-assignment only)</td>
+</tr>
+</tbody></table>
+<hr>
+<p><em>Document based on: <code>main</code> branch (MCMF assignment + UTC-only UI + Google Form pipeline)</em></p>
+
+    </article>
+  </div>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "default",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, htmlLabels: true },
+      er: { useMaxWidth: true },
+    });
+  </script>
+</body>
+</html>

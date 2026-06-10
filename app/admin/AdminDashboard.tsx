@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   regenerateToken,
@@ -252,11 +253,19 @@ export function AdminDashboard({
     <div className="flex flex-col gap-4 pb-20">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Admin Dashboard</h1>
-        <form action={logoutAdmin}>
-          <button type="submit" className="text-sm text-slate-500 underline">
-            Log out
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/admin/guide"
+            className="text-sm text-slate-500 underline"
+          >
+            How to use
+          </Link>
+          <form action={logoutAdmin}>
+            <button type="submit" className="text-sm text-slate-500 underline">
+              Log out
+            </button>
+          </form>
+        </div>
       </div>
 
       {!open && <div className="banner-closed">Reservations closed</div>}

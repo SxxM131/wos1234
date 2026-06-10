@@ -4,7 +4,7 @@ Next.js 14 + Supabase based alliance SVS (castle) reservation and assignment sys
 Players **submit only their preferred time slots** during the application window, and R4+ admins run a **batch assignment after the deadline**.
 The assignment algorithm uses **Min-Cost Max-Flow (MCMF)**.
 
-> 한국어 버전: [RESERVATION_SYSTEM.md](RESERVATION_SYSTEM.md)
+> 한국어 버전: [RESERVATION_SYSTEM.md](RESERVATION_SYSTEM.md) · **Mobile HTML:** [RESERVATION_SYSTEM_EN.html](RESERVATION_SYSTEM_EN.html)
 
 ---
 
@@ -13,6 +13,7 @@ The assignment algorithm uses **Min-Cost Max-Flow (MCMF)**.
 1. [Overview](#1-overview)
 2. [Environment Variables](#2-environment-variables)
 3. [Operations Workflow](#3-operations-workflow)
+   - [3.5 Operational Scenarios & Responses](#35-operational-scenarios--responses)
 4. [Pages & URLs](#4-pages--urls)
 5. [Data Model](#5-data-model)
 6. [Time & Slot Structure](#6-time--slot-structure-utc)
@@ -91,6 +92,67 @@ flowchart TD
 | Announce results | R4+ | Share `/status` link | — (read only) |
 
 > **Note:** During the application window, no `assigned` rows are created in `reservations`. An empty grid at this stage is expected.
+
+### 3.5 Operational Scenarios & Responses
+
+The tables below summarize **situation-specific responses** from production testing and code review. (Summary in [README](../README.md#운영-시나리오-요약))
+
+#### Reservation Changes & Edits
+
+| # | Timing | Application path | Player action | R4+ Admin action | DB change |
+|---|--------|------------------|---------------|------------------|-----------|
+| A | Google Form **edit window open** | Google Form | Use **edit response link** from submission email | — | Apps Script updates `preferences` |
+| B | After form close · **before Run full assignment** | Google Form / `/r/[token]` | Contact R4 | Search → **Delete mon/tue/thu** | Deletes that day's `preferences` |
+| B-2 | After B | `/r/[token]` | Re-apply for that day only | — | `preferences` recreated |
+| C | **After assignment run** | Either | Request cancellation from R4 | Schedule Grid **Cancel** | `cancelled` + `preferences` deleted |
+| C-2 | After C | `/r/[token]` | Re-apply | — | New `preferences` |
+| D | After admin cancel/delete · **no re-apply** | — | Excluded from assignment that cycle/day | — | No preferences → not eligible |
+
+> **Delete vs Cancel:** Delete appears in Search **only before assignment** (`last_assignment_run` unset). Cancel is per-slot on the Schedule Grid after assignment, with waitlist promotion.
+
+#### Player Application
+
+| # | Situation | Condition | Result | User message |
+|---|-----------|-----------|--------|--------------|
+| 1 | First valid submission | `reservation_open = true`, no duplicate | `players` upsert + `preferences` insert | *Application received…* |
+| 2 | Same-day re-apply | `game_id + cycle_id + day_of_week` exists | Rejected | `DUPLICATE_DAY_MESSAGE` |
+| 3 | After deadline | `reservation_open = false` | Rejected | *Reservations are closed* |
+| 4 | Cross-channel duplicate | Google Form then secret link (same Game ID + day) | Second attempt rejected | `DUPLICATE_DAY_MESSAGE` |
+| 5 | Empty day (no blocks) | speedup/blocks blank | Day skipped | — |
+| 6 | Status check | `/r/[token]/check` | Before/after assignment | Application received / Assigned / On waitlist |
+
+#### Admin Operational Phases
+
+| Phase | `last_assignment_run` | Admin UI | Key actions |
+|-------|-------------------------|----------|-------------|
+| 1. Open window | unset | Secret URL, Open | Share `access_token`, `reservation_open = true` |
+| 2. Collect applications | unset | Applicants, Search | Review applicants and speedups |
+| 3. Close | unset | Close reservations | `reservation_open = false` |
+| 4. Verify | unset | Search, Export | Cross-check actual speedup values |
+| 5. Assign | unset → set | **Run full assignment** | MCMF batch: mon → tue → thu |
+| 6. Announce | set | `/status` | Share status link |
+| 7. Post-adjust | set | Grid Cancel, Waitlist | Cancel, promotion, re-apply |
+| 8. End cycle | — | Reset cycle (`RESET`) | Backup to `archived_*`, `cycle_id` +1 |
+
+#### Post-Assignment Cancel & Promotion
+
+| # | Situation | Admin action | Algorithm / DB |
+|---|-----------|--------------|----------------|
+| 1 | Cancel assigned slot | Grid **Cancel** | `status = cancelled`, delete day `preferences` |
+| 2 | Waitlisted player available | (automatic) | `promoteOnCancel` → 1 `eliminated` → `assigned` |
+| 3 | No waitlist | Cancel only | Slot stays empty (`healEliminated` / backfill) |
+| 4 | Cancelled player re-applies | Player uses `/r/[token]` | `clearCancelledDayReservations` then new `preferences` |
+| 5 | Re-run assignment | Run full assignment again | Deletes that day's assignments, full MCMF recalc |
+
+#### Assignment Verification (`verify:assignment`)
+
+| Code | Severity | Meaning | After MCMF |
+|------|----------|---------|------------|
+| V1 | Warning | Empty slot + waitlist simultaneously | **Target: 0** (occurred with Hopcroft-Karp) |
+| V2 | Error | Duplicate assignment same day | Must always be 0 |
+| V3 | Error | Assignment to inactive slot | Must always be 0 |
+| V4 | Warning | Speedup reversal | **Target: 0** |
+| V5 | Error | Assignment without preferences | Must always be 0 |
 
 ---
 

@@ -54,3 +54,63 @@
     animation: fade-in 0.2s ease-out both;
   }
 }
+
+/* Admin guide (/admin/guide) — markdown + Mermaid */
+.guide-prose h1 {
+  @apply mb-4 mt-8 border-b-2 border-slate-200 pb-2 text-2xl font-bold first:mt-0;
+}
+.guide-prose h2 {
+  @apply mb-3 mt-7 text-xl font-bold;
+}
+.guide-prose h3 {
+  @apply mb-2 mt-5 text-base font-semibold;
+}
+.guide-prose p,
+.guide-prose li {
+  @apply break-words text-[15px] leading-relaxed;
+}
+.guide-prose ul,
+.guide-prose ol {
+  @apply my-3 list-inside list-disc space-y-1 pl-1;
+}
+.guide-prose a {
+  @apply text-brand-600 underline;
+}
+.guide-prose hr {
+  @apply my-8 border-slate-200;
+}
+.guide-prose blockquote {
+  @apply my-4 rounded-r-lg border-l-4 border-brand-500 bg-white px-4 py-3 text-sm text-slate-600;
+}
+.guide-prose table {
+  @apply my-4 block w-full overflow-x-auto rounded-lg border border-slate-200 bg-white text-sm;
+  -webkit-overflow-scrolling: touch;
+}
+.guide-prose th,
+.guide-prose td {
+  @apply border border-slate-200 px-3 py-2 text-left align-top;
+  min-width: 5rem;
+}
+.guide-prose th {
+  @apply whitespace-nowrap bg-slate-100 font-semibold;
+}
+.guide-prose code {
+  @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em];
+}
+.guide-prose pre:not(.mermaid) {
+  @apply my-4 overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100;
+  -webkit-overflow-scrolling: touch;
+}
+.guide-prose pre:not(.mermaid) code {
+  @apply bg-transparent p-0 text-inherit;
+}
+.guide-prose pre.mermaid {
+  @apply my-4 overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 text-center;
+  -webkit-overflow-scrolling: touch;
+}
+.guide-prose details {
+  @apply my-4 rounded-lg border border-slate-200 bg-white p-4;
+}
+.guide-prose details summary {
+  @apply cursor-pointer font-semibold;
+}
