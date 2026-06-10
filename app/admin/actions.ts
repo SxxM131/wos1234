@@ -329,6 +329,29 @@ export async function exportCsv(): Promise<string> {
   return sections.join("\n\n");
 }
 
+export async function deletePreferenceByDay(
+  playerId: number,
+  dayOfWeek: string,
+  cycleId: number
+): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
+  const supabase = createServiceClient();
+
+  const { error } = await supabase
+    .from("preferences")
+    .delete()
+    .eq("player_id", playerId)
+    .eq("day_of_week", dayOfWeek)
+    .eq("cycle_id", cycleId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin");
+  return { success: true };
+}
+
 export async function exportExcelData(): Promise<Record<string, any[]>> {
   await requireAdmin();
   const supabase = createServiceClient();

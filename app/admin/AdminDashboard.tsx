@@ -11,6 +11,7 @@ import {
   logoutAdmin,
   getAssignmentPreviewForAdmin,
   runFullBatchAssignment,
+  deletePreferenceByDay,
 } from "./actions";
 import * as XLSX from "xlsx";
 import { DAY_CONFIG, DayOfWeek, TIME_BLOCKS } from "@/lib/types";
@@ -102,6 +103,7 @@ export function AdminDashboard({
   const [assignError, setAssignError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [deletingPref, setDeletingPref] = useState<string | null>(null); // "playerId-day"
 
   const loadAssignPreview = useCallback(() => {
     startAssignTransition(async () => {
@@ -477,15 +479,11 @@ export function AdminDashboard({
             ) : (
               <div className="flex flex-col gap-3">
                 {searchResultsApplicants.map((a) => {
-                  const dayPrefs = a.preferences.filter(
-                    (p) => p.day_of_week === activeDay
-                  );
-                  const prefsLabel = Array.from(
-                    new Set(dayPrefs.map((p) => p.block_start_utc))
-                  )
-                    .sort((x, y) => x - y)
-                    .map((b) => formatBlockRange(b))
-                    .join(", ");
+                  // 이 플레이어가 신청한 요일 목록 (중복 제거)
+                  const appliedDays = Array.from(
+                    new Set(a.preferences.map((p) => p.day_of_week))
+                  ).sort() as string[];
+
                   return (
                     <div
                       key={a.player_id}
@@ -502,10 +500,49 @@ export function AdminDashboard({
                         Mon {a.players?.speedup_mon ?? 0}d · Tue{" "}
                         {a.players?.speedup_tue ?? 0}d · Thu{" "}
                         {a.players?.speedup_thu ?? 0}d
-                        {prefsLabel
-                          ? ` · ${dayLabel(activeDay)} prefs: ${prefsLabel}`
-                          : ""}
                       </p>
+                      {/* 요일별 삭제 버튼 (배정 전에만 표시) */}
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {appliedDays.map((day) => {
+                          const prefKey = `${a.player_id}-${day}`;
+                          const isDeleting = deletingPref === prefKey;
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              disabled={isDeleting}
+                              className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                              onClick={async () => {
+                                if (!confirm(`정말 ${a.players?.name ?? "이 플레이어"}의 ${day.toUpperCase()} 신청을 삭제하시겠습니까?`)) return;
+                                setDeletingPref(prefKey);
+                                try {
+                                  const result = await deletePreferenceByDay(a.player_id, day, cycleId);
+                                  if (result.success) {
+                                    showToast("success", `${day.toUpperCase()} 신청이 삭제되었습니다.`);
+                                    router.refresh();
+                                  } else {
+                                    showToast("error", result.error ?? "삭제 실패. 다시 시도해주세요.");
+                                  }
+                                } catch {
+                                  showToast("error", "삭제 중 오류가 발생했습니다.");
+                                } finally {
+                                  setDeletingPref(null);
+                                }
+                              }}
+                            >
+                              {isDeleting ? (
+                                <svg className="animate-spin h-2.5 w-2.5 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                </svg>
+                              ) : (
+                                <span aria-hidden="true">❌</span>
+                              )}
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
