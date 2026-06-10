@@ -479,10 +479,10 @@ export function AdminDashboard({
             ) : (
               <div className="flex flex-col gap-3">
                 {searchResultsApplicants.map((a) => {
-                  // 이 플레이어가 신청한 요일 목록 (중복 제거)
+                  const dayOrder = ["mon", "tue", "thu"];
                   const appliedDays = Array.from(
                     new Set(a.preferences.map((p) => p.day_of_week))
-                  ).sort() as string[];
+                  ).sort((x, y) => dayOrder.indexOf(x) - dayOrder.indexOf(y)) as string[];
 
                   return (
                     <div
