@@ -1,25 +1,10 @@
 /**
- * Google Form → Supabase pipeline.
+ * Google Form → Vercel webhook → Supabase
  *
- * SETUP (do not put real keys in this file or commit them to Git):
- * 1. Apps Script editor → Project Settings (gear) → Script properties
- * 2. Add SUPABASE_URL = https://xxxx.supabase.co
- * 3. Add SUPABASE_SERVICE_KEY = your service_role key (server-only)
- *
- * If this key was ever committed to GitHub, rotate it in Supabase Dashboard
- * first: Project Settings → API → service_role → Regenerate.
+ * Supabase sb_secret_ keys reject Google Apps Script's User-Agent, so this script
+ * never calls Supabase directly. Set WEBHOOK_URL and WEBHOOK_SECRET in Script properties.
  */
-function getSupabaseConfig() {
-  const props = PropertiesService.getScriptProperties();
-  const url = props.getProperty("SUPABASE_URL");
-  const key = props.getProperty("SUPABASE_SERVICE_KEY");
-  if (!url || !key) {
-    throw new Error(
-      "Missing Script properties: SUPABASE_URL and SUPABASE_SERVICE_KEY"
-    );
-  }
-  return { url, key };
-}
+const WEBHOOK_URL = "https://wos1234.vercel.app/api/google-form-submit";
 
 function onFormSubmit(e) {
   const row = e.values;
@@ -35,136 +20,109 @@ function onFormSubmit(e) {
   const speedupThu = Number(row[9]);
   const thuBlocks = parseBlocks(row[10]);
 
-  Logger.log(`gameId: ${gameId}`);
-
-  const cycleId = getCurrentCycleId();
-  if (!cycleId) {
-    Logger.log("cycleId 없음");
-    return;
-  }
-
-  if (!isReservationOpen()) {
-    Logger.log("예약 마감됨 — 제출 무시: " + gameId);
-    return;
-  }
+  Logger.log("gameId: " + gameId);
 
   if (isNaN(gameId)) {
     Logger.log("유효하지 않은 Game ID: " + row[2]);
     return;
   }
 
-  const days = { mon: monBlocks, tue: tueBlocks, thu: thuBlocks };
-  for (const [day, blocks] of Object.entries(days)) {
-    if (blocks.length === 0) continue;
-    if (isDuplicateForDay(gameId, cycleId, day)) {
-      Logger.log(`중복 신청 무시 (${day}): ${gameId}`);
-      return;
-    }
+  const payload = {
+    game_id: gameId,
+    name: name,
+    alliance: alliance,
+    days: {
+      mon: { speedup: speedupMon, blocks: monBlocks },
+      tue: { speedup: speedupTue, blocks: tueBlocks },
+      thu: { speedup: speedupThu, blocks: thuBlocks },
+    },
+  };
+
+  const result = postToWebhook(payload);
+  if (!result) {
+    Logger.log("웹훅 호출 실패 — gameId: " + gameId);
+    return;
   }
 
-  upsertPlayer(gameId, name, alliance, speedupMon, speedupTue, speedupThu);
-  insertPreferences(gameId, cycleId, monBlocks, tueBlocks, thuBlocks);
-  Logger.log("신청 완료: " + gameId);
+  Logger.log(
+    "웹훅 응답 [" + result.status + "]: " + JSON.stringify(result.body)
+  );
+
+  if (result.status >= 200 && result.status < 300 && result.body.success) {
+    Logger.log("신청 완료: " + gameId);
+  } else {
+    Logger.log("신청 거부 또는 오류: " + gameId);
+  }
+}
+
+/** Run once in editor to verify webhook URL + secret. */
+function testWebhookConnection() {
+  const result = postToWebhook({
+    game_id: 0,
+    name: "__connection_test__",
+    alliance: "NWO",
+    days: {},
+  });
+  if (!result) {
+    Logger.log("FAIL — no response");
+    return;
+  }
+  Logger.log("status: " + result.status + ", body: " + JSON.stringify(result.body));
+  if (result.status === 400 || result.status === 409) {
+    Logger.log("OK — webhook reachable (validation rejected test payload as expected)");
+  } else if (result.status === 401) {
+    Logger.log("FAIL — check WEBHOOK_SECRET in Script properties");
+  } else if (result.status === 503) {
+    Logger.log("FAIL — GOOGLE_FORM_WEBHOOK_SECRET not set on Vercel");
+  }
 }
 
 function parseBlocks(raw) {
   if (!raw) return [];
-  return raw
+  return String(raw)
     .split(",")
-    .map((s) => parseInt(s.trim(), 10))
-    .filter((n) => !isNaN(n));
+    .map(function (s) {
+      var m = s.trim().match(/^(\d+)/);
+      return m ? parseInt(m[1], 10) : NaN;
+    })
+    .filter(function (n) {
+      return !isNaN(n);
+    });
 }
 
-function getCurrentCycleId() {
-  const res = supabaseFetch(
-    "GET",
-    "/rest/v1/settings?key=eq.current_cycle_id&select=value"
-  );
-  return res?.[0]?.value ? parseInt(res[0].value, 10) : null;
-}
-
-function isReservationOpen() {
-  const res = supabaseFetch(
-    "GET",
-    "/rest/v1/settings?key=eq.reservation_open&select=value"
-  );
-  return res?.[0]?.value !== "false";
-}
-
-function isDuplicateForDay(gameId, cycleId, day) {
-  const prefs = supabaseFetch(
-    "GET",
-    `/rest/v1/preferences?player_id=eq.${gameId}&day_of_week=eq.${day}&cycle_id=eq.${cycleId}&limit=1&select=id`
-  );
-  return prefs?.length > 0;
-}
-
-function upsertPlayer(gameId, name, alliance, speedupMon, speedupTue, speedupThu) {
-  const body = {
-    game_id: gameId,
-    name,
-    alliance,
-    speedup_mon: speedupMon,
-    speedup_tue: speedupTue,
-    speedup_thu: speedupThu,
-  };
-  Logger.log("upsertPlayer body: " + JSON.stringify(body));
-  const result = supabaseFetch(
-    "POST",
-    "/rest/v1/players?on_conflict=game_id",
-    body,
-    { Prefer: "resolution=merge-duplicates" }
-  );
-  Logger.log("upsertPlayer result: " + JSON.stringify(result));
-}
-
-function insertPreferences(gameId, cycleId, monBlocks, tueBlocks, thuBlocks) {
-  const rows = [];
-  const days = { mon: monBlocks, tue: tueBlocks, thu: thuBlocks };
-  for (const [day, blocks] of Object.entries(days)) {
-    for (const block of blocks) {
-      rows.push({
-        player_id: gameId,
-        day_of_week: day,
-        block_start_utc: block,
-        cycle_id: cycleId,
-      });
-    }
+function getWebhookConfig() {
+  const props = PropertiesService.getScriptProperties();
+  const url = props.getProperty("WEBHOOK_URL") || WEBHOOK_URL;
+  const secret = props.getProperty("WEBHOOK_SECRET");
+  if (!secret) {
+    Logger.log("WEBHOOK_SECRET 스크립트 속성이 없습니다.");
+    return null;
   }
-  if (rows.length === 0) return;
-  const result = supabaseFetch(
-    "POST",
-    "/rest/v1/preferences?on_conflict=player_id,day_of_week,block_start_utc,cycle_id",
-    rows,
-    { Prefer: "resolution=ignore-duplicates" }
-  );
-  Logger.log("insertPreferences result: " + JSON.stringify(result));
+  return { url: url, secret: secret };
 }
 
-function supabaseFetch(method, path, body = null, extraHeaders = {}) {
-  const { url, key } = getSupabaseConfig();
+function postToWebhook(payload) {
+  const config = getWebhookConfig();
+  if (!config) return null;
+
   const options = {
-    method,
+    method: "post",
+    contentType: "application/json",
     headers: {
-      "Content-Type": "application/json",
-      apikey: key,
-      Authorization: "Bearer " + key,
-      ...extraHeaders,
+      "X-Webhook-Secret": config.secret,
     },
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true,
   };
-  if (body) options.payload = JSON.stringify(body);
-  const res = UrlFetchApp.fetch(url + path, options);
-  const text = res.getContentText();
+
+  const res = UrlFetchApp.fetch(config.url, options);
   const status = res.getResponseCode();
-  Logger.log(`[${method}] ${path} → status: ${status}, body: ${text}`);
-  if (status >= 400) {
-    Logger.log(`Supabase 오류 [${status}] ${path}: ${text}`);
-    return null;
-  }
+  const text = res.getContentText();
+  var body = null;
   try {
-    return JSON.parse(text);
-  } catch {
-    return null;
+    body = JSON.parse(text);
+  } catch (e) {
+    body = { raw: text };
   }
+  return { status: status, body: body };
 }

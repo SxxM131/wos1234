@@ -580,15 +580,20 @@ Checkbox block options (same for all three days):
 
 1. Open the linked Google Sheet → **Extensions → Apps Script**
 2. Delete all existing code and paste the contents of [`scripts/appscript/onFormSubmit.gs`](../scripts/appscript/onFormSubmit.gs)
-3. **Project Settings → Script properties** (not in source code):
-   - `SUPABASE_URL` = your project URL (e.g. `https://xxxx.supabase.co`)
-   - `SUPABASE_SERVICE_KEY` = your **service_role** key — set only here, never in Git
-4. Set up the trigger:
+3. Add `GOOGLE_FORM_WEBHOOK_SECRET` (a long random string) to Vercel env vars and redeploy
+4. **Project Settings → Script properties** (not in source code):
+   - `WEBHOOK_SECRET` = same value as Vercel `GOOGLE_FORM_WEBHOOK_SECRET`
+   - (optional) `WEBHOOK_URL` = `https://wos1234.vercel.app/api/google-form-submit` — only if different from default
+5. Run `testWebhookConnection` in the editor → expect `OK — webhook reachable`
+6. Set up the trigger:
    - Left menu clock icon (Triggers) → **Add trigger**
    - Function to run: `onFormSubmit`
    - Event source: **From spreadsheet**
    - Event type: **On form submit**
-5. Submit a test response and confirm data appears in Supabase `players` and `preferences` tables
+7. Submit a test response and confirm data appears in Supabase `players` and `preferences` tables
+
+> **Why not put Supabase keys in Apps Script?**  
+> Supabase `sb_secret_` keys reject Google Apps Script's User-Agent (`Mozilla/5.0 (compatible; Google-Apps-Script)`) with 401. Apps Script cannot override User-Agent, so the Vercel API calls Supabase server-side instead.
 
 ### Duplicate Prevention
 
@@ -601,8 +606,8 @@ If the same `game_id` submits for the same day via both paths, the second attemp
 
 ### Security Notes
 
-- Keep `SUPABASE_SERVICE_KEY` only in Apps Script code — **never share it on GitHub, chat, or anywhere else.** If leaked, regenerate it immediately from the Supabase dashboard.
-- Apps Script runs on Google's servers only and is never exposed to clients, so storing the service role key there is safe.
+- Keep `WEBHOOK_SECRET` only in Apps Script script properties — **never share it on GitHub, chat, or anywhere else.** If leaked, rotate `GOOGLE_FORM_WEBHOOK_SECRET` on Vercel.
+- Keep the Supabase `service_role` key **only in Vercel env vars**, not in Apps Script.
 
 ---
 

@@ -580,15 +580,20 @@ flowchart LR
 
 1. 연결된 구글 시트 → **확장 프로그램 → Apps Script**
 2. 기존 코드 전체 삭제 후 [`scripts/appscript/onFormSubmit.gs`](../scripts/appscript/onFormSubmit.gs) 내용 붙여넣기
-3. **프로젝트 설정 → 스크립트 속성** (소스 코드에 넣지 말 것):
-   - `SUPABASE_URL` = Supabase 프로젝트 URL
-   - `SUPABASE_SERVICE_KEY` = **service_role** 키 — Apps Script 속성에만 저장, GitHub 업로드 금지
-4. 트리거 설정:
+3. Vercel 환경 변수에 `GOOGLE_FORM_WEBHOOK_SECRET`(임의의 긴 문자열) 추가 후 재배포
+4. **프로젝트 설정 → 스크립트 속성** (소스 코드에 넣지 말 것):
+   - `WEBHOOK_SECRET` = Vercel의 `GOOGLE_FORM_WEBHOOK_SECRET`과 **동일한 값**
+   - (선택) `WEBHOOK_URL` = `https://wos1234.vercel.app/api/google-form-submit` — 기본값과 다를 때만
+5. 에디터에서 `testWebhookConnection` 실행 → `OK — webhook reachable` 확인
+6. 트리거 설정:
    - 왼쪽 메뉴 시계 아이콘(트리거) → **트리거 추가**
    - 실행할 함수: `onFormSubmit`
    - 이벤트 소스: **스프레드시트에서**
    - 이벤트 유형: **양식 제출 시**
-5. 테스트 제출 후 Supabase `players`, `preferences` 테이블에 데이터 확인
+7. 테스트 제출 후 Supabase `players`, `preferences` 테이블에 데이터 확인
+
+> **왜 Supabase 키를 Apps Script에 넣지 않나요?**  
+> Supabase `sb_secret_` 키는 Google Apps Script의 User-Agent(`Mozilla/5.0 (compatible; Google-Apps-Script)`)를 브라우저로 간주해 401을 반환합니다. Apps Script는 User-Agent를 바꿀 수 없으므로, Vercel API가 서버에서 Supabase를 호출합니다.
 
 ### 중복 방지 동작
 
@@ -601,8 +606,8 @@ flowchart LR
 
 ### 주의 사항
 
-- `SUPABASE_SERVICE_KEY`는 Apps Script 코드에만 보관하고, GitHub·채팅 등에 **절대 공유하지 마세요.** 유출 시 Supabase 대시보드에서 즉시 재발급하세요.
-- Apps Script는 구글 서버에서만 실행되어 클라이언트에 노출되지 않으므로 service role 키를 여기에 보관하는 것은 안전합니다.
+- `WEBHOOK_SECRET`은 Apps Script 스크립트 속성에만 보관하고, GitHub·채팅 등에 **절대 공유하지 마세요.** 유출 시 Vercel에서 `GOOGLE_FORM_WEBHOOK_SECRET`을 재발급하세요.
+- Supabase `service_role` 키는 **Vercel 환경 변수에만** 두세요. Apps Script에는 넣지 않습니다.
 
 ---
 
