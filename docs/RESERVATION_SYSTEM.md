@@ -49,7 +49,7 @@ flowchart LR
   C[예약 마감] --> D[스피드업 검증]
   D --> E[Run full assignment]
   E --> F[(reservations assigned)]
-  F --> G[/status 공지]
+  F --> G["/status 공지"]
 ```
 
 ---

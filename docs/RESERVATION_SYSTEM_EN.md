@@ -49,7 +49,7 @@ flowchart LR
   C[Booking deadline] --> D[Speedup verification]
   D --> E[Run full assignment]
   E --> F[(reservations assigned)]
-  F --> G[/status announcement]
+  F --> G["/status announcement"]
 ```
 
 ---
