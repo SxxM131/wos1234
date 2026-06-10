@@ -2,6 +2,65 @@
 
 Short operational reference for R4+ admins. Full technical details follow in the next section.
 
+# Player Quick Reference
+
+Short guide for alliance members. **Share this section** when distributing the secret link or Google Form.
+
+## Before you start
+
+- You need your **Game ID**, in-game **name**, and **alliance** (NWO / BOS / MAR / SXY).
+- All times are **UTC** (not KST). Pick every block you can realistically show up for.
+- Submitting only saves your **preferences**. Final slot assignment happens **after the booking window closes**.
+
+## How to apply
+
+**Option A — Secret link** (from your R4)
+
+1. Open the link shared by R4 (looks like `/r/...`).
+2. Enter Game ID, name, and alliance.
+3. For each day you want (**Monday VP**, **Tuesday VP**, **Thursday MO**):
+   - Enter your **speedup (days)** for that day.
+   - Check **one or more** preferred time blocks (UTC).
+4. Review the confirmation screen and submit.
+
+**Option B — Google Form**
+
+1. Fill out the form once per Google account (one response limit).
+2. Use the **edit link in your confirmation email** if you need to change answers while the form is still open.
+3. After the form closes, contact R4 for any changes.
+
+> You can skip days you do not want — only fill in days you are applying for.
+
+## Rules to know
+
+| Rule | Detail |
+|------|--------|
+| One application per day | Same Game ID cannot apply twice for the same day in the current cycle |
+| Deadline | Submissions are rejected after R4 closes reservations |
+| Secret link + Google Form | Using both for the **same day** counts as a duplicate — the second attempt is rejected |
+| Assignment | Higher speedup improves priority; results are announced after admin runs assignment |
+
+## Check your status
+
+| When | Where | What you see |
+|------|-------|--------------|
+| Anytime | Secret link → **Check my application** (`/r/.../check`) | Enter Game ID to view your status |
+| After assignment | Public schedule **`/status`** | Live slots and waitlist (no login) |
+
+| Status | Meaning |
+|--------|---------|
+| Application received | Saved successfully; assignment not run yet |
+| Assigned | You got a slot — time shown |
+| On waitlist | No slot this round — your preferred blocks are listed |
+
+## Need to change something?
+
+| Situation | What to do |
+|-----------|------------|
+| Google Form still open | Use the **edit response** link in your email |
+| After form close, before assignment | Contact R4 — they can delete that day so you can re-apply |
+| After assignment | Contact R4 — they may cancel your slot so you can re-apply via the secret link |
+
 ---
 
 ## Environment Variables
