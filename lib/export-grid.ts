@@ -1,4 +1,4 @@
-import { DayOfWeek, DAY_CONFIG } from "./types";
+import { DayOfWeek, DAY_CONFIG, ALLIANCE_OPTIONS } from "./types";
 
 export const EXPORT_DAY_ORDER: DayOfWeek[] = ["mon", "tue", "thu"];
 
@@ -105,6 +105,108 @@ export function slotExportRowToCsvCells(
     escape(row.speedup),
     escape(row.status),
   ].join(",");
+}
+
+export const EXPORT_SUMMARY_SHEET_NAME = "Summary";
+
+export interface AllianceSummaryStat {
+  alliance: string;
+  players: number;
+  speedupDays: number;
+}
+
+interface AssignedReservationForSummary {
+  player_id: number;
+  slot_id: number | null;
+  players: {
+    alliance: string;
+    speedup_mon: number;
+    speedup_tue: number;
+    speedup_thu: number;
+  } | null;
+}
+
+/** Unique assigned players (p) and sum of day speedups (d) per alliance across Mon+Tue+Thu. */
+export function buildAllianceSummaryStats(
+  slots: SlotRecord[],
+  assignedReservations: AssignedReservationForSummary[]
+): AllianceSummaryStat[] {
+  const slotDay = new Map(slots.map((s) => [s.id, s.day_of_week as DayOfWeek]));
+  const byAlliance = new Map<string, { playerIds: Set<number>; speedup: number }>();
+
+  for (const alliance of ALLIANCE_OPTIONS) {
+    byAlliance.set(alliance, { playerIds: new Set(), speedup: 0 });
+  }
+
+  for (const r of assignedReservations) {
+    if (!r.players || r.slot_id == null) continue;
+    const day = slotDay.get(r.slot_id);
+    if (!day) continue;
+
+    const alliance = r.players.alliance?.trim() || "Unknown";
+    const speedup =
+      day === "mon"
+        ? r.players.speedup_mon
+        : day === "tue"
+          ? r.players.speedup_tue
+          : r.players.speedup_thu;
+
+    let entry = byAlliance.get(alliance);
+    if (!entry) {
+      entry = { playerIds: new Set(), speedup: 0 };
+      byAlliance.set(alliance, entry);
+    }
+    entry.playerIds.add(r.player_id);
+    entry.speedup += speedup;
+  }
+
+  const known = ALLIANCE_OPTIONS.map((code) => {
+    const entry = byAlliance.get(code)!;
+    return {
+      alliance: code,
+      players: entry.playerIds.size,
+      speedupDays: entry.speedup,
+    };
+  });
+
+  const extras = Array.from(byAlliance.entries())
+    .filter(([code]) => !(ALLIANCE_OPTIONS as readonly string[]).includes(code))
+    .map(([alliance, { playerIds, speedup }]) => ({
+      alliance,
+      players: playerIds.size,
+      speedupDays: speedup,
+    }))
+    .filter((s) => s.players > 0 || s.speedupDays > 0)
+    .sort((a, b) => a.alliance.localeCompare(b.alliance));
+
+  return [...known, ...extras];
+}
+
+export function formatAllianceSummaryLine(stats: AllianceSummaryStat[]): string {
+  const active = stats.filter((s) => s.players > 0 || s.speedupDays > 0);
+  if (active.length === 0) return "No assignments";
+  return (
+    "- " +
+    active.map((s) => `${s.alliance} ${s.players}p / ${s.speedupDays}d`).join(" - ")
+  );
+}
+
+export function allianceSummaryToExcelRows(
+  stats: AllianceSummaryStat[]
+): Record<string, string | number>[] {
+  return [
+    ...stats.map((s) => ({
+      Alliance: s.alliance,
+      "Players (p)": s.players,
+      "Speedup (days) (d)": s.speedupDays,
+    })),
+    { Alliance: "", "Players (p)": "", "Speedup (days) (d)": "" },
+    {
+      Alliance: formatAllianceSummaryLine(stats),
+      "Players (p)": "",
+      "Speedup (days) (d)": "",
+    },
+  ];
 }
 
 export function slotExportRowToExcelRecord(row: SlotExportRow): Record<string, string | number> {

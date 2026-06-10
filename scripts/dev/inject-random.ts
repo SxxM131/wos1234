@@ -13,7 +13,7 @@ import {
   getCurrentCycleId,
   getAssignmentApplicantCounts,
 } from "../lib/assignment";
-import { DayOfWeek } from "../lib/types";
+import { DayOfWeek, ALLIANCE_OPTIONS } from "../lib/types";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const env = Object.fromEntries(
@@ -31,7 +31,7 @@ const supabase = createClient(
   env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const ALLIANCES = ["WOS", "LEO", "MOON", "SUN", "ZEUS"];
+const ALLIANCES = [...ALLIANCE_OPTIONS];
 const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);
 const DEFAULT_BASE_GAME_ID = 300001;
 

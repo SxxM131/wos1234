@@ -6,7 +6,7 @@ import {
   DaySubmit,
   getLastAssignmentRun,
 } from "@/lib/assignment";
-import { DayOfWeek, DAY_CONFIG } from "@/lib/types";
+import { DayOfWeek, DAY_CONFIG, ALLIANCE_OPTIONS, isValidAlliance } from "@/lib/types";
 
 const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
 
@@ -16,8 +16,8 @@ export async function submitReservation(formData: FormData) {
   const alliance = (formData.get("alliance") as string)?.trim();
   const selectedDays = formData.getAll("days") as DayOfWeek[];
 
-  if (!gameId || !name || !alliance) {
-    return { success: false, message: "Please fill in all required fields." };
+  if (!gameId || !name || !alliance || !isValidAlliance(alliance)) {
+    return { success: false, message: "Please fill in all required fields and select an alliance." };
   }
 
   if (selectedDays.length === 0) {

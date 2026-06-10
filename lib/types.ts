@@ -2,6 +2,13 @@ export type DayOfWeek = "mon" | "tue" | "thu";
 export type OfficeType = "VP" | "MO";
 export type ReservationStatus = "assigned" | "eliminated" | "cancelled";
 
+export const ALLIANCE_OPTIONS = ["NWO", "BOS", "MAR", "SXY"] as const;
+export type AllianceCode = (typeof ALLIANCE_OPTIONS)[number];
+
+export function isValidAlliance(value: string): value is AllianceCode {
+  return (ALLIANCE_OPTIONS as readonly string[]).includes(value);
+}
+
 export interface Player {
   game_id: number;
   name: string;

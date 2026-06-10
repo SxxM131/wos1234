@@ -14,7 +14,7 @@ import {
   runFullBatchAssignment,
   deletePreferenceByDay,
 } from "./actions";
-import * as XLSX from "xlsx";
+import { buildStyledExcelWorkbook } from "@/lib/build-excel-workbook";
 import { DAY_CONFIG, DayOfWeek, TIME_BLOCKS } from "@/lib/types";
 import { dayLabel, formatSlotTime, formatBlockRange } from "@/lib/utils";
 import { DayTabs } from "@/components/DayTabs";
@@ -338,12 +338,7 @@ export function AdminDashboard({
           onClick={() =>
             startTransition(async () => {
               const data = await exportExcelData();
-              const wb = XLSX.utils.book_new();
-              Object.entries(data).forEach(([sheetName, rows]) => {
-                const ws = XLSX.utils.json_to_sheet(rows);
-                XLSX.utils.book_append_sheet(wb, ws, sheetName);
-              });
-              const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+              const wbout = buildStyledExcelWorkbook(data);
               const blob = new Blob([wbout], {
                 type: "application/octet-stream",
               });

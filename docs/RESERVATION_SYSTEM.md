@@ -580,7 +580,9 @@ flowchart LR
 
 1. 연결된 구글 시트 → **확장 프로그램 → Apps Script**
 2. 기존 코드 전체 삭제 후 [`scripts/appscript/onFormSubmit.gs`](../scripts/appscript/onFormSubmit.gs) 내용 붙여넣기
-3. `SUPABASE_URL`과 `SUPABASE_SERVICE_KEY`를 본인 프로젝트 값으로 교체
+3. **프로젝트 설정 → 스크립트 속성** (소스 코드에 넣지 말 것):
+   - `SUPABASE_URL` = Supabase 프로젝트 URL
+   - `SUPABASE_SERVICE_KEY` = **service_role** 키 — Apps Script 속성에만 저장, GitHub 업로드 금지
 4. 트리거 설정:
    - 왼쪽 메뉴 시계 아이콘(트리거) → **트리거 추가**
    - 실행할 함수: `onFormSubmit`

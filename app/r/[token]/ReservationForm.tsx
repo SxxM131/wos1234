@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useCallback } from "react";
 import { submitReservation } from "./actions";
-import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS } from "@/lib/types";
+import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS, ALLIANCE_OPTIONS } from "@/lib/types";
 import { TimeBlockCheckbox } from "@/components/TimeBlockCheckbox";
 import {
   ConfirmReservationDialog,
@@ -289,8 +289,11 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   }
 
   function handleInfoNext() {
-    if (!gameId.trim() || !name.trim() || !alliance.trim()) {
-      setMessage({ type: "err", text: "Please fill in Game ID, Name, and Alliance." });
+    if (!gameId.trim() || !name.trim() || !alliance) {
+      setMessage({
+        type: "err",
+        text: "Please fill in Game ID, Name, and select an alliance.",
+      });
       return;
     }
     setMessage(null);
@@ -415,18 +418,33 @@ export function ReservationForm({ reservationOpen, token }: Props) {
                   className="input-field"
                 />
               </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600">
-                Alliance
-              </label>
-              <input
-                type="text"
-                required
-                value={alliance}
-                onChange={(e) => setAlliance(e.target.value)}
-                className="input-field"
-              />
+              <div>
+                <span className="mb-2 block text-sm font-medium text-slate-600">
+                  Alliance
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {ALLIANCE_OPTIONS.map((code) => (
+                    <label
+                      key={code}
+                      className={`flex min-h-touch cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+                        alliance === code
+                          ? "border-brand-500 bg-brand-50"
+                          : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="alliance"
+                        value={code}
+                        checked={alliance === code}
+                        onChange={() => setAlliance(code)}
+                        className="h-5 w-5 shrink-0 accent-brand-600"
+                      />
+                      <span className="text-sm font-semibold">{code}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 

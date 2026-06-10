@@ -580,7 +580,9 @@ Checkbox block options (same for all three days):
 
 1. Open the linked Google Sheet → **Extensions → Apps Script**
 2. Delete all existing code and paste the contents of [`scripts/appscript/onFormSubmit.gs`](../scripts/appscript/onFormSubmit.gs)
-3. Replace `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` with your project values
+3. **Project Settings → Script properties** (not in source code):
+   - `SUPABASE_URL` = your project URL (e.g. `https://xxxx.supabase.co`)
+   - `SUPABASE_SERVICE_KEY` = your **service_role** key — set only here, never in Git
 4. Set up the trigger:
    - Left menu clock icon (Triggers) → **Add trigger**
    - Function to run: `onFormSubmit`

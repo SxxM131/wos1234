@@ -27,6 +27,10 @@ yarn-error.log*
 .env*.local
 .env
 
+# apps script local secrets (never commit)
+scripts/appscript/*.local.gs
+scripts/appscript/config.gs
+
 # vercel
 .vercel
 

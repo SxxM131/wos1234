@@ -14,7 +14,10 @@ import { DayOfWeek } from "@/lib/types";
 import {
   EXPORT_CSV_HEADER,
   EXPORT_DAY_ORDER,
+  EXPORT_SUMMARY_SHEET_NAME,
   buildSlotExportRow,
+  buildAllianceSummaryStats,
+  allianceSummaryToExcelRows,
   exportDayLabel,
   slotExportRowToCsvCells,
   slotExportRowToExcelRecord,
@@ -421,6 +424,27 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
       return slotExportRowToExcelRecord(row);
     });
   }
+
+  const playerShape = {
+    game_id: 0,
+    name: "",
+    alliance: "",
+    speedup_mon: 0,
+    speedup_tue: 0,
+    speedup_thu: 0,
+  };
+
+  type PlayerRow = typeof playerShape;
+
+  const summaryStats = buildAllianceSummaryStats(
+    slots,
+    (reservations ?? []).map((r) => ({
+      player_id: r.player_id,
+      slot_id: r.slot_id,
+      players: r.players as unknown as PlayerRow | null,
+    }))
+  );
+  result[EXPORT_SUMMARY_SHEET_NAME] = allianceSummaryToExcelRows(summaryStats);
 
   return result;
 }
