@@ -286,9 +286,23 @@ R = 스피드업 전체 통합 순위 (1위=1, 2위=2, ...)
 
 ---
 
-## 9. 배정 후 동작 (취소·승격)
+## 9. 배정 후 동작 (취소·승격) 및 배정 전 삭제
 
-### Admin 슬롯 취소
+### 배정 전: 요일별 신청 삭제
+
+```mermaid
+flowchart LR
+  A[Admin: Search → Delete mon/tue/thu 버튼] --> B[preferences 해당 요일 삭제]
+  B --> C[검색 결과 새로고침]
+```
+
+- **표시 조건:** `last_assignment_run`이 없는 경우(배정 전)에만 검색 결과에 Delete 버튼 표시
+- 배정 후에는 버튼이 자동으로 숨겨짐
+- `players` 테이블은 건드리지 않음 — `preferences`만 삭제
+- 서버 액션: `deletePreferenceByDay(player_id, day_of_week, cycle_id)`
+- 확인 다이얼로그 → 로딩 스피너 → 완료 토스트 알림
+
+### 배정 후: Admin 슬롯 취소
 
 ```mermaid
 flowchart LR
@@ -321,7 +335,8 @@ flowchart LR
 | Export Excel | 사이클별 시트(요일별 등) |
 | **Run full assignment** | `runFullBatchAssignment` — Search Reservations 위 노란 패널 |
 | Reset cycle | `RESET` 입력 → players·preferences·reservations를 아카이브 후 삭제, `current_cycle_id` +1 |
-| Search | 배정 전: 신청자 검색 / 배정 후: 예약·대기 검색 |
+| Search | 배정 전: 신청자 검색 (요일별 Delete 버튼 포함) / 배정 후: 예약·대기 검색 |
+| Delete application per day | 배정 전만 — 검색 결과에서 플레이어의 특정 요일 신청(`preferences`) 삭제 |
 | Applicants | 배정 전만 — `preferences` 기반 신청자 목록 |
 | Schedule Grid | 배정 후만 — UTC 그리드·슬롯별 Cancel |
 | Waitlist | 배정 후만 — 해당 요일 `eliminated` + 선호 블록 |
@@ -541,6 +556,7 @@ flowchart LR
 | 신청 경로 | 시크릿 링크만 | 시크릿 링크 + 구글 폼 병행 |
 | 시간 표시 | UTC/KST 토글 | UTC만 |
 | Cancel 버튼 | 즉시 취소 | 로딩 스피너 + 완료 토스트 알림 |
+| 배정 전 삭제 | 불가능 | 검색 결과에서 요일별 `preferences` 삭제 가능 (배정 전 한정) |
 
 ---
 

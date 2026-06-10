@@ -286,9 +286,23 @@ R = player's global speedup rank (1st = 1, 2nd = 2, ...)
 
 ---
 
-## 9. Post-Assignment Behavior (Cancellation & Promotion)
+## 9. Post-Assignment Behavior (Cancellation & Promotion) and Pre-Assignment Deletion
 
-### Admin Slot Cancellation
+### Pre-Assignment: Delete Application per Day
+
+```mermaid
+flowchart LR
+  A[Admin: Search → Delete mon/tue/thu button] --> B[Delete preferences for that day]
+  B --> C[Refresh search results]
+```
+
+- **Visibility:** Delete buttons appear in search results only when `last_assignment_run` is not set (pre-assignment)
+- Buttons are automatically hidden after assignment is run
+- `players` table is not affected — only `preferences` are deleted
+- Server action: `deletePreferenceByDay(player_id, day_of_week, cycle_id)`
+- Confirmation dialog → loading spinner → completion toast notification
+
+### Post-Assignment: Admin Slot Cancellation
 
 ```mermaid
 flowchart LR
@@ -321,7 +335,8 @@ Login: bcrypt hash (`settings.admin_password_hash`) + iron-session cookie
 | Export Excel | Per-cycle sheets (by day, etc.) |
 | **Run full assignment** | `runFullBatchAssignment` — yellow panel above Search Reservations |
 | Reset cycle | Type `RESET` — archives then deletes players/preferences/reservations, increments `current_cycle_id` |
-| Search | Before assignment: search applicants / After: search reservations and waitlist |
+| Search | Before assignment: search applicants (with per-day Delete buttons) / After: search reservations and waitlist |
+| Delete application per day | Before assignment only — delete a player's specific day `preferences` from search results |
 | Applicants | Before assignment only — applicant list from `preferences` |
 | Schedule Grid | After assignment only — UTC grid with per-slot Cancel button |
 | Waitlist | After assignment only — `eliminated` players with preferred blocks |
@@ -541,6 +556,7 @@ If the same `game_id` submits for the same day via both paths, the second attemp
 | Application paths | Secret link only | Secret link + Google Form |
 | Time display | UTC/KST toggle | UTC only |
 | Cancel button | Instant cancel | Loading spinner + completion toast |
+| Pre-assignment deletion | Not available | Delete per-day `preferences` from search results (pre-assignment only) |
 
 ---
 
