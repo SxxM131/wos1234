@@ -48,17 +48,14 @@ export function loadGuideSections(): GuideSections {
     join(docsDir, "ADMIN_GUIDE_QUICKSTART_EN.md"),
     "utf8"
   );
-  const technical = readFileSync(
-    join(docsDir, "RESERVATION_SYSTEM_EN.md"),
-    "utf8"
-  );
 
   const { admin, player } = splitOperationalGuide(operational);
 
   return {
     admin: markdownToHtml(rewriteDocLinksForWeb(admin)),
     player: markdownToHtml(rewriteDocLinksForWeb(player)),
-    technical: markdownToHtml(rewriteDocLinksForWeb(technical)),
+    // Technical tab uses pre-built HTML via /admin/guide/mobile?embed=1 (Mermaid + tables).
+    technical: "",
   };
 }
 
@@ -71,10 +68,23 @@ export function loadKoreanGuideHtml(): string {
   return markdownToHtml(rewriteDocLinksForWeb(md));
 }
 
-export function loadMobileGuideHtml(): string {
+export function loadMobileGuideHtml(options?: { embed?: boolean }): string {
   const html = readFileSync(
     join(docsDir, "RESERVATION_SYSTEM_EN.html"),
     "utf8"
   );
-  return rewriteMobileHtmlLinks(html);
+  let out = rewriteMobileHtmlLinks(html);
+
+  if (options?.embed) {
+    out = out.replace(
+      "</head>",
+      `<style>
+        header.doc-header { display: none !important; }
+        .wrap { max-width: none; padding: 0.5rem 0.75rem 2rem; }
+        body { background: #f8fafc; }
+      </style></head>`
+    );
+  }
+
+  return out;
 }

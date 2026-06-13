@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
-  const html = loadMobileGuideHtml();
+  const embed = request.nextUrl.searchParams.get("embed") === "1";
+  const html = loadMobileGuideHtml({ embed });
   return new NextResponse(html, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
