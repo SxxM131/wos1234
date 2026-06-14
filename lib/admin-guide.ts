@@ -15,9 +15,8 @@ export interface GuideSections {
 /** Rewrite doc-relative links for in-app /admin/guide/* routes (GitHub-relative paths 404 on Vercel). */
 export function rewriteDocLinksForWeb(markdown: string): string {
   return markdown
-    .replace(/\]\(RESERVATION_SYSTEM\.md\)/g, "](/admin/guide/ko)")
-    .replace(/\]\(RESERVATION_SYSTEM_EN\.html\)/g, "](/admin/guide/mobile)")
-    .replace(/\]\(RESERVATION_SYSTEM_EN\.md\)/g, "](/admin/guide?tab=technical)")
+    .replace(/\]\(RESERVATION_SYSTEM\.html\)/g, "](/admin/guide/mobile)")
+    .replace(/\]\(RESERVATION_SYSTEM\.md\)/g, "](/admin/guide?tab=technical)")
     .replace(
       /\]\(\.\.\/README\.md[^)]*\)/g,
       "](https://github.com/SxxM131/wos1234#-%EC%9A%B4%EC%98%81-%EC%8B%9C%EB%82%98%EB%A6%AC%EC%98%A4-%EC%9A%94%EC%95%BD)"
@@ -26,9 +25,8 @@ export function rewriteDocLinksForWeb(markdown: string): string {
 
 export function rewriteMobileHtmlLinks(html: string): string {
   return html
-    .replace(/href="RESERVATION_SYSTEM\.md"/g, 'href="/admin/guide/ko"')
-    .replace(/href="RESERVATION_SYSTEM_EN\.html"/g, 'href="/admin/guide/mobile"')
-    .replace(/href="RESERVATION_SYSTEM_EN\.md"/g, 'href="/admin/guide?tab=technical"');
+    .replace(/href="RESERVATION_SYSTEM\.html"/g, 'href="/admin/guide/mobile"')
+    .replace(/href="RESERVATION_SYSTEM\.md"/g, 'href="/admin/guide?tab=technical"');
 }
 
 function splitOperationalGuide(markdown: string): { admin: string; player: string } {
@@ -54,7 +52,7 @@ export function loadGuideSections(): GuideSections {
   return {
     admin: markdownToHtml(rewriteDocLinksForWeb(admin)),
     player: markdownToHtml(rewriteDocLinksForWeb(player)),
-    // Technical tab uses pre-built HTML via /admin/guide/mobile?embed=1 (Mermaid + tables).
+    // Technical tab uses pre-built Korean HTML via /admin/guide/mobile?embed=1.
     technical: "",
   };
 }
@@ -63,14 +61,9 @@ export function isGuideTab(value: string | undefined): value is GuideTab {
   return value === "admin" || value === "player" || value === "technical";
 }
 
-export function loadKoreanGuideHtml(): string {
-  const md = readFileSync(join(docsDir, "RESERVATION_SYSTEM.md"), "utf8");
-  return markdownToHtml(rewriteDocLinksForWeb(md));
-}
-
 export function loadMobileGuideHtml(options?: { embed?: boolean }): string {
   const html = readFileSync(
-    join(docsDir, "RESERVATION_SYSTEM_EN.html"),
+    join(docsDir, "RESERVATION_SYSTEM.html"),
     "utf8"
   );
   let out = rewriteMobileHtmlLinks(html);

@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>SVS 예약 시스템 — 기술 문서</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --link: #2563eb;
+      --code-bg: #f1f5f9;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 1rem 1rem 3rem;
+    }
+    header.doc-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(248, 250, 252, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      margin: -1rem -1rem 1.25rem;
+    }
+    header.doc-header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+    header.doc-header p {
+      margin: 0.25rem 0 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    article h1 { font-size: 1.5rem; margin-top: 2rem; border-bottom: 2px solid var(--border); padding-bottom: 0.35rem; }
+    article h2 { font-size: 1.25rem; margin-top: 1.75rem; }
+    article h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+    article p, article li { word-break: break-word; }
+    article a { color: var(--link); }
+    article hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    article blockquote {
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      border-left: 4px solid var(--link);
+      background: var(--card);
+      border-radius: 0 0.5rem 0.5rem 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    article table {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 1rem 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+    }
+    article th, article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+      min-width: 5rem;
+    }
+    article th { background: #f1f5f9; font-weight: 600; white-space: nowrap; }
+    article code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85em;
+      background: var(--code-bg);
+      padding: 0.12em 0.35em;
+      border-radius: 0.25rem;
+    }
+    article pre:not(.mermaid) {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    article pre:not(.mermaid) code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    pre.mermaid {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 1rem 0.5rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 1rem 0;
+      text-align: center;
+    }
+    details {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+    }
+    details summary { cursor: pointer; font-weight: 600; }
+    @media (max-width: 480px) {
+      body { font-size: 15px; }
+      article h1 { font-size: 1.35rem; }
+      article table { font-size: 0.8rem; }
+    }
+    @media print {
+      header.doc-header { position: static; }
+      pre.mermaid { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="doc-header">
+      <h1>SVS 예약 시스템</h1>
+      <p>기술 문서 · RESERVATION_SYSTEM.md에서 생성</p>
+    </header>
+    <article id="content">
+<h1>SVS 예약 시스템 — 상세 설명</h1>
+<p>Next.js 14 + Supabase 기반의 연맹 SVS(성) 예약·배정 시스템입니다.
+플레이어는 <strong>신청 기간에 선호 시간만 제출</strong>하고, R4+ 운영자가 <strong>마감·검증 후 일괄 배정</strong>합니다.
+배정 알고리즘은 <strong>Min-Cost Max-Flow (MCMF)</strong> 최소 비용 최대 유량을 사용합니다.</p>
+<blockquote>
+<p><strong>모바일 HTML:</strong> <a href="RESERVATION_SYSTEM.html">RESERVATION_SYSTEM.html</a></p>
+</blockquote>
+<hr>
+<h2>목차</h2>
+<ol>
+<li><a href="#1-%EA%B0%9C%EC%9A%94">개요</a></li>
+<li><a href="#2-%ED%99%98%EA%B2%BD-%EB%B3%80%EC%88%98">환경 변수</a></li>
+<li><a href="#3-%EC%9A%B4%EC%98%81-%EC%9B%8C%ED%81%AC%ED%94%8C%EB%A1%9C">운영 워크플로</a><ul>
+<li><a href="#35-%EC%9A%B4%EC%98%81-%EC%8B%9C%EB%82%98%EB%A6%AC%EC%98%A4-%EB%B0%8F-%EB%8C%80%EC%9D%91">3.5 운영 시나리오 및 대응</a></li>
+</ul>
+</li>
+<li><a href="#4-%ED%8E%98%EC%9D%B4%EC%A7%80url">페이지·URL</a></li>
+<li><a href="#5-%EB%8D%B0%EC%9D%B4%ED%84%B0-%EB%AA%A8%EB%8D%B8">데이터 모델</a></li>
+<li><a href="#6-%EC%8B%9C%EA%B0%84%EC%8A%AC%EB%A1%AF-%EA%B5%AC%EC%A1%B0-utc">시간·슬롯 구조</a></li>
+<li><a href="#7-%ED%94%8C%EB%A0%88%EC%9D%B4%EC%96%B4-%EC%8B%A0%EC%B2%AD-%ED%9D%90%EB%A6%84">플레이어 신청 흐름</a></li>
+<li><a href="#8-%EC%9D%BC%EA%B4%84-%EB%B0%B0%EC%A0%95-%EC%95%8C%EA%B3%A0%EB%A6%AC%EC%A6%98">일괄 배정 알고리즘</a></li>
+<li><a href="#9-%EB%B0%B0%EC%A0%95-%ED%9B%84-%EB%8F%99%EC%9E%91-%EC%B7%A8%EC%86%8C%EC%8A%B9%EA%B2%A9">배정 후 동작</a></li>
+<li><a href="#10-%EA%B4%80%EB%A6%AC%EC%9E%90admin-%EA%B8%B0%EB%8A%A5">관리자 기능</a></li>
+<li><a href="#11-%EA%B3%B5%EA%B0%9C-%ED%98%84%ED%99%A9-status">공개 현황</a></li>
+<li><a href="#12-%EC%82%AC%EC%9D%B4%ED%81%B4cycle">사이클</a></li>
+<li><a href="#13-%EC%84%A4%EC%A0%95settings-%ED%82%A4">settings 키</a></li>
+<li><a href="#14-%EB%B3%B4%EC%95%88%EC%A0%91%EA%B7%BC-%EC%A0%9C%EC%96%B4">보안·접근 제어</a></li>
+<li><a href="#15-%EA%B0%9C%EB%B0%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%9A%A9-%EC%8A%A4%ED%81%AC%EB%A6%BD%ED%8A%B8">개발·테스트 스크립트</a></li>
+<li><a href="#16-%EA%B4%80%EB%A0%A8-%EC%86%8C%EC%8A%A4-%ED%8C%8C%EC%9D%BC">관련 소스 파일</a></li>
+<li><a href="#17-%EA%B5%AC%EA%B8%80-%ED%8F%BC-%EC%97%B0%EB%8F%99-apps-script-%ED%8C%8C%EC%9D%B4%ED%94%84%EB%9D%BC%EC%9D%B8">구글 폼 연동</a></li>
+<li><a href="#18-%EB%B6%80%EB%A1%9D-%EA%B5%AC%EB%B2%84%EC%A0%84%EA%B3%BC%EC%9D%98-%EC%B0%A8%EC%9D%B4">구버전과의 차이</a></li>
+</ol>
+<hr>
+<h2>1. 개요</h2>
+<table>
+<thead>
+<tr>
+<th>구분</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>목적</td>
+<td>월/화(VP)·목(MO) 성 예약을 스피드업 우선으로 공정 배정</td>
+</tr>
+<tr>
+<td>신청</td>
+<td>비밀 URL <code translate="no">/r/[token]</code> 또는 구글 폼 — 선호(preferences)만 DB 저장, 슬롯 배정 없음</td>
+</tr>
+<tr>
+<td>배정</td>
+<td>Admin <strong>Run full assignment</strong> — 사이클 전체를 Mon → Tue → Thu 순으로 재계산</td>
+</tr>
+<tr>
+<td>알고리즘</td>
+<td>Min-Cost Max-Flow (MCMF) — 빈 슬롯·대기자 동시 존재 및 스피드업 역전 문제 해결</td>
+</tr>
+<tr>
+<td>시간대</td>
+<td>UTC만 표시 (KST 토글 없음)</td>
+</tr>
+<tr>
+<td>인증</td>
+<td>플레이어: URL 토큰 / 운영자: Admin 비밀번호(iron-session)</td>
+</tr>
+</tbody></table>
+<pre class="mermaid" translate="no">flowchart LR
+  A[플레이어 신청\n/r/token 또는 구글 폼] --> B[(preferences DB)]
+  C[예약 마감] --> D[스피드업 검증]
+  D --> E[Run full assignment]
+  E --> F[(reservations assigned)]
+  F --> G["/status 공지"]
+</pre>
+<hr>
+<h2>2. 환경 변수</h2>
+<table>
+<thead>
+<tr>
+<th>변수</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">NEXT_PUBLIC_SUPABASE_URL</code></td>
+<td>Supabase 프로젝트 URL (예: <code translate="no">https://xxxx.supabase.co</code>)</td>
+</tr>
+<tr>
+<td><code translate="no">NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td>
+<td>Supabase anon public key</td>
+</tr>
+<tr>
+<td><code translate="no">SUPABASE_SERVICE_ROLE_KEY</code></td>
+<td>service role key — <strong>서버 전용, 절대 클라이언트 노출 금지</strong></td>
+</tr>
+<tr>
+<td><code translate="no">IRON_SESSION_SECRET</code></td>
+<td>Admin 세션 암호화 키 (32자 이상 랜덤 문자열)</td>
+</tr>
+</tbody></table>
+<pre><code class="language-bash"># 세션 시크릿 생성
+node -e &quot;console.log(require(&#39;crypto&#39;).randomBytes(32).toString(&#39;hex&#39;))&quot;
+
+# 환경 변수 검증
+npm run check-env
+</code></pre>
+<hr>
+<h2>3. 운영 워크플로</h2>
+<pre class="mermaid" translate="no">flowchart TD
+  A[신청 기간\n플레이어가 /r/token 또는 구글 폼 제출] --> B[예약 마감\nAdmin: Close reservations]
+  B --> C[스피드업 검증\n예약 목록에서 실제 수치 대조·수정]
+  C --> D[배정 실행\nAdmin: Run full assignment]
+  D --> E[결과 공지\n/status 링크 공유]
+</pre>
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>담당</th>
+<th>동작</th>
+<th>DB 변화</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>신청 기간</td>
+<td>플레이어</td>
+<td><code translate="no">/r/[token]</code> 또는 구글 폼에서 요일·스피드업·선호 블록 제출</td>
+<td><code translate="no">players</code>, <code translate="no">preferences</code></td>
+</tr>
+<tr>
+<td>예약 마감</td>
+<td>R4+ Admin</td>
+<td><strong>Close reservations</strong> 토글</td>
+<td><code translate="no">settings.reservation_open = false</code></td>
+</tr>
+<tr>
+<td>스피드업 검증</td>
+<td>R4+ Admin</td>
+<td>예약 목록·검색·그리드에서 실제 수치 대조·수정</td>
+<td><code translate="no">players</code> (필요 시)</td>
+</tr>
+<tr>
+<td>배정 실행</td>
+<td>R4+ Admin</td>
+<td><strong>Run full assignment</strong></td>
+<td><code translate="no">reservations</code> (assigned / eliminated), <code translate="no">last_assignment_run</code></td>
+</tr>
+<tr>
+<td>결과 공지</td>
+<td>R4+</td>
+<td><code translate="no">/status</code> 링크 공유</td>
+<td>— (조회만)</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>주의:</strong> 신청 단계에서는 <code translate="no">reservations</code>에 <code translate="no">assigned</code> 행이 생기지 않습니다. 그리드가 비어 있어야 정상입니다.</p>
+</blockquote>
+<h3>3.5 운영 시나리오 및 대응</h3>
+<p>아래 표는 실제 운영·테스트에서 정리한 <strong>상황별 대응</strong>입니다. (README 요약: <a href="../README.md#%EC%9A%B4%EC%98%81-%EC%8B%9C%EB%82%98%EB%A6%AC%EC%98%A4-%EC%9A%94%EC%95%BD">../README.md#운영-시나리오-요약</a>)</p>
+<h4>예약 변경·수정</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>시점</th>
+<th>신청 경로</th>
+<th>플레이어 대응</th>
+<th>R4+ Admin 대응</th>
+<th>DB 변화</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A</td>
+<td>구글 폼 <strong>응답 수정 허용 기간</strong></td>
+<td>구글 폼</td>
+<td>제출 이메일의 <strong>응답 확인·수정 링크</strong></td>
+<td>—</td>
+<td>Apps Script가 preferences 재반영</td>
+</tr>
+<tr>
+<td>B</td>
+<td>폼 마감 후 · <strong>Run full assignment 전</strong></td>
+<td>구글 폼 / <code translate="no">/r/[token]</code></td>
+<td>R4에게 연락</td>
+<td>Search → <strong>Delete mon/tue/thu</strong></td>
+<td>해당 요일 <code translate="no">preferences</code> 삭제</td>
+</tr>
+<tr>
+<td>B-2</td>
+<td>B 이후</td>
+<td><code translate="no">/r/[token]</code></td>
+<td>시크릿 URL로 <strong>해당 요일만</strong> 재신청</td>
+<td>—</td>
+<td><code translate="no">preferences</code> 재생성</td>
+</tr>
+<tr>
+<td>C</td>
+<td><strong>배정 실행 후</strong></td>
+<td>양쪽</td>
+<td>R4에게 취소 요청</td>
+<td>Schedule Grid <strong>Cancel</strong></td>
+<td><code translate="no">cancelled</code> + <code translate="no">preferences</code> 삭제</td>
+</tr>
+<tr>
+<td>C-2</td>
+<td>C 이후</td>
+<td><code translate="no">/r/[token]</code></td>
+<td>재신청</td>
+<td>—</td>
+<td>새 <code translate="no">preferences</code> (다음 배정 또는 수동 처리)</td>
+</tr>
+<tr>
+<td>D</td>
+<td>Admin 취소/삭제 후 <strong>미재신청</strong></td>
+<td>—</td>
+<td>해당 사이클 해당 요일 <strong>배정 제외</strong></td>
+<td>—</td>
+<td>선호 없음 → 배정 대상 아님</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Delete vs Cancel:</strong> Delete는 <strong>배정 전</strong>(<code translate="no">last_assignment_run</code> 없음) Search에서만 표시. Cancel은 <strong>배정 후</strong> Schedule Grid에서 슬롯 단위 취소 + 대기자 승격.</p>
+</blockquote>
+<h4>플레이어 신청</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>상황</th>
+<th>조건</th>
+<th>결과</th>
+<th>사용자 메시지</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>정상 첫 신청</td>
+<td><code translate="no">reservation_open = true</code>, 중복 없음</td>
+<td><code translate="no">players</code> upsert + <code translate="no">preferences</code> insert</td>
+<td><em>Application received…</em></td>
+</tr>
+<tr>
+<td>2</td>
+<td>동일 요일 재신청</td>
+<td><code translate="no">game_id + cycle_id + day_of_week</code> preferences 존재</td>
+<td>거부</td>
+<td><code translate="no">DUPLICATE_DAY_MESSAGE</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>마감 후 신청</td>
+<td><code translate="no">reservation_open = false</code></td>
+<td>거부</td>
+<td><em>Reservations are closed</em></td>
+</tr>
+<tr>
+<td>4</td>
+<td>채널 간 중복</td>
+<td>구글 폼 후 시크릿 URL (동일 Game ID·요일)</td>
+<td>2번째 거부</td>
+<td><code translate="no">DUPLICATE_DAY_MESSAGE</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>선호 블록 없는 요일</td>
+<td>speedup/블록 비움</td>
+<td>해당 요일 skip</td>
+<td>—</td>
+</tr>
+<tr>
+<td>6</td>
+<td>상태 조회</td>
+<td><code translate="no">/r/[token]/check</code></td>
+<td>배정 전/후 분기</td>
+<td>Application received / Assigned / On waitlist</td>
+</tr>
+</tbody></table>
+<h4>Admin 운영 단계</h4>
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th><code translate="no">last_assignment_run</code></th>
+<th>Admin UI</th>
+<th>주요 액션</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1. 신청 개시</td>
+<td>없음</td>
+<td>Secret URL, Open</td>
+<td><code translate="no">access_token</code> 공유, <code translate="no">reservation_open = true</code></td>
+</tr>
+<tr>
+<td>2. 신청 수집</td>
+<td>없음</td>
+<td>Applicants, Search</td>
+<td>신청자·스피드업 확인</td>
+</tr>
+<tr>
+<td>3. 마감</td>
+<td>없음</td>
+<td>Close reservations</td>
+<td><code translate="no">reservation_open = false</code></td>
+</tr>
+<tr>
+<td>4. 검증</td>
+<td>없음</td>
+<td>Search, Export</td>
+<td>스피드업 실제 수치 대조·수정</td>
+</tr>
+<tr>
+<td>5. 배정</td>
+<td>없음 → 설정됨</td>
+<td><strong>Run full assignment</strong></td>
+<td>mon → tue → thu MCMF 일괄 배정</td>
+</tr>
+<tr>
+<td>6. 공지</td>
+<td>있음</td>
+<td><code translate="no">/status</code></td>
+<td>링크 공유</td>
+</tr>
+<tr>
+<td>7. 사후 조정</td>
+<td>있음</td>
+<td>Grid Cancel, Waitlist</td>
+<td>취소·승격·재신청 유도</td>
+</tr>
+<tr>
+<td>8. 사이클 종료</td>
+<td>—</td>
+<td>Reset cycle (<code translate="no">RESET</code>)</td>
+<td><code translate="no">archived_*</code> 백업 후 cycle_id +1</td>
+</tr>
+</tbody></table>
+<h4>배정 후 취소·승격</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>상황</th>
+<th>Admin 동작</th>
+<th>알고리즘/DB</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>배정된 슬롯 취소</td>
+<td>Grid <strong>Cancel</strong></td>
+<td><code translate="no">status = cancelled</code>, 해당 요일 <code translate="no">preferences</code> 삭제</td>
+</tr>
+<tr>
+<td>2</td>
+<td>같은 블록 대기자 있음</td>
+<td>(자동)</td>
+<td><code translate="no">promoteOnCancel</code> → <code translate="no">eliminated</code> 1명 <code translate="no">assigned</code> 승격</td>
+</tr>
+<tr>
+<td>3</td>
+<td>대기자 없음</td>
+<td>Cancel만</td>
+<td>빈 슬롯 유지 (<code translate="no">healEliminated</code> / backfill)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>취소된 플레이어 재신청</td>
+<td>플레이어 <code translate="no">/r/[token]</code></td>
+<td><code translate="no">clearCancelledDayReservations</code> 후 preferences 재생성 가능</td>
+</tr>
+<tr>
+<td>5</td>
+<td>배정 <strong>재실행</strong></td>
+<td>Run full assignment 다시</td>
+<td>해당 요일 배정 전부 삭제 후 MCMF 재계산</td>
+</tr>
+</tbody></table>
+<h4>배정 검증 (<code translate="no">verify:assignment</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>코드</th>
+<th>심각도</th>
+<th>의미</th>
+<th>MCMF 도입 후</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V1</td>
+<td>경고</td>
+<td>빈 슬롯 + 대기자 동시 존재</td>
+<td><strong>0건 목표</strong> (Hopcroft-Karp 시 발생)</td>
+</tr>
+<tr>
+<td>V2</td>
+<td>에러</td>
+<td>같은 요일 중복 배정</td>
+<td>항상 0이어야 함</td>
+</tr>
+<tr>
+<td>V3</td>
+<td>에러</td>
+<td>비활성 슬롯 배정</td>
+<td>항상 0이어야 함</td>
+</tr>
+<tr>
+<td>V4</td>
+<td>경고</td>
+<td>스피드업 역전</td>
+<td><strong>0건 목표</strong></td>
+</tr>
+<tr>
+<td>V5</td>
+<td>에러</td>
+<td>preferences 없는 배정</td>
+<td>항상 0이어야 함</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. 페이지·URL</h2>
+<table>
+<thead>
+<tr>
+<th>경로</th>
+<th>접근</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">/r/[token]</code></td>
+<td>비밀 토큰 일치 시</td>
+<td>다단계 신청 폼 (정보 → 월 → 화 → 목)</td>
+</tr>
+<tr>
+<td><code translate="no">/r/[token]/check</code></td>
+<td>동일 토큰</td>
+<td>Game ID로 신청·배정·대기 상태 조회</td>
+</tr>
+<tr>
+<td><code translate="no">/status</code></td>
+<td>공개</td>
+<td>실시간 스케줄·대기열 (배정 전/후 문구 분기)</td>
+</tr>
+<tr>
+<td><code translate="no">/admin</code></td>
+<td>로그인 후</td>
+<td>URL·마감·배정·검색·그리드·Reset</td>
+</tr>
+<tr>
+<td><code translate="no">/admin/login</code></td>
+<td>—</td>
+<td>비밀번호 로그인</td>
+</tr>
+<tr>
+<td><code translate="no">/admin/setup</code></td>
+<td>최초 1회</td>
+<td>관리자 비밀번호 해시 저장</td>
+</tr>
+</tbody></table>
+<p><strong>API (관리자 세션 필요)</strong></p>
+<table>
+<thead>
+<tr>
+<th>메서드</th>
+<th>경로</th>
+<th>body</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code translate="no">/api/admin/login</code></td>
+<td><code translate="no">{ password }</code></td>
+<td>세션 생성</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code translate="no">/api/admin/action</code></td>
+<td><code translate="no">{ action: &quot;run_batch_assignment&quot; }</code></td>
+<td>버튼과 동일한 일괄 배정</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code translate="no">/api/admin/assignment-preview</code></td>
+<td>—</td>
+<td>신청자 수·마지막 배정 시각</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5. 데이터 모델</h2>
+<h3>테이블 구조</h3>
+<pre class="mermaid" translate="no">erDiagram
+  players ||--o{ preferences : submits
+  players ||--o{ reservations : has
+  slots ||--o{ reservations : fills
+  players ||--o{ archived_players : "archived on reset"
+
+  players {
+    integer game_id PK
+    text name
+    text alliance
+    integer speedup_mon
+    integer speedup_tue
+    integer speedup_thu
+  }
+  preferences {
+    integer player_id FK
+    text day_of_week
+    integer block_start_utc
+    integer cycle_id
+  }
+  reservations {
+    integer player_id FK
+    integer slot_id FK
+    text status
+    integer cycle_id
+  }
+  slots {
+    integer id PK
+    text day
+    integer block_start_utc
+    integer slot_index
+    boolean active
+  }
+</pre>
+<h3><code translate="no">reservations.status</code> 값</h3>
+<table>
+<thead>
+<tr>
+<th>status</th>
+<th>slot_id</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">assigned</code></td>
+<td>슬롯 ID</td>
+<td>해당 30분 슬롯 배정 완료</td>
+</tr>
+<tr>
+<td><code translate="no">eliminated</code></td>
+<td><code translate="no">NULL</code></td>
+<td>그 요일 슬롯 없음 (대기열)</td>
+</tr>
+<tr>
+<td><code translate="no">cancelled</code></td>
+<td>(기존 슬롯)</td>
+<td>Admin 취소 — 해당 요일 <code translate="no">preferences</code> 삭제 후 재신청 가능</td>
+</tr>
+</tbody></table>
+<h3>아카이브 테이블</h3>
+<p>Reset cycle 실행 시 삭제 전 현재 사이클 데이터를 백업합니다.</p>
+<table>
+<thead>
+<tr>
+<th>테이블</th>
+<th>백업 원본</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">archived_players</code></td>
+<td><code translate="no">players</code></td>
+</tr>
+<tr>
+<td><code translate="no">archived_preferences</code></td>
+<td><code translate="no">preferences</code></td>
+</tr>
+<tr>
+<td><code translate="no">archived_reservations</code></td>
+<td><code translate="no">reservations</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>6. 시간·슬롯 구조 (UTC)</h2>
+<h3>요일·관직 대응</h3>
+<table>
+<thead>
+<tr>
+<th>요일</th>
+<th>관직</th>
+<th>스피드업 필드</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>월요일</td>
+<td>VP</td>
+<td><code translate="no">speedup_mon</code></td>
+</tr>
+<tr>
+<td>화요일</td>
+<td>VP</td>
+<td><code translate="no">speedup_tue</code></td>
+</tr>
+<tr>
+<td>목요일</td>
+<td>MO</td>
+<td><code translate="no">speedup_thu</code></td>
+</tr>
+</tbody></table>
+<p>수·금·토·일은 시스템에 없습니다.</p>
+<h3>블록·슬롯 구조</h3>
+<pre><code translate="no">하루 (UTC)
+├── 블록 0  (00:00~02:00)  ── 슬롯 0~3 (각 30분)
+├── 블록 2  (02:00~04:00)  ── 슬롯 0~3
+├── ...
+└── 블록 22 (22:00~24:00)  ── 슬롯 0~3
+
+총 12블록 × 4슬롯 = 48슬롯 / 일
+</code></pre>
+<hr>
+<h2>7. 플레이어 신청 흐름</h2>
+<h3>신청 단계</h3>
+<pre class="mermaid" translate="no">flowchart LR
+  A[Your info\nGame ID / 이름 / 연맹] --> B[Monday\n스피드업 + 선호 블록]
+  B --> C[Tuesday\n스피드업 + 선호 블록]
+  C --> D[Thursday\n스피드업 + 선호 블록]
+  D --> E[Submit\n확인 다이얼로그]
+  E --> F[(preferences upsert\nreservations insert 없음)]
+</pre>
+<h3>서버 처리 규칙</h3>
+<table>
+<thead>
+<tr>
+<th>조건</th>
+<th>결과</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">reservation_open = false</code></td>
+<td>거부</td>
+</tr>
+<tr>
+<td>같은 사이클·같은 요일에 <code translate="no">preferences</code> 이미 존재</td>
+<td>거부 (<code translate="no">DUPLICATE_DAY_MESSAGE</code>)</td>
+</tr>
+<tr>
+<td>정상</td>
+<td><code translate="no">players</code> upsert + <code translate="no">preferences</code> upsert</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>성공 메시지: <em>&quot;Your application has been received. Assignment results will be announced after the booking window closes.&quot;</em></p>
+</blockquote>
+<h3>중복 방지 기준</h3>
+<p><code translate="no">game_id + cycle_id + day_of_week</code> 조합으로 중복을 판단합니다. 다른 <code translate="no">game_id</code>로의 신청은 허용됩니다.</p>
+<h3>본인 조회 (<code translate="no">/r/[token]/check</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>시점</th>
+<th>상태 표시</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>배정 실행 전</td>
+<td><strong>Application received</strong></td>
+</tr>
+<tr>
+<td>배정 후 — 슬롯 있음</td>
+<td><strong>Assigned</strong> + 시간</td>
+</tr>
+<tr>
+<td>배정 후 — 슬롯 없음</td>
+<td><strong>On waitlist</strong> + 선호 블록</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>8. 일괄 배정 알고리즘</h2>
+<p>진입점: <code translate="no">runBatchAssignmentForCycle</code> → 요일별 <code translate="no">runBatchAssignment</code> (순서: <strong>mon → tue → thu</strong>)</p>
+<h3>처리 흐름</h3>
+<pre class="mermaid" translate="no">flowchart TD
+  P[preferences 로드] --> E[블록별 Top-N 자격 계산\ncomputeEligibleByBlock]
+  E --> G[MCMF 네트워크 그래프 생성]
+  G --> H[SPFA 기반 MCMF 실행]
+  H --> A[assigned insert]
+  H --> W[eliminated insert]
+  A --> Z[last_assignment_run 갱신]
+  W --> Z
+</pre>
+<h3>블록별 자격 (Top-N)</h3>
+<p>각 2시간 블록마다, 해당 블록을 선호에 넣은 신청자를 아래 기준으로 정렬합니다.</p>
+<ol>
+<li>스피드업 내림차순</li>
+<li>신청 시각(<code translate="no">appliedAt</code>) 오름차순</li>
+<li><code translate="no">player_id</code> 오름차순 (동률 타이브레이커)</li>
+</ol>
+<p>상위 N명만 자격 부여 (N = 해당 블록의 활성 슬롯 수, 최대 4). 한 플레이어가 여러 블록의 Top-N 정원을 중복 점유하지 않도록 제한됩니다.</p>
+<h3>MCMF 네트워크 모델</h3>
+<pre><code translate="no">Source
+  └── 플레이어 노드 (용량: 1, 비용: 0)
+        ├── Top-N 통과 슬롯 노드 (용량: 1, 비용: R)
+        └── Top-N 미달 슬롯 노드 (용량: 1, 비용: R + 1,000,000)
+              └── Sink (용량: 1, 비용: 0)
+
+R = 스피드업 전체 통합 순위 (1위=1, 2위=2, ...)
+</code></pre>
+<ul>
+<li>알고리즘: SPFA(Shortest Path Faster Algorithm) 기반 MCMF</li>
+<li>목표: 최대 배정 수(Max Flow) 확보 + 스피드업 높은 인원 우선(Min Cost)</li>
+</ul>
+<blockquote>
+<p><strong>알고리즘 교체 배경:</strong> 이전 Hopcroft-Karp 방식은 2-Phase 구조로 인해 빈 슬롯 + 대기자 동시 존재(V1), 스피드업 역전(V4) 문제가 발생했습니다. MCMF는 비용 함수로 우선순위를 인코딩해 단일 Pass로 두 문제를 동시에 해결합니다.</p>
+</blockquote>
+<p><strong>재실행:</strong> 같은 사이클에서 다시 실행하면 해당 요일 배정이 전부 삭제 후 재계산됩니다.</p>
+<hr>
+<h2>9. 배정 후 동작 (취소·승격) 및 배정 전 삭제</h2>
+<h3>배정 전: 요일별 신청 삭제</h3>
+<pre class="mermaid" translate="no">flowchart LR
+  A[Admin: Search → Delete mon/tue/thu 버튼] --> B[preferences 해당 요일 삭제]
+  B --> C[검색 결과 새로고침]
+</pre>
+<ul>
+<li><strong>표시 조건:</strong> <code translate="no">last_assignment_run</code>이 없는 경우(배정 전)에만 검색 결과에 Delete 버튼 표시</li>
+<li>배정 후에는 버튼이 자동으로 숨겨짐</li>
+<li><code translate="no">players</code> 테이블은 건드리지 않음 — <code translate="no">preferences</code>만 삭제</li>
+<li>서버 액션: <code translate="no">deletePreferenceByDay(player_id, day_of_week, cycle_id)</code></li>
+<li>확인 다이얼로그 → 로딩 스피너 → 완료 토스트 알림</li>
+</ul>
+<h3>배정 후: Admin 슬롯 취소</h3>
+<pre class="mermaid" translate="no">flowchart LR
+  A[Admin: Cancel 버튼] --> B[reservations.status = cancelled]
+  B --> C[해당 요일 preferences 삭제]
+  C --> D[promoteOnCancel 실행]
+  D --> E{대기자 있음?}
+  E -->|있음| F[eliminated 1명 → assigned 승격]
+  E -->|없음| G[슬롯 공석 유지]
+  F --> H[healEliminatedReservations\nbackfillEmptySlotsForDay]
+</pre>
+<ul>
+<li>취소 후 해당 플레이어는 재신청 가능</li>
+<li>Admin UI에 완료 토스트 알림 표시</li>
+</ul>
+<h3>대기자 승격 (<code translate="no">promoteOnCancel</code>)</h3>
+<p>해당 블록 선호가 있는 <code translate="no">eliminated</code> 중, 같은 요일 미배정자만 대상으로 블록별 Top-N 자격 기준을 동일하게 적용해 1명을 승격합니다.</p>
+<hr>
+<h2>10. 관리자(Admin) 기능</h2>
+<p>로그인: bcrypt 해시(<code translate="no">settings.admin_password_hash</code>) + iron-session 쿠키</p>
+<table>
+<thead>
+<tr>
+<th>기능</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Secret URL</td>
+<td><code translate="no">access_token</code> 표시·복사·재발급 (재발급 시 기존 <code translate="no">/r/...</code> 무효)</td>
+</tr>
+<tr>
+<td>Open / Close reservations</td>
+<td><code translate="no">reservation_open</code> 토글</td>
+</tr>
+<tr>
+<td>Export Excel</td>
+<td>사이클별 시트(요일별 등)</td>
+</tr>
+<tr>
+<td><strong>Run full assignment</strong></td>
+<td><code translate="no">runFullBatchAssignment</code> — Search Reservations 위 노란 패널</td>
+</tr>
+<tr>
+<td>Reset cycle</td>
+<td><code translate="no">RESET</code> 입력 → players·preferences·reservations를 아카이브 후 삭제, <code translate="no">current_cycle_id</code> +1</td>
+</tr>
+<tr>
+<td>Search</td>
+<td>배정 전: 신청자 검색 (요일별 Delete 버튼 포함) / 배정 후: 예약·대기 검색</td>
+</tr>
+<tr>
+<td>Delete application per day</td>
+<td>배정 전만 — 검색 결과에서 플레이어의 특정 요일 신청(<code translate="no">preferences</code>) 삭제</td>
+</tr>
+<tr>
+<td>Applicants</td>
+<td>배정 전만 — <code translate="no">preferences</code> 기반 신청자 목록</td>
+</tr>
+<tr>
+<td>Schedule Grid</td>
+<td>배정 후만 — UTC 그리드·슬롯별 Cancel</td>
+</tr>
+<tr>
+<td>Waitlist</td>
+<td>배정 후만 — 해당 요일 <code translate="no">eliminated</code> + 선호 블록</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. 공개 현황 (/status)</h2>
+<ul>
+<li>익명(anon) 읽기 + Supabase Realtime으로 <code translate="no">reservations</code> 변경 구독</li>
+<li><code translate="no">last_assignment_run</code> 없음 → &quot;배정 미공개&quot; 안내, 그리드 비어 있음</li>
+<li>배정 후 → <code translate="no">assigned</code> 슬롯 표시 + Waitlist(VP/MO)</li>
+<li>마감 배너: <code translate="no">reservation_open === false</code></li>
+</ul>
+<hr>
+<h2>12. 사이클(Cycle)</h2>
+<ul>
+<li><code translate="no">settings.current_cycle_id</code> (정수, 기본 1)</li>
+<li>모든 <code translate="no">preferences</code> / <code translate="no">reservations</code>는 <code translate="no">cycle_id</code>로 구분</li>
+<li><strong>Reset cycle</strong> 실행 시 삭제 전 <code translate="no">archived_*</code> 테이블에 백업 후 ID만 증가</li>
+</ul>
+<hr>
+<h2>13. 설정(settings) 키</h2>
+<table>
+<thead>
+<tr>
+<th>key</th>
+<th>용도</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">access_token</code></td>
+<td><code translate="no">/r/[token]</code> 비밀 문자열</td>
+</tr>
+<tr>
+<td><code translate="no">admin_password_hash</code></td>
+<td>Admin bcrypt 해시</td>
+</tr>
+<tr>
+<td><code translate="no">current_cycle_id</code></td>
+<td>현재 사이클 번호</td>
+</tr>
+<tr>
+<td><code translate="no">reservation_open</code></td>
+<td><code translate="no">&quot;true&quot;</code> / <code translate="no">&quot;false&quot;</code></td>
+</tr>
+<tr>
+<td><code translate="no">last_assignment_run</code></td>
+<td>ISO 시각, 일괄 배정 완료 시각</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>14. 보안·접근 제어</h2>
+<table>
+<thead>
+<tr>
+<th>계층</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>RLS</td>
+<td>anon은 SELECT만 (<code translate="no">players</code>, <code translate="no">slots</code>, <code translate="no">reservations</code>, <code translate="no">preferences</code>, <code translate="no">reservation_open</code>)</td>
+</tr>
+<tr>
+<td>쓰기</td>
+<td>Server Actions / API는 service role (<code translate="no">createServiceClient</code>)</td>
+</tr>
+<tr>
+<td>Admin</td>
+<td>세션 없으면 <code translate="no">requireAdmin()</code> 실패</td>
+</tr>
+<tr>
+<td>토큰 URL</td>
+<td>middleware + 서버에서 token 검증</td>
+</tr>
+</tbody></table>
+<p><code translate="no">.env.local</code>의 <code translate="no">SUPABASE_SERVICE_ROLE_KEY</code>는 서버 전용, 클라이언트에 노출 금지.</p>
+<hr>
+<h2>15. 개발·테스트용 스크립트</h2>
+<p><strong>개발 도구</strong></p>
+<table>
+<thead>
+<tr>
+<th>npm script</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">inject:random -- N</code></td>
+<td>N명 무작위 신청 주입 (기본 120, preferences만)</td>
+</tr>
+<tr>
+<td><code translate="no">inject:test</code></td>
+<td>실제 테스트 데이터 주입</td>
+</tr>
+<tr>
+<td><code translate="no">clear:assignments</code></td>
+<td>현재 사이클 배정 결과만 삭제</td>
+</tr>
+<tr>
+<td><code translate="no">seed:stress</code></td>
+<td>clear + 120명 주입</td>
+</tr>
+</tbody></table>
+<p><strong>배정 실행 및 검증</strong></p>
+<table>
+<thead>
+<tr>
+<th>npm script</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">run:batch</code></td>
+<td>Admin 버튼과 동일한 배정 실행</td>
+</tr>
+<tr>
+<td><code translate="no">verify:assignment</code></td>
+<td>배정 결과 검증 (V1~V5) — 에러 시 exit(1)</td>
+</tr>
+<tr>
+<td><code translate="no">audit:reservations</code></td>
+<td>사이클 전체 감사</td>
+</tr>
+<tr>
+<td><code translate="no">validate:assignment</code></td>
+<td>배정 유효성 검사</td>
+</tr>
+</tbody></table>
+<p><strong>유지보수</strong></p>
+<table>
+<thead>
+<tr>
+<th>npm script</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">recover:waitlist</code></td>
+<td>대기열 복구</td>
+</tr>
+<tr>
+<td><code translate="no">backfill:slots</code></td>
+<td>빈 슬롯 백필</td>
+</tr>
+<tr>
+<td><code translate="no">reconcile:waitlist</code></td>
+<td>eliminated 정합성 정리</td>
+</tr>
+<tr>
+<td><code translate="no">purge:orphans</code></td>
+<td>preferences 없는 고아 players 삭제</td>
+</tr>
+</tbody></table>
+<h3><code translate="no">verify:assignment</code> 검증 항목</h3>
+<table>
+<thead>
+<tr>
+<th>코드</th>
+<th>심각도</th>
+<th>검증 내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V1</td>
+<td>경고</td>
+<td>빈 슬롯 + 대기자 동시 존재</td>
+</tr>
+<tr>
+<td>V2</td>
+<td>에러</td>
+<td>한 플레이어가 같은 요일 중복 배정</td>
+</tr>
+<tr>
+<td>V3</td>
+<td>에러</td>
+<td>비활성 슬롯에 배정됨</td>
+</tr>
+<tr>
+<td>V4</td>
+<td>경고</td>
+<td>스피드업 역전 (낮은 순위가 더 좋은 슬롯 배정)</td>
+</tr>
+<tr>
+<td>V5</td>
+<td>에러</td>
+<td>preferences 없는 배정</td>
+</tr>
+</tbody></table>
+<p>에러 1건 이상이면 <code translate="no">process.exit(1)</code>으로 종료됩니다.</p>
+<details>
+<summary>로컬 배정 테스트 플로우</summary>
+
+<pre><code class="language-bash">npm run inject:random -- 10
+npm run run:batch
+npm run verify:assignment
+</code></pre>
+</details>
+
+<hr>
+<h2>16. 관련 소스 파일</h2>
+<table>
+<thead>
+<tr>
+<th>영역</th>
+<th>파일</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>배정·MCMF</td>
+<td><code translate="no">lib/assignment.ts</code></td>
+</tr>
+<tr>
+<td>중복·메시지</td>
+<td><code translate="no">lib/reservation-guard.ts</code></td>
+</tr>
+<tr>
+<td>요일·블록 상수</td>
+<td><code translate="no">lib/types.ts</code></td>
+</tr>
+<tr>
+<td>UTC 포맷</td>
+<td><code translate="no">lib/utils.ts</code></td>
+</tr>
+<tr>
+<td>Admin UI</td>
+<td><code translate="no">app/admin/AdminDashboard.tsx</code>, <code translate="no">app/admin/actions.ts</code></td>
+</tr>
+<tr>
+<td>신청·조회</td>
+<td><code translate="no">app/r/[token]/ReservationForm.tsx</code>, <code translate="no">app/r/[token]/actions.ts</code></td>
+</tr>
+<tr>
+<td>공개 현황</td>
+<td><code translate="no">app/status/StatusView.tsx</code>, <code translate="no">app/status/page.tsx</code></td>
+</tr>
+<tr>
+<td>배정 검증</td>
+<td><code translate="no">scripts/verify/verify-assignment.ts</code></td>
+</tr>
+<tr>
+<td>감사·유효성</td>
+<td><code translate="no">scripts/verify/audit-reservations.ts</code>, <code translate="no">scripts/verify/validate-assignment.ts</code></td>
+</tr>
+<tr>
+<td>유지보수</td>
+<td><code translate="no">scripts/maintenance/</code></td>
+</tr>
+<tr>
+<td>개발 도구</td>
+<td><code translate="no">scripts/dev/</code></td>
+</tr>
+<tr>
+<td>운영 설정</td>
+<td><code translate="no">scripts/admin/</code></td>
+</tr>
+<tr>
+<td>Apps Script</td>
+<td><code translate="no">scripts/appscript/onFormSubmit.gs</code></td>
+</tr>
+<tr>
+<td>스키마</td>
+<td><code translate="no">supabase/schema.sql</code></td>
+</tr>
+<tr>
+<td>마이그레이션</td>
+<td><code translate="no">supabase/migrations/</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>17. 구글 폼 연동 (Apps Script 파이프라인)</h2>
+<p>Vercel 콜드스타트 우회 및 신청 편의성 향상을 위해 구글 폼 신청 경로를 병행 운영합니다.</p>
+<h3>전체 구조</h3>
+<pre class="mermaid" translate="no">flowchart LR
+  GF[구글 폼 제출] --> AS[Apps Script\nonFormSubmit]
+  AS --> SB[(Supabase\nplayers / preferences)]
+  RL[시크릿 링크 /r/token] --> SA[Server Action]
+  SA --> SB
+  SB --> BA[배정 알고리즘]
+</pre>
+<p>두 경로 모두 동일한 <code translate="no">players</code> / <code translate="no">preferences</code> 테이블에 씁니다.</p>
+<h3>구글 폼 항목 구성</h3>
+<table>
+<thead>
+<tr>
+<th>row 인덱스</th>
+<th>항목명</th>
+<th>유형</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code translate="no">row[0]</code></td>
+<td>타임스탬프</td>
+<td>자동</td>
+</tr>
+<tr>
+<td><code translate="no">row[1]</code></td>
+<td>이메일 주소</td>
+<td>자동 수집 (응답 수정 기능용)</td>
+</tr>
+<tr>
+<td><code translate="no">row[2]</code></td>
+<td>Game ID</td>
+<td>단답형 — 정수 유효성 검사</td>
+</tr>
+<tr>
+<td><code translate="no">row[3]</code></td>
+<td>Game Name</td>
+<td>단답형</td>
+</tr>
+<tr>
+<td><code translate="no">row[4]</code></td>
+<td>Alliance</td>
+<td>단답형</td>
+</tr>
+<tr>
+<td><code translate="no">row[5]</code></td>
+<td>Monday Speedups (days)</td>
+<td>단답형 — 정수 유효성 검사</td>
+</tr>
+<tr>
+<td><code translate="no">row[6]</code></td>
+<td>Preferred time on Monday</td>
+<td>체크박스</td>
+</tr>
+<tr>
+<td><code translate="no">row[7]</code></td>
+<td>Tuesday Speedups (days)</td>
+<td>단답형 — 정수 유효성 검사</td>
+</tr>
+<tr>
+<td><code translate="no">row[8]</code></td>
+<td>Preferred time on Tuesday</td>
+<td>체크박스</td>
+</tr>
+<tr>
+<td><code translate="no">row[9]</code></td>
+<td>Thursday Speedups (days)</td>
+<td>단답형 — 정수 유효성 검사</td>
+</tr>
+<tr>
+<td><code translate="no">row[10]</code></td>
+<td>Preferred time on Thursday</td>
+<td>체크박스</td>
+</tr>
+</tbody></table>
+<p>체크박스 블록 옵션 (세 요일 동일):</p>
+<pre><code translate="no">0  (00:00~02:00 UTC)      12 (12:00~14:00 UTC)
+2  (02:00~04:00 UTC)      14 (14:00~16:00 UTC)
+4  (04:00~06:00 UTC)      16 (16:00~18:00 UTC)
+6  (06:00~08:00 UTC)      18 (18:00~20:00 UTC)
+8  (08:00~10:00 UTC)      20 (20:00~22:00 UTC)
+10 (10:00~12:00 UTC)      22 (22:00~24:00 UTC)
+</code></pre>
+<h3>폼 설정</h3>
+<ol>
+<li><a href="https://forms.google.com">Google Forms</a>에서 새 폼 생성</li>
+<li>폼 설정(톱니바퀴) → <strong>응답</strong> 탭:<ul>
+<li>이메일 주소 수집: <strong>켜기</strong> (응답 수정 기능을 위해 반드시 켜기)</li>
+<li>응답 횟수 1회로 제한: <strong>켜기</strong></li>
+<li>응답 수정 허용: <strong>켜기</strong></li>
+</ul>
+</li>
+<li>폼 완성 후 응답 탭 → 스프레드시트 아이콘 → <strong>새 스프레드시트 만들기</strong></li>
+</ol>
+<h3>Apps Script 설정</h3>
+<ol>
+<li>연결된 구글 시트 → <strong>확장 프로그램 → Apps Script</strong></li>
+<li>기존 코드 전체 삭제 후 <a href="../scripts/appscript/onFormSubmit.gs"><code translate="no">scripts/appscript/onFormSubmit.gs</code></a> 내용 붙여넣기</li>
+<li>Vercel 환경 변수에 <code translate="no">GOOGLE_FORM_WEBHOOK_SECRET</code>(임의의 긴 문자열) 추가 후 재배포</li>
+<li><strong>프로젝트 설정 → 스크립트 속성</strong> (소스 코드에 넣지 말 것):<ul>
+<li><code translate="no">WEBHOOK_SECRET</code> = Vercel의 <code translate="no">GOOGLE_FORM_WEBHOOK_SECRET</code>과 <strong>동일한 값</strong></li>
+<li>(선택) <code translate="no">WEBHOOK_URL</code> = <code translate="no">https://wos1234.vercel.app/api/google-form-submit</code> — 기본값과 다를 때만</li>
+</ul>
+</li>
+<li>에디터에서 <code translate="no">testWebhookConnection</code> 실행 → <code translate="no">OK — webhook reachable</code> 확인</li>
+<li>트리거 설정:<ul>
+<li>왼쪽 메뉴 시계 아이콘(트리거) → <strong>트리거 추가</strong></li>
+<li>실행할 함수: <code translate="no">onFormSubmit</code></li>
+<li>이벤트 소스: <strong>스프레드시트에서</strong></li>
+<li>이벤트 유형: <strong>양식 제출 시</strong></li>
+</ul>
+</li>
+<li>테스트 제출 후 Supabase <code translate="no">players</code>, <code translate="no">preferences</code> 테이블에 데이터 확인</li>
+</ol>
+<blockquote>
+<p><strong>왜 Supabase 키를 Apps Script에 넣지 않나요?</strong><br>Supabase <code translate="no">sb_secret_</code> 키는 Google Apps Script의 User-Agent(<code translate="no">Mozilla/5.0 (compatible; Google-Apps-Script)</code>)를 브라우저로 간주해 401을 반환합니다. Apps Script는 User-Agent를 바꿀 수 없으므로, Vercel API가 서버에서 Supabase를 호출합니다.</p>
+</blockquote>
+<h3>중복 방지 동작</h3>
+<table>
+<thead>
+<tr>
+<th>경로</th>
+<th>1차</th>
+<th>2차</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>구글 폼</td>
+<td>폼 응답 1회 제한 (구글 계정 기준)</td>
+<td>Apps Script: <code translate="no">game_id + cycle_id + day_of_week</code></td>
+</tr>
+<tr>
+<td>시크릿 링크</td>
+<td><code translate="no">game_id + cycle_id + day_of_week</code></td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p>같은 <code translate="no">game_id</code>로 두 경로에서 같은 요일을 신청하면 두 번째 시도는 무시됩니다.</p>
+<h3>주의 사항</h3>
+<ul>
+<li><code translate="no">WEBHOOK_SECRET</code>은 Apps Script 스크립트 속성에만 보관하고, GitHub·채팅 등에 <strong>절대 공유하지 마세요.</strong> 유출 시 Vercel에서 <code translate="no">GOOGLE_FORM_WEBHOOK_SECRET</code>을 재발급하세요.</li>
+<li>Supabase <code translate="no">service_role</code> 키는 <strong>Vercel 환경 변수에만</strong> 두세요. Apps Script에는 넣지 않습니다.</li>
+</ul>
+<hr>
+<h2>18. 부록: 구버전과의 차이</h2>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>구버전</th>
+<th>현재</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>신청 시 동작</td>
+<td>즉시 <code translate="no">assignToBlock</code> 등으로 슬롯 배정</td>
+<td><code translate="no">preferences</code>만 저장</td>
+</tr>
+<tr>
+<td>배정 방식</td>
+<td>신청마다 실시간</td>
+<td>Admin <strong>Run full assignment</strong> 일괄</td>
+</tr>
+<tr>
+<td>대기열 생성</td>
+<td>eliminated 즉시 생성</td>
+<td>일괄 배정 후 <code translate="no">slot_id = null</code> eliminated</td>
+</tr>
+<tr>
+<td>알고리즘</td>
+<td>Hopcroft-Karp</td>
+<td>Min-Cost Max-Flow (MCMF)</td>
+</tr>
+<tr>
+<td>스피드업 필드</td>
+<td><code translate="no">speedup_vp</code>, <code translate="no">speedup_mo</code></td>
+<td><code translate="no">speedup_mon</code>, <code translate="no">speedup_tue</code>, <code translate="no">speedup_thu</code></td>
+</tr>
+<tr>
+<td>중복 체크 기준</td>
+<td>email + game_id 혼용</td>
+<td><code translate="no">game_id + cycle_id + day_of_week</code>만</td>
+</tr>
+<tr>
+<td>Reset 동작</td>
+<td>데이터 소멸</td>
+<td><code translate="no">archived_*</code> 테이블에 백업 후 삭제</td>
+</tr>
+<tr>
+<td>신청 경로</td>
+<td>시크릿 링크만</td>
+<td>시크릿 링크 + 구글 폼 병행</td>
+</tr>
+<tr>
+<td>시간 표시</td>
+<td>UTC/KST 토글</td>
+<td>UTC만</td>
+</tr>
+<tr>
+<td>Cancel 버튼</td>
+<td>즉시 취소</td>
+<td>로딩 스피너 + 완료 토스트 알림</td>
+</tr>
+<tr>
+<td>배정 전 삭제</td>
+<td>불가능</td>
+<td>검색 결과에서 요일별 <code translate="no">preferences</code> 삭제 가능 (배정 전 한정)</td>
+</tr>
+</tbody></table>
+<hr>
+<p><em>문서 기준: 저장소 <code translate="no">main</code> 브랜치 (MCMF 배정 + UTC 전용 UI + 구글 폼 파이프라인)</em></p>
+
+    </article>
+  </div>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "default",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, htmlLabels: true },
+      er: { useMaxWidth: true },
+    });
+  </script>
+</body>
+</html>

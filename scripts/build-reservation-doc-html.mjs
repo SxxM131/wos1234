@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds docs/RESERVATION_SYSTEM_EN.html from RESERVATION_SYSTEM_EN.md
+ * Builds docs/RESERVATION_SYSTEM.html from RESERVATION_SYSTEM.md
  * Mobile-friendly HTML with Mermaid diagram rendering.
  */
 import { readFileSync, writeFileSync } from "fs";
@@ -10,8 +10,8 @@ import { marked } from "marked";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
-const mdPath = resolve(root, "docs/RESERVATION_SYSTEM_EN.md");
-const outPath = resolve(root, "docs/RESERVATION_SYSTEM_EN.html");
+const mdPath = resolve(root, "docs/RESERVATION_SYSTEM.md");
+const outPath = resolve(root, "docs/RESERVATION_SYSTEM.html");
 
 const md = readFileSync(mdPath, "utf8");
 
@@ -20,7 +20,7 @@ const originalCode = renderer.code.bind(renderer);
 renderer.code = function (code, infostring, escaped) {
   const lang = (infostring || "").trim().toLowerCase();
   if (lang === "mermaid") {
-    return `<pre class="mermaid">${code.replace(/</g, "&lt;")}</pre>`;
+    return `<pre class="mermaid" translate="no">${code.replace(/</g, "&lt;")}</pre>`;
   }
   return originalCode(code, infostring, escaped);
 };
@@ -33,26 +33,27 @@ marked.setOptions({
 
 const bodyHtmlRaw = marked.parse(md);
 
-// marked v15 renders ```mermaid as <pre><code class="language-mermaid"> — convert for mermaid.js
-const bodyHtml = bodyHtmlRaw.replace(
-  /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g,
-  (_, code) => {
-    const decoded = code
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&amp;/g, "&")
-      .replace(/&quot;/g, '"');
-    return `<pre class="mermaid">${decoded}</pre>`;
-  }
-);
+const bodyHtml = bodyHtmlRaw
+  .replace(
+    /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g,
+    (_, code) => {
+      const decoded = code
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"');
+      return `<pre class="mermaid" translate="no">${decoded}</pre>`;
+    }
+  )
+  .replace(/<code>/g, '<code translate="no">');
 
 const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#2563eb" />
-  <title>SVS Reservation System — Technical Reference</title>
+  <title>SVS 예약 시스템 — 기술 문서</title>
   <style>
     :root {
       --bg: #f8fafc;
@@ -189,8 +190,8 @@ const html = `<!DOCTYPE html>
 <body>
   <div class="wrap">
     <header class="doc-header">
-      <h1>SVS Reservation System</h1>
-      <p>Technical reference · Generated from RESERVATION_SYSTEM_EN.md</p>
+      <h1>SVS 예약 시스템</h1>
+      <p>기술 문서 · RESERVATION_SYSTEM.md에서 생성</p>
     </header>
     <article id="content">
 ${bodyHtml}

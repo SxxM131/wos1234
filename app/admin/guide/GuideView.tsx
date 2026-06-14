@@ -128,7 +128,7 @@ export function GuideView({
           <iframe
             key="technical-embed"
             src="/admin/guide/mobile?embed=1"
-            title="Technical reference"
+            title="기술 문서"
             className="min-h-[calc(100vh-12rem)] w-full rounded-xl border border-slate-200 bg-white"
           />
           <a
@@ -137,7 +137,7 @@ export function GuideView({
             rel="noopener noreferrer"
             className="text-center text-sm text-blue-600 underline"
           >
-            Open technical reference in new tab
+            새 탭에서 기술 문서 열기
           </a>
         </div>
       ) : (
