@@ -5,7 +5,7 @@ import { EXPORT_SUMMARY_SHEET_NAME } from "./export-grid";
 const HEADER_FILL = { fgColor: { rgb: "C6EFCE" } };
 const HEADER_FONT = { bold: true };
 
-const SLOT_GRID_COLUMN_HEADERS = ["Day", "Block (UTC)", "Slot start (UTC)"];
+const SLOT_GRID_COLUMN_HEADERS = ["Day", "Slot start (UTC)"];
 
 function applyHeaderRowStyle(ws: XLSX.WorkSheet) {
   if (!ws["!ref"]) return;
@@ -39,7 +39,7 @@ function findColumnIndices(ws: XLSX.WorkSheet, headers: string[]): number[] {
   return indices;
 }
 
-/** Day / Block / Slot start data rows share the same green fill as the header. */
+/** Day / Slot start data rows share the same green fill as the header. */
 function applySlotGridColumnStyle(ws: XLSX.WorkSheet) {
   if (!ws["!ref"]) return;
   const range = XLSX.utils.decode_range(ws["!ref"]);

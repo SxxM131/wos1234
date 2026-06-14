@@ -7,7 +7,7 @@ export function exportDayLabel(day: DayOfWeek): string {
 }
 
 export const EXPORT_CSV_HEADER =
-  "Day,Block (UTC),Slot start (UTC),Slot # (1-4),Game ID,Name,Alliance,Speedup (days),Status";
+  "Day,Block (UTC),Slot # (1-4),Slot start (UTC),Game ID,Name,Alliance,Speedup (days),Status";
 
 export interface SlotExportRow {
   day: string;
@@ -97,8 +97,8 @@ export function slotExportRowToCsvCells(
   return [
     escape(row.day),
     escape(row.blockUtc),
-    escape(row.slotStartUtc),
     escape(row.slotNum),
+    escape(row.slotStartUtc),
     escape(row.gameId),
     escape(row.name),
     escape(row.alliance),
@@ -213,8 +213,8 @@ export function slotExportRowToExcelRecord(row: SlotExportRow): Record<string, s
   return {
     Day: row.day,
     "Block (UTC)": row.blockUtc,
-    "Slot start (UTC)": row.slotStartUtc,
     "Slot # (1-4)": row.slotNum,
+    "Slot start (UTC)": row.slotStartUtc,
     "Game ID": row.gameId ? Number(row.gameId) : "",
     Name: row.name,
     Alliance: row.alliance,
