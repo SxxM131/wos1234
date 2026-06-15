@@ -8,7 +8,7 @@ import type { GuideSections, GuideTab } from "@/lib/admin-guide";
 const TABS: { id: GuideTab; label: string }[] = [
   { id: "admin", label: "Admin" },
   { id: "player", label: "Player" },
-  { id: "technical", label: "Technical" },
+  { id: "technical", label: "스택" },
 ];
 
 interface GuideViewProps {
@@ -123,32 +123,13 @@ export function GuideView({
         </div>
       )}
 
-      {sections && activeTab === "technical" ? (
-        <div role="tabpanel" className="flex flex-col gap-2">
-          <iframe
-            key="technical-embed"
-            src="/admin/guide/mobile?embed=1"
-            title="기술 문서"
-            className="min-h-[calc(100vh-12rem)] w-full rounded-xl border border-slate-200 bg-white"
-          />
-          <a
-            href="/admin/guide/mobile"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-center text-sm text-blue-600 underline"
-          >
-            새 탭에서 기술 문서 열기
-          </a>
-        </div>
-      ) : (
-        <article
-          key={sections ? activeTab : "single"}
-          ref={articleRef}
-          role={sections ? "tabpanel" : undefined}
-          className="guide-prose text-slate-800"
-          dangerouslySetInnerHTML={{ __html: activeHtml }}
-        />
-      )}
+      <article
+        key={sections ? activeTab : "single"}
+        ref={articleRef}
+        role={sections ? "tabpanel" : undefined}
+        className="guide-prose text-slate-800"
+        dangerouslySetInnerHTML={{ __html: activeHtml }}
+      />
     </div>
   );
 }

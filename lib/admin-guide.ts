@@ -16,7 +16,9 @@ export interface GuideSections {
 export function rewriteDocLinksForWeb(markdown: string): string {
   return markdown
     .replace(/\]\(RESERVATION_SYSTEM\.html\)/g, "](/admin/guide/mobile)")
+    .replace(/\]\(RESERVATION_SYSTEM_EN\.html\)/g, "](/admin/guide/mobile)")
     .replace(/\]\(RESERVATION_SYSTEM\.md\)/g, "](/admin/guide?tab=technical)")
+    .replace(/\]\(RESERVATION_SYSTEM_EN\.md\)/g, "](/admin/guide?tab=technical)")
     .replace(
       /\]\(\.\.\/README\.md[^)]*\)/g,
       "](https://github.com/SxxM131/wos1234#-%EC%9A%B4%EC%98%81-%EC%8B%9C%EB%82%98%EB%A6%AC%EC%98%A4-%EC%9A%94%EC%95%BD)"
@@ -49,11 +51,15 @@ export function loadGuideSections(): GuideSections {
 
   const { admin, player } = splitOperationalGuide(operational);
 
+  const technical = readFileSync(
+    join(docsDir, "RESERVATION_SYSTEM_EN.md"),
+    "utf8"
+  );
+
   return {
     admin: markdownToHtml(rewriteDocLinksForWeb(admin)),
     player: markdownToHtml(rewriteDocLinksForWeb(player)),
-    // Technical tab uses pre-built Korean HTML via /admin/guide/mobile?embed=1.
-    technical: "",
+    technical: markdownToHtml(rewriteDocLinksForWeb(technical)),
   };
 }
 
