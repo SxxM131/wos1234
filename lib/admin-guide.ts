@@ -52,7 +52,7 @@ export function loadGuideSections(): GuideSections {
   const { admin, player } = splitOperationalGuide(operational);
 
   const technical = readFileSync(
-    join(docsDir, "RESERVATION_SYSTEM_EN.md"),
+    join(docsDir, "RESERVATION_SYSTEM.md"),
     "utf8"
   );
 
