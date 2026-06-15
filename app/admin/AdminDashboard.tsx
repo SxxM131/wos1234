@@ -268,7 +268,7 @@ export function AdminDashboard({
         </div>
       </div>
 
-      {!open && <div className="banner-closed">Reservations closed</div>}
+      {!open && <div className="banner-closed">Secret URL closed</div>}
 
       <div className="card text-sm">
         <p>
@@ -329,7 +329,7 @@ export function AdminDashboard({
             })
           }
         >
-          {open ? "Close reservations" : "Open reservations"}
+          {open ? "Close secret URL" : "Open secret URL"}
         </button>
         <button
           type="button"
@@ -409,7 +409,8 @@ export function AdminDashboard({
           </span>
         </div>
         <p className="mt-2 text-sm text-slate-700">
-          Close reservations and verify speedups first. Assigns all applicants
+          Close the secret URL and verify speedups first. Google Form
+          submissions stay open until you stop the form. Assigns all applicants
           for this cycle (Mon → Tue → Thu). Re-run replaces current assignments.
         </p>
         {assignPreview && (

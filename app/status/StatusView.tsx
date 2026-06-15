@@ -159,7 +159,7 @@ export function StatusView({
   return (
     <div>
       {closed && (
-        <div className="banner-closed mb-4">Reservations closed</div>
+        <div className="banner-closed mb-4">Secret URL applications closed</div>
       )}
 
       {assignmentPending && (

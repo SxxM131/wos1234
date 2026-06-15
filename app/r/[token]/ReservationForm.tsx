@@ -370,7 +370,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   if (!reservationOpen) {
     return (
       <div className="banner-closed py-8 text-base">
-        Reservations are closed
+        Secret URL applications are closed
       </div>
     );
   }

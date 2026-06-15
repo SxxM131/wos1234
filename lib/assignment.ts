@@ -60,15 +60,13 @@ export async function isReservationOpen(
   return data?.value !== "false";
 }
 
+export const SECRET_URL_CLOSED_MESSAGE =
+  "Secret URL applications are currently closed.";
+
 export async function processReservation(
   supabase: SupabaseClient,
   input: SubmitInput
 ): Promise<AssignmentResult> {
-  const open = await isReservationOpen(supabase);
-  if (!open) {
-    return { success: false, message: "Reservations are currently closed." };
-  }
-
   const cycleId = await getCurrentCycleId(supabase);
   const config = DAY_CONFIG[input.dayOfWeek];
   const speedupKey = config.speedupKey;
@@ -192,11 +190,6 @@ export async function processMultiDayReservation(
   alliance: string,
   days: DaySubmit[]
 ): Promise<AssignmentResult> {
-  const open = await isReservationOpen(supabase);
-  if (!open) {
-    return { success: false, message: "Reservations are currently closed." };
-  }
-
   if (days.length === 0) {
     return { success: false, message: "Select at least one day." };
   }

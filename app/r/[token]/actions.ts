@@ -5,6 +5,8 @@ import {
   processMultiDayReservation,
   DaySubmit,
   getLastAssignmentRun,
+  isReservationOpen,
+  SECRET_URL_CLOSED_MESSAGE,
 } from "@/lib/assignment";
 import { DayOfWeek, DAY_CONFIG, ALLIANCE_OPTIONS, isValidAlliance } from "@/lib/types";
 
@@ -60,6 +62,11 @@ export async function submitReservation(formData: FormData) {
   }
 
   const supabase = createServiceClient();
+  const open = await isReservationOpen(supabase);
+  if (!open) {
+    return { success: false, message: SECRET_URL_CLOSED_MESSAGE };
+  }
+
   return processMultiDayReservation(
     supabase,
     gameId,
