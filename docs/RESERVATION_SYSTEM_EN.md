@@ -101,7 +101,7 @@ The tables below summarize **situation-specific responses** from production test
 
 | # | Timing | Application path | Player action | R4+ Admin action | DB change |
 |---|--------|------------------|---------------|------------------|-----------|
-| A | Google Form **edit window open** | Google Form | Use **edit response link** from submission email | — | Apps Script updates `preferences` |
+| A | During application window · **needs to change answers** | `/r/[token]` (from R4) | Contact R4 → re-apply that day via **secret link** | Search → **Delete mon/tue/thu** | `preferences` recreated |
 | B | After form close · **before Run full assignment** | Google Form / `/r/[token]` | Contact R4 | Search → **Delete mon/tue/thu** | Deletes that day's `preferences` |
 | B-2 | After B | `/r/[token]` | Re-apply for that day only | — | `preferences` recreated |
 | C | **After assignment run** | Either | Request cancellation from R4 | Schedule Grid **Cancel** | `cancelled` + `preferences` deleted |
@@ -540,21 +540,49 @@ flowchart LR
 
 Both paths write to the same `players` / `preferences` tables.
 
+### Form description (copy-paste)
+
+Paste into the Google Form description. **Email collection is off** — members cannot edit after submit via the form.
+
+**English**
+
+> Submitting the same Player ID for the same day more than once will only count **once per day**.  
+> Monday, Tuesday, and Thursday can each be applied for separately.  
+> If you play multiple characters, **submit the form once per Player ID**.  
+> You cannot edit your form response after submission. To make changes, use the **secret link** or contact ops (r4).
+
+**한글**
+
+> 동일한 Player ID로 같은 요일을 여러 번 제출해도 **해당 요일은 1회만** 반영됩니다.  
+> 월·화·목은 각각 별도로 신청할 수 있습니다.  
+> 여러 캐릭터를 운영하는 경우 **Player ID마다 폼을 따로 제출**하세요.  
+> 제출 후 내용을 바꿀 수 없습니다. 수정이 필요하면 **시크릿 링크**로 다시 신청하거나 운영진(r4)에게 문의하세요.
+
+**Behavior summary**
+
+| Situation | Result |
+|-----------|--------|
+| Same Player ID + same day + same cycle | **Counted once** (`lib/reservation-guard.ts`) |
+| Same Player ID, different days (Mon/Tue/Thu) | Each day applied separately |
+| **Different Player IDs** (same Google account) | **Each counted** — submit the form once per Player ID |
+| After Google Form submit — need to change | **Not editable** — R4 Delete + secret link re-apply |
+| Same Player ID + same day (any Google account) | Rejected |
+| Same Player ID via Form and secret link, same day | Second channel rejected |
+
 ### Google Form Fields
 
 | row index | Field | Type |
 |-----------|-------|------|
 | `row[0]` | Timestamp | Auto |
-| `row[1]` | Email address | Auto-collected (for edit response feature) |
-| `row[2]` | Player ID | Short answer — integer validation |
-| `row[3]` | Player Name | Short answer |
-| `row[4]` | Alliance | Short answer |
-| `row[5]` | Monday Speedups (days) | Short answer — integer validation |
-| `row[6]` | Preferred time on Monday | Checkboxes |
-| `row[7]` | Tuesday Speedups (days) | Short answer — integer validation |
-| `row[8]` | Preferred time on Tuesday | Checkboxes |
-| `row[9]` | Thursday Speedups (days) | Short answer — integer validation |
-| `row[10]` | Preferred time on Thursday | Checkboxes |
+| `row[1]` | Player ID | Short answer — integer validation |
+| `row[2]` | Player Name | Short answer |
+| `row[3]` | Alliance | Short answer |
+| `row[4]` | Monday Speedups (days) | Short answer — integer validation |
+| `row[5]` | Preferred time on Monday | Checkboxes |
+| `row[6]` | Tuesday Speedups (days) | Short answer — integer validation |
+| `row[7]` | Preferred time on Tuesday | Checkboxes |
+| `row[8]` | Thursday Speedups (days) | Short answer — integer validation |
+| `row[9]` | Preferred time on Thursday | Checkboxes |
 
 Checkbox block options (same for all three days):
 
@@ -571,10 +599,11 @@ Checkbox block options (same for all three days):
 
 1. Create a new form at [Google Forms](https://forms.google.com)
 2. Form settings (gear icon) → **Responses** tab:
-   - Collect email addresses: **On** (required for edit response feature)
-   - Limit to 1 response: **On**
-   - Allow response editing: **On**
+   - Collect email addresses: **Off** (no confirmation email or edit link after submit)
+   - Limit to 1 response: **Off** (one person may submit **multiple Player IDs**)
+   - Allow response editing: ineffective without email collection — **Off recommended**
 3. After building the form: Responses tab → spreadsheet icon → **Create new spreadsheet**
+4. Submit a test response and confirm `row[1]` in the sheet is Player ID (must match `onFormSubmit.gs` indices)
 
 ### Apps Script Setup
 
@@ -597,12 +626,13 @@ Checkbox block options (same for all three days):
 
 ### Duplicate Prevention
 
-| Path | First check | Second check |
-|------|------------|--------------|
-| Google Form | 1 response limit per Google account | Apps Script: `player_id + cycle_id + day_of_week` |
-| Secret link | `player_id + cycle_id + day_of_week` | — |
+| Path | Duplicate check |
+|------|-----------------|
+| Google Form | `player_id + cycle_id + day_of_week` — **multiple submissions per Google account** allowed when **Player IDs differ** |
+| Secret link | `player_id + cycle_id + day_of_week` |
 
-If the same `player_id` submits for the same day via both paths, the second attempt is silently ignored.
+If the same `player_id` applies for the **same day** via both paths, the second attempt is rejected (`DUPLICATE_DAY_MESSAGE`).  
+**Different days** (Mon/Tue/Thu) can each be applied for. **Different Player IDs** may each submit via the same Google account. With email collection **off**, Google Form responses **cannot be edited after submit** — use R4 Delete + **secret link** re-apply.
 
 ### Security Notes
 

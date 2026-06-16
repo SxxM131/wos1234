@@ -101,7 +101,7 @@ flowchart TD
 
 | # | 시점 | 신청 경로 | 플레이어 대응 | R4+ Admin 대응 | DB 변화 |
 |---|------|-----------|---------------|----------------|---------|
-| A | 구글 폼 **응답 수정 허용 기간** | 구글 폼 | 제출 이메일의 **응답 확인·수정 링크** | — | Apps Script가 preferences 재반영 |
+| A | 신청 기간 중 · **내용 수정 필요** | `/r/[token]` (R4 제공) | R4에게 연락 → 시크릿 URL로 해당 요일 재신청 | Search → **Delete mon/tue/thu** | `preferences` 재생성 |
 | B | 폼 마감 후 · **Run full assignment 전** | 구글 폼 / `/r/[token]` | R4에게 연락 | Search → **Delete mon/tue/thu** | 해당 요일 `preferences` 삭제 |
 | B-2 | B 이후 | `/r/[token]` | 시크릿 URL로 **해당 요일만** 재신청 | — | `preferences` 재생성 |
 | C | **배정 실행 후** | 양쪽 | R4에게 취소 요청 | Schedule Grid **Cancel** | `cancelled` + `preferences` 삭제 |
@@ -540,21 +540,49 @@ flowchart LR
 
 두 경로 모두 동일한 `players` / `preferences` 테이블에 씁니다.
 
+### 폼 상단 안내 문구 (복사용)
+
+구글 폼 설명란에 아래 문구를 붙여 넣으세요. **이메일 수집을 끈 설정** 기준이며, 제출 후 구글 폼으로는 수정할 수 없음을 명시합니다.
+
+**한글**
+
+> 동일한 Player ID로 같은 요일을 여러 번 제출해도 **해당 요일은 1회만** 반영됩니다.  
+> 월·화·목은 각각 별도로 신청할 수 있습니다.  
+> 여러 캐릭터를 운영하는 경우 **Player ID마다 폼을 따로 제출**하세요.  
+> 제출 후 내용을 바꿀 수 없습니다. 수정이 필요하면 **시크릿 링크**로 다시 신청하거나 운영진(r4)에게 문의하세요.
+
+**English**
+
+> Submitting the same Player ID for the same day more than once will only count **once per day**.  
+> Monday, Tuesday, and Thursday can each be applied for separately.  
+> If you play multiple characters, **submit the form once per Player ID**.  
+> You cannot edit your form response after submission. To make changes, use the **secret link** or contact ops (r4).
+
+**시스템 동작 요약**
+
+| 상황 | 결과 |
+|------|------|
+| 같은 Player ID + 같은 요일 + 같은 사이클 | **1회만** 반영 (`lib/reservation-guard.ts`) |
+| 같은 Player ID, 요일만 다름 (월/화/목) | 요일마다 각각 반영 |
+| **다른 Player ID** (같은 구글 계정) | **각각 반영** — 폼을 Player ID마다 따로 제출 |
+| 구글 폼 제출 후 수정 | **불가** — R4가 Delete 후 시크릿 링크 재신청 |
+| 같은 Player ID·같은 요일 (구글 계정 무관) | 거부 |
+| 구글 폼 + 시크릿 링크, 동일 Player ID·요일 | 두 번째 채널 거부 |
+
 ### 구글 폼 항목 구성
 
 | row 인덱스 | 항목명 | 유형 |
 |-----------|--------|------|
 | `row[0]` | 타임스탬프 | 자동 |
-| `row[1]` | 이메일 주소 | 자동 수집 (응답 수정 기능용) |
-| `row[2]` | Player ID | 단답형 — 정수 유효성 검사 |
-| `row[3]` | Player Name | 단답형 |
-| `row[4]` | Alliance | 단답형 |
-| `row[5]` | Monday Speedups (days) | 단답형 — 정수 유효성 검사 |
-| `row[6]` | Preferred time on Monday | 체크박스 |
-| `row[7]` | Tuesday Speedups (days) | 단답형 — 정수 유효성 검사 |
-| `row[8]` | Preferred time on Tuesday | 체크박스 |
-| `row[9]` | Thursday Speedups (days) | 단답형 — 정수 유효성 검사 |
-| `row[10]` | Preferred time on Thursday | 체크박스 |
+| `row[1]` | Player ID | 단답형 — 정수 유효성 검사 |
+| `row[2]` | Player Name | 단답형 |
+| `row[3]` | Alliance | 단답형 |
+| `row[4]` | Monday Speedups (days) | 단답형 — 정수 유효성 검사 |
+| `row[5]` | Preferred time on Monday | 체크박스 |
+| `row[6]` | Tuesday Speedups (days) | 단답형 — 정수 유효성 검사 |
+| `row[7]` | Preferred time on Tuesday | 체크박스 |
+| `row[8]` | Thursday Speedups (days) | 단답형 — 정수 유효성 검사 |
+| `row[9]` | Preferred time on Thursday | 체크박스 |
 
 체크박스 블록 옵션 (세 요일 동일):
 
@@ -571,10 +599,11 @@ flowchart LR
 
 1. [Google Forms](https://forms.google.com)에서 새 폼 생성
 2. 폼 설정(톱니바퀴) → **응답** 탭:
-   - 이메일 주소 수집: **켜기** (응답 수정 기능을 위해 반드시 켜기)
-   - 응답 횟수 1회로 제한: **켜기**
-   - 응답 수정 허용: **켜기**
+   - 이메일 주소 수집: **끄기** (이메일을 수집하지 않음 — 제출 후 응답 수정 링크도 발송되지 않음)
+   - 응답 횟수 1회로 제한: **끄기** (한 사람이 **여러 Player ID**로 각각 제출해야 함)
+   - 응답 수정 허용: 이메일 수집이 꺼져 있으면 실질적으로 동작하지 않음 — **끄기 권장**
 3. 폼 완성 후 응답 탭 → 스프레드시트 아이콘 → **새 스프레드시트 만들기**
+4. 테스트 제출 후 시트에서 `row[1]`이 Player ID인지 확인 (`onFormSubmit.gs` 인덱스와 일치해야 함)
 
 ### Apps Script 설정
 
@@ -597,12 +626,13 @@ flowchart LR
 
 ### 중복 방지 동작
 
-| 경로 | 1차 | 2차 |
-|------|-----|-----|
-| 구글 폼 | 폼 응답 1회 제한 (구글 계정 기준) | Apps Script: `player_id + cycle_id + day_of_week` |
-| 시크릿 링크 | `player_id + cycle_id + day_of_week` | — |
+| 경로 | 중복 체크 |
+|------|-----------|
+| 구글 폼 | `player_id + cycle_id + day_of_week` — 구글 계정당 **여러 번** 제출 가능 (**Player ID가 다르면** 각각 반영) |
+| 시크릿 링크 | `player_id + cycle_id + day_of_week` |
 
-같은 `player_id`로 두 경로에서 같은 요일을 신청하면 두 번째 시도는 무시됩니다.
+같은 `player_id`로 두 경로에서 **같은 요일**을 신청하면 두 번째 시도는 거부됩니다 (`DUPLICATE_DAY_MESSAGE`).  
+**요일이 다르면** (월·화·목) 각각 신청할 수 있습니다. **Player ID가 다르면** 같은 구글 계정으로 폼을 여러 번 제출해도 됩니다. 이메일 수집을 끈 구글 폼은 **제출 후 수정 불가** — 변경은 R4가 Delete 후 **시크릿 링크** 재신청으로 처리합니다.
 
 ### 주의 사항
 

@@ -317,11 +317,11 @@ npm run check-env
 </thead>
 <tbody><tr>
 <td>A</td>
-<td>구글 폼 <strong>응답 수정 허용 기간</strong></td>
-<td>구글 폼</td>
-<td>제출 이메일의 <strong>응답 확인·수정 링크</strong></td>
-<td>—</td>
-<td>Apps Script가 preferences 재반영</td>
+<td>신청 기간 중 · <strong>내용 수정 필요</strong></td>
+<td><code translate="no">/r/[token]</code> (R4 제공)</td>
+<td>R4에게 연락 → 시크릿 URL로 해당 요일 재신청</td>
+<td>Search → <strong>Delete mon/tue/thu</strong></td>
+<td><code translate="no">preferences</code> 재생성</td>
 </tr>
 <tr>
 <td>B</td>
@@ -1205,6 +1205,49 @@ npm run verify:assignment
   SB --> BA[배정 알고리즘]
 </pre>
 <p>두 경로 모두 동일한 <code translate="no">players</code> / <code translate="no">preferences</code> 테이블에 씁니다.</p>
+<h3>폼 상단 안내 문구 (복사용)</h3>
+<p>구글 폼 설명란에 아래 문구를 붙여 넣으세요. <strong>이메일 수집을 끈 설정</strong> 기준이며, 제출 후 구글 폼으로는 수정할 수 없음을 명시합니다.</p>
+<p><strong>한글</strong></p>
+<blockquote>
+<p>동일한 Player ID로 같은 요일을 여러 번 제출해도 <strong>해당 요일은 1회만</strong> 반영됩니다.<br>월·화·목은 각각 별도로 신청할 수 있습니다.<br>여러 캐릭터를 운영하는 경우 <strong>Player ID마다 폼을 따로 제출</strong>하세요.<br>제출 후 내용을 바꿀 수 없습니다. 수정이 필요하면 <strong>시크릿 링크</strong>로 다시 신청하거나 운영진(r4)에게 문의하세요.</p>
+</blockquote>
+<p><strong>English</strong></p>
+<blockquote>
+<p>Submitting the same Player ID for the same day more than once will only count <strong>once per day</strong>.<br>Monday, Tuesday, and Thursday can each be applied for separately.<br>If you play multiple characters, <strong>submit the form once per Player ID</strong>.<br>You cannot edit your form response after submission. To make changes, use the <strong>secret link</strong> or contact ops (r4).</p>
+</blockquote>
+<p><strong>시스템 동작 요약</strong></p>
+<table>
+<thead>
+<tr>
+<th>상황</th>
+<th>결과</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>같은 Player ID + 같은 요일 + 같은 사이클</td>
+<td><strong>1회만</strong> 반영 (<code translate="no">lib/reservation-guard.ts</code>)</td>
+</tr>
+<tr>
+<td>같은 Player ID, 요일만 다름 (월/화/목)</td>
+<td>요일마다 각각 반영</td>
+</tr>
+<tr>
+<td><strong>다른 Player ID</strong> (같은 구글 계정)</td>
+<td><strong>각각 반영</strong> — 폼을 Player ID마다 따로 제출</td>
+</tr>
+<tr>
+<td>구글 폼 제출 후 수정</td>
+<td><strong>불가</strong> — R4가 Delete 후 시크릿 링크 재신청</td>
+</tr>
+<tr>
+<td>같은 Player ID·같은 요일 (구글 계정 무관)</td>
+<td>거부</td>
+</tr>
+<tr>
+<td>구글 폼 + 시크릿 링크, 동일 Player ID·요일</td>
+<td>두 번째 채널 거부</td>
+</tr>
+</tbody></table>
 <h3>구글 폼 항목 구성</h3>
 <table>
 <thead>
@@ -1221,51 +1264,46 @@ npm run verify:assignment
 </tr>
 <tr>
 <td><code translate="no">row[1]</code></td>
-<td>이메일 주소</td>
-<td>자동 수집 (응답 수정 기능용)</td>
-</tr>
-<tr>
-<td><code translate="no">row[2]</code></td>
 <td>Player ID</td>
 <td>단답형 — 정수 유효성 검사</td>
 </tr>
 <tr>
-<td><code translate="no">row[3]</code></td>
+<td><code translate="no">row[2]</code></td>
 <td>Player Name</td>
 <td>단답형</td>
 </tr>
 <tr>
-<td><code translate="no">row[4]</code></td>
+<td><code translate="no">row[3]</code></td>
 <td>Alliance</td>
 <td>단답형</td>
 </tr>
 <tr>
-<td><code translate="no">row[5]</code></td>
+<td><code translate="no">row[4]</code></td>
 <td>Monday Speedups (days)</td>
 <td>단답형 — 정수 유효성 검사</td>
 </tr>
 <tr>
-<td><code translate="no">row[6]</code></td>
+<td><code translate="no">row[5]</code></td>
 <td>Preferred time on Monday</td>
 <td>체크박스</td>
 </tr>
 <tr>
-<td><code translate="no">row[7]</code></td>
+<td><code translate="no">row[6]</code></td>
 <td>Tuesday Speedups (days)</td>
 <td>단답형 — 정수 유효성 검사</td>
 </tr>
 <tr>
-<td><code translate="no">row[8]</code></td>
+<td><code translate="no">row[7]</code></td>
 <td>Preferred time on Tuesday</td>
 <td>체크박스</td>
 </tr>
 <tr>
-<td><code translate="no">row[9]</code></td>
+<td><code translate="no">row[8]</code></td>
 <td>Thursday Speedups (days)</td>
 <td>단답형 — 정수 유효성 검사</td>
 </tr>
 <tr>
-<td><code translate="no">row[10]</code></td>
+<td><code translate="no">row[9]</code></td>
 <td>Preferred time on Thursday</td>
 <td>체크박스</td>
 </tr>
@@ -1282,12 +1320,13 @@ npm run verify:assignment
 <ol>
 <li><a href="https://forms.google.com">Google Forms</a>에서 새 폼 생성</li>
 <li>폼 설정(톱니바퀴) → <strong>응답</strong> 탭:<ul>
-<li>이메일 주소 수집: <strong>켜기</strong> (응답 수정 기능을 위해 반드시 켜기)</li>
-<li>응답 횟수 1회로 제한: <strong>켜기</strong></li>
-<li>응답 수정 허용: <strong>켜기</strong></li>
+<li>이메일 주소 수집: <strong>끄기</strong> (이메일을 수집하지 않음 — 제출 후 응답 수정 링크도 발송되지 않음)</li>
+<li>응답 횟수 1회로 제한: <strong>끄기</strong> (한 사람이 <strong>여러 Player ID</strong>로 각각 제출해야 함)</li>
+<li>응답 수정 허용: 이메일 수집이 꺼져 있으면 실질적으로 동작하지 않음 — <strong>끄기 권장</strong></li>
 </ul>
 </li>
 <li>폼 완성 후 응답 탭 → 스프레드시트 아이콘 → <strong>새 스프레드시트 만들기</strong></li>
+<li>테스트 제출 후 시트에서 <code translate="no">row[1]</code>이 Player ID인지 확인 (<code translate="no">onFormSubmit.gs</code> 인덱스와 일치해야 함)</li>
 </ol>
 <h3>Apps Script 설정</h3>
 <ol>
@@ -1317,22 +1356,19 @@ npm run verify:assignment
 <thead>
 <tr>
 <th>경로</th>
-<th>1차</th>
-<th>2차</th>
+<th>중복 체크</th>
 </tr>
 </thead>
 <tbody><tr>
 <td>구글 폼</td>
-<td>폼 응답 1회 제한 (구글 계정 기준)</td>
-<td>Apps Script: <code translate="no">player_id + cycle_id + day_of_week</code></td>
+<td><code translate="no">player_id + cycle_id + day_of_week</code> — 구글 계정당 <strong>여러 번</strong> 제출 가능 (<strong>Player ID가 다르면</strong> 각각 반영)</td>
 </tr>
 <tr>
 <td>시크릿 링크</td>
 <td><code translate="no">player_id + cycle_id + day_of_week</code></td>
-<td>—</td>
 </tr>
 </tbody></table>
-<p>같은 <code translate="no">player_id</code>로 두 경로에서 같은 요일을 신청하면 두 번째 시도는 무시됩니다.</p>
+<p>같은 <code translate="no">player_id</code>로 두 경로에서 <strong>같은 요일</strong>을 신청하면 두 번째 시도는 거부됩니다 (<code translate="no">DUPLICATE_DAY_MESSAGE</code>).<br><strong>요일이 다르면</strong> (월·화·목) 각각 신청할 수 있습니다. <strong>Player ID가 다르면</strong> 같은 구글 계정으로 폼을 여러 번 제출해도 됩니다. 이메일 수집을 끈 구글 폼은 <strong>제출 후 수정 불가</strong> — 변경은 R4가 Delete 후 <strong>시크릿 링크</strong> 재신청으로 처리합니다.</p>
 <h3>주의 사항</h3>
 <ul>
 <li><code translate="no">WEBHOOK_SECRET</code>은 Apps Script 스크립트 속성에만 보관하고, GitHub·채팅 등에 <strong>절대 공유하지 마세요.</strong> 유출 시 Vercel에서 <code translate="no">GOOGLE_FORM_WEBHOOK_SECRET</code>을 재발급하세요.</li>

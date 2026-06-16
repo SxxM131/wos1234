@@ -317,11 +317,11 @@ npm run check-env
 </thead>
 <tbody><tr>
 <td>A</td>
-<td>Google Form <strong>edit window open</strong></td>
-<td>Google Form</td>
-<td>Use <strong>edit response link</strong> from submission email</td>
-<td>—</td>
-<td>Apps Script updates <code>preferences</code></td>
+<td>During application window · <strong>needs to change answers</strong></td>
+<td><code>/r/[token]</code> (from R4)</td>
+<td>Contact R4 → re-apply that day via <strong>secret link</strong></td>
+<td>Search → <strong>Delete mon/tue/thu</strong></td>
+<td><code>preferences</code> recreated</td>
 </tr>
 <tr>
 <td>B</td>
@@ -1205,6 +1205,57 @@ npm run verify:assignment
   SB --> BA[Assignment algorithm]
 </pre>
 <p>Both paths write to the same <code>players</code> / <code>preferences</code> tables.</p>
+<h3>Form description (copy-paste)</h3>
+<p>Paste into the Google Form description. <strong>Email collection is off</strong> — members cannot edit after submit via the form.</p>
+<p><strong>English</strong></p>
+<blockquote>
+<p>Submitting the same Player ID for the same day more than once will only count <strong>once per day</strong>.<br>
+Monday, Tuesday, and Thursday can each be applied for separately.<br>
+If you play multiple characters, <strong>submit the form once per Player ID</strong>.<br>
+You cannot edit your form response after submission. To make changes, use the <strong>secret link</strong> or contact ops (r4).</p>
+</blockquote>
+<p><strong>한글</strong></p>
+<blockquote>
+<p>동일한 Player ID로 같은 요일을 여러 번 제출해도 <strong>해당 요일은 1회만</strong> 반영됩니다.<br>
+월·화·목은 각각 별도로 신청할 수 있습니다.<br>
+여러 캐릭터를 운영하는 경우 <strong>Player ID마다 폼을 따로 제출</strong>하세요.<br>
+제출 후 내용을 바꿀 수 없습니다. 수정이 필요하면 <strong>시크릿 링크</strong>로 다시 신청하거나 운영진(r4)에게 문의하세요.</p>
+</blockquote>
+<p><strong>Behavior summary</strong></p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Same Player ID + same day + same cycle</td>
+<td><strong>Counted once</strong> (<code>lib/reservation-guard.ts</code>)</td>
+</tr>
+<tr>
+<td>Same Player ID, different days (Mon/Tue/Thu)</td>
+<td>Each day applied separately</td>
+</tr>
+<tr>
+<td><strong>Different Player IDs</strong> (same Google account)</td>
+<td><strong>Each counted</strong> — submit once per Player ID</td>
+</tr>
+<tr>
+<td>After Google Form submit — need to change</td>
+<td><strong>Not editable</strong> — R4 Delete + secret link re-apply</td>
+</tr>
+<tr>
+<td>Same Player ID + same day (any Google account)</td>
+<td>Rejected</td>
+</tr>
+<tr>
+<td>Same Player ID via Form and secret link, same day</td>
+<td>Second channel rejected</td>
+</tr>
+</tbody>
+</table>
 <h3>Google Form Fields</h3>
 <table>
 <thead>
@@ -1221,51 +1272,46 @@ npm run verify:assignment
 </tr>
 <tr>
 <td><code>row[1]</code></td>
-<td>Email address</td>
-<td>Auto-collected (for edit response feature)</td>
-</tr>
-<tr>
-<td><code>row[2]</code></td>
 <td>Player ID</td>
 <td>Short answer — integer validation</td>
 </tr>
 <tr>
-<td><code>row[3]</code></td>
+<td><code>row[2]</code></td>
 <td>Player Name</td>
 <td>Short answer</td>
 </tr>
 <tr>
-<td><code>row[4]</code></td>
+<td><code>row[3]</code></td>
 <td>Alliance</td>
 <td>Short answer</td>
 </tr>
 <tr>
-<td><code>row[5]</code></td>
+<td><code>row[4]</code></td>
 <td>Monday Speedups (days)</td>
 <td>Short answer — integer validation</td>
 </tr>
 <tr>
-<td><code>row[6]</code></td>
+<td><code>row[5]</code></td>
 <td>Preferred time on Monday</td>
 <td>Checkboxes</td>
 </tr>
 <tr>
-<td><code>row[7]</code></td>
+<td><code>row[6]</code></td>
 <td>Tuesday Speedups (days)</td>
 <td>Short answer — integer validation</td>
 </tr>
 <tr>
-<td><code>row[8]</code></td>
+<td><code>row[7]</code></td>
 <td>Preferred time on Tuesday</td>
 <td>Checkboxes</td>
 </tr>
 <tr>
-<td><code>row[9]</code></td>
+<td><code>row[8]</code></td>
 <td>Thursday Speedups (days)</td>
 <td>Short answer — integer validation</td>
 </tr>
 <tr>
-<td><code>row[10]</code></td>
+<td><code>row[9]</code></td>
 <td>Preferred time on Thursday</td>
 <td>Checkboxes</td>
 </tr>
@@ -1282,9 +1328,9 @@ npm run verify:assignment
 <ol>
 <li>Create a new form at <a href="https://forms.google.com">Google Forms</a></li>
 <li>Form settings (gear icon) → <strong>Responses</strong> tab:<ul>
-<li>Collect email addresses: <strong>On</strong> (required for edit response feature)</li>
-<li>Limit to 1 response: <strong>On</strong></li>
-<li>Allow response editing: <strong>On</strong></li>
+<li>Collect email addresses: <strong>Off</strong> (no confirmation email or edit link after submit)</li>
+<li>Limit to 1 response: <strong>Off</strong> (one person may submit multiple Player IDs)</li>
+<li>Allow response editing: ineffective without email — <strong>Off recommended</strong></li>
 </ul>
 </li>
 <li>After building the form: Responses tab → spreadsheet icon → <strong>Create new spreadsheet</strong></li>
@@ -1308,22 +1354,19 @@ npm run verify:assignment
 <thead>
 <tr>
 <th>Path</th>
-<th>First check</th>
-<th>Second check</th>
+<th>Duplicate check</th>
 </tr>
 </thead>
 <tbody><tr>
 <td>Google Form</td>
-<td>1 response limit per Google account</td>
-<td>Apps Script: <code>player_id + cycle_id + day_of_week</code></td>
+<td><code>player_id + cycle_id + day_of_week</code> — multiple submissions per Google account when Player IDs differ</td>
 </tr>
 <tr>
 <td>Secret link</td>
 <td><code>player_id + cycle_id + day_of_week</code></td>
-<td>—</td>
 </tr>
 </tbody></table>
-<p>If the same <code>player_id</code> submits for the same day via both paths, the second attempt is silently ignored.</p>
+<p>If the same <code>player_id</code> applies for the <strong>same day</strong> via both paths, the second attempt is rejected (<code>DUPLICATE_DAY_MESSAGE</code>). <strong>Different days</strong> (Mon/Tue/Thu) can each be applied for. <strong>Different Player IDs</strong> may each submit via the same Google account. With email collection <strong>off</strong>, Google Form responses <strong>cannot be edited after submit</strong> — use R4 Delete + <strong>secret link</strong> re-apply.</p>
 <h3>Security Notes</h3>
 <ul>
 <li>Keep <code>SUPABASE_SERVICE_KEY</code> only in Apps Script code — <strong>never share it on GitHub, chat, or anywhere else.</strong> If leaked, regenerate it immediately from the Supabase dashboard.</li>
