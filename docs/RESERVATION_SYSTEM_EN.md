@@ -101,11 +101,11 @@ The tables below summarize **situation-specific responses** from production test
 
 | # | Timing | Application path | Player action | R4+ Admin action | DB change |
 |---|--------|------------------|---------------|------------------|-----------|
-| A | During application window · **needs to change answers** | `/r/[token]` (from R4) | Contact R4 → re-apply that day via **secret link** | Search → **Delete mon/tue/thu** | `preferences` recreated |
-| B | After form close · **before Run full assignment** | Google Form / `/r/[token]` | Contact R4 | Search → **Delete mon/tue/thu** | Deletes that day's `preferences` |
-| B-2 | After B | `/r/[token]` | Re-apply for that day only | — | `preferences` recreated |
-| C | **After assignment run** | Either | Request cancellation from R4 | Schedule Grid **Cancel** | `cancelled` + `preferences` deleted |
-| C-2 | After C | `/r/[token]` | Re-apply | — | New `preferences` |
+| A | During application window · **needs to change answers** | `/r/[token]` or Google Form re-submit | **Re-submit with same Player ID** (full replace) | (Optional) Search → **Delete** if removal only | DELETE all `preferences` + INSERT new |
+| B | After form close · **before Run full assignment** | `/r/[token]` (secret link) | Contact R4 → **re-submit** via secret link | (Optional) Search → **Delete** | Full `preferences` replace for cycle |
+| B-2 | After B | `/r/[token]` | Re-submit via secret link (only days in this submit remain) | — | Full `preferences` replace |
+| C | **After assignment run** | Either | Request cancellation from R4 | Schedule Grid **Cancel** | `cancelled` + day `preferences` deleted |
+| C-2 | After C | — | **Self re-apply blocked** (`last_assignment_run` set) | Manual adjustment or next cycle | `ASSIGNMENT_LOCKED_MESSAGE` |
 | D | After admin cancel/delete · **no re-apply** | — | Excluded from assignment that cycle/day | — | No preferences → not eligible |
 
 > **Delete vs Cancel:** Delete appears in Search **only before assignment** (`last_assignment_run` unset). Cancel is per-slot on the Schedule Grid after assignment, with waitlist promotion.
@@ -114,11 +114,11 @@ The tables below summarize **situation-specific responses** from production test
 
 | # | Situation | Condition | Result | User message |
 |---|-----------|-----------|--------|--------------|
-| 1 | First valid submission | `reservation_open = true`, no duplicate | `players` upsert + `preferences` insert | *Application received…* |
-| 2 | Same-day re-apply | `player_id + cycle_id + day_of_week` exists | Rejected | `DUPLICATE_DAY_MESSAGE` |
-| 3 | After deadline | `reservation_open = false` | Rejected | *Reservations are closed* |
-| 4 | Cross-channel duplicate | Google Form then secret link (same Player ID + day) | Second attempt rejected | `DUPLICATE_DAY_MESSAGE` |
-| 5 | Empty day (no blocks) | speedup/blocks blank | Day skipped | — |
+| 1 | First valid submission | `reservation_open = true`, no `last_assignment_run` | `players` upsert + `preferences` INSERT | *Your application has been received.* |
+| 2 | Re-submit same `player_id` | Existing `preferences` in cycle | DELETE all + INSERT new | *Your application has been updated.* |
+| 3 | After deadline | `reservation_open = false` | Rejected | *Reservations are currently closed.* |
+| 4 | After assignment run | `last_assignment_run` set | Rejected | `ASSIGNMENT_LOCKED_MESSAGE` |
+| 5 | Empty day (no blocks) | speedup/blocks blank | Day skipped (not in submission) | — |
 | 6 | Status check | `/r/[token]/check` | Before/after assignment | Application received / Assigned / On waitlist |
 
 #### Admin Operational Phases
@@ -141,7 +141,7 @@ The tables below summarize **situation-specific responses** from production test
 | 1 | Cancel assigned slot | Grid **Cancel** | `status = cancelled`, delete day `preferences` |
 | 2 | Waitlisted player available | (automatic) | `promoteOnCancel` → 1 `eliminated` → `assigned` |
 | 3 | No waitlist | Cancel only | Slot stays empty (`healEliminated` / backfill) |
-| 4 | Cancelled player re-applies | Player uses `/r/[token]` | `clearCancelledDayReservations` then new `preferences` |
+| 4 | Cancelled player re-applies | Player uses `/r/[token]` (**before** assignment only) | `clearCancelledDayReservations` then full-replace re-submit |
 | 5 | Re-run assignment | Run full assignment again | Deletes that day's assignments, full MCMF recalc |
 
 #### Assignment Verification (`verify:assignment`)
@@ -273,7 +273,7 @@ flowchart LR
   B --> C[Tuesday\nSpeedup + preferred blocks]
   C --> D[Thursday\nSpeedup + preferred blocks]
   D --> E[Submit\nConfirmation dialog]
-  E --> F[(preferences upsert\nno reservations insert)]
+  E --> F[(DELETE player+cycle preferences\nINSERT new submission\nno reservations insert)]
 ```
 
 ### Server-Side Rules
@@ -281,14 +281,16 @@ flowchart LR
 | Condition | Result |
 |-----------|--------|
 | `reservation_open = false` | Rejected |
-| `preferences` already exist for same cycle + day | Rejected (`DUPLICATE_DAY_MESSAGE`) |
-| Valid | `players` upsert + `preferences` upsert |
+| `last_assignment_run` set | Rejected (`ASSIGNMENT_LOCKED_MESSAGE`) |
+| Valid (first submit) | `players` upsert + DELETE (player+cycle) + INSERT `preferences` | *Your application has been received.* |
+| Valid (re-submit) | Same full replace | *Your application has been updated.* |
 
-> Success message: *"Your application has been received. Assignment results will be announced after the booking window closes."*
+> Re-submitting keeps **only the days included in this submission**. Example: if you first applied for Mon+Tue then re-submit Tue only, Mon preferences are removed.  
+> The check page (`/r/[token]/check`) pending text still uses *"Your application has been received. Assignment results will be announced after the booking window closes."* (`SUBMIT_SUCCESS_MESSAGE`)
 
-### Duplicate Prevention
+### Full Replace on Re-Submit
 
-Duplicates are detected by the combination `player_id + cycle_id + day_of_week`. Applications from different `player_id` values are always allowed.
+Re-submitting with the same `player_id` + `cycle_id` **DELETEs all** `preferences` for that cycle, then INSERTs the new submission. Applies equally to Google Form and secret link. Different `player_id` values are independent.
 
 ### Self-Check (`/r/[token]/check`)
 
@@ -506,7 +508,7 @@ npm run verify:assignment
 | Area | File |
 |------|------|
 | Assignment & MCMF | `lib/assignment.ts` |
-| Duplicate check & messages | `lib/reservation-guard.ts` |
+| Re-submit & messages | `lib/reservation-guard.ts` |
 | Day & block constants | `lib/types.ts` |
 | UTC formatting | `lib/utils.ts` |
 | Admin UI | `app/admin/AdminDashboard.tsx`, `app/admin/actions.ts` |
@@ -546,28 +548,28 @@ Paste into the Google Form description. **Email collection is off** — members 
 
 **English**
 
-> Submitting the same Player ID for the same day more than once will only count **once per day**.  
-> Monday, Tuesday, and Thursday can each be applied for separately.  
+> Resubmitting with the same Player ID **replaces your entire application** for this cycle with your latest submission.  
+> Monday, Tuesday, and Thursday can each be applied for separately. **Days not included in this submission are removed** from your preferences.  
 > If you play multiple characters, **submit the form once per Player ID**.  
-> You cannot edit your form response after submission. To make changes, use the **secret link** or contact ops (r4).
+> You cannot edit a Google Form response after submit — submit the form again with the same Player ID, use the **secret link**, or contact ops (r4). After assignment runs, changes are locked — contact r4.
 
 **한글**
 
-> 동일한 Player ID로 같은 요일을 여러 번 제출해도 **해당 요일은 1회만** 반영됩니다.  
-> 월·화·목은 각각 별도로 신청할 수 있습니다.  
+> 같은 Player ID로 **다시 제출하면 이번 제출 내용으로 신청 전체가 교체**됩니다 (해당 사이클).  
+> 월·화·목은 각각 별도로 신청할 수 있습니다. **이번 제출에 넣지 않은 요일은 preferences에서 제거**됩니다.  
 > 여러 캐릭터를 운영하는 경우 **Player ID마다 폼을 따로 제출**하세요.  
-> 제출 후 내용을 바꿀 수 없습니다. 수정이 필요하면 **시크릿 링크**로 다시 신청하거나 운영진(r4)에게 문의하세요.
+> 구글 폼은 **제출 후 수정 링크가 없습니다** — 내용 변경은 **같은 Player ID로 폼을 다시 제출**하거나 **시크릿 링크**로 재제출하세요. 배정 실행 후에는 변경할 수 없습니다 — 운영진(r4)에게 문의하세요.
 
 **Behavior summary**
 
 | Situation | Result |
 |-----------|--------|
-| Same Player ID + same day + same cycle | **Counted once** (`lib/reservation-guard.ts`) |
-| Same Player ID, different days (Mon/Tue/Thu) | Each day applied separately |
-| **Different Player IDs** (same Google account) | **Each counted** — submit the form once per Player ID |
-| After Google Form submit — need to change | **Not editable** — R4 Delete + secret link re-apply |
-| Same Player ID + same day (any Google account) | Rejected |
-| Same Player ID via Form and secret link, same day | Second channel rejected |
+| Same Player ID re-submit (same cycle) | **Latest submission only** in DB (full DELETE + INSERT) |
+| Same Player ID, different days (Mon/Tue/Thu) | Multiple days in one submission |
+| **Different Player IDs** (same Google account) | **Each counted** — submit once per Player ID |
+| After Google Form submit — need to change | **Re-submit form** or secret link (before assignment) |
+| Same Player ID via Form and secret link | **Latest submission overwrites** previous |
+| After assignment (`last_assignment_run`) | Preference changes **rejected** |
 
 ### Google Form Fields
 
@@ -624,15 +626,16 @@ Checkbox block options (same for all three days):
 > **Why not put Supabase keys in Apps Script?**  
 > Supabase `sb_secret_` keys reject Google Apps Script's User-Agent (`Mozilla/5.0 (compatible; Google-Apps-Script)`) with 401. Apps Script cannot override User-Agent, so the Vercel API calls Supabase server-side instead.
 
-### Duplicate Prevention
+### Full Replace Behavior
 
-| Path | Duplicate check |
-|------|-----------------|
-| Google Form | `player_id + cycle_id + day_of_week` — **multiple submissions per Google account** allowed when **Player IDs differ** |
-| Secret link | `player_id + cycle_id + day_of_week` |
+| Path | Behavior |
+|------|----------|
+| Google Form | Full **DELETE + INSERT** per `player_id + cycle_id` — **multiple submissions per Google account** when **Player IDs differ** |
+| Secret link | Same (full replace) |
 
-If the same `player_id` applies for the **same day** via both paths, the second attempt is rejected (`DUPLICATE_DAY_MESSAGE`).  
-**Different days** (Mon/Tue/Thu) can each be applied for. **Different Player IDs** may each submit via the same Google account. With email collection **off**, Google Form responses **cannot be edited after submit** — use R4 Delete + **secret link** re-apply.
+Re-submitting with the same `player_id` via **either path** keeps **only the latest submission**.  
+**Different days** (Mon/Tue/Thu) can be included in one submission. **Different Player IDs** may each submit via the same Google account.  
+With email collection **off**, Google Form responses have **no edit link** — use **form re-submit** or **secret link** re-submit. After assignment runs, rejected with `ASSIGNMENT_LOCKED_MESSAGE`.
 
 ### Security Notes
 
@@ -650,7 +653,7 @@ If the same `player_id` applies for the **same day** via both paths, the second 
 | Waitlist creation | `eliminated` created immediately | Created after batch assignment with `slot_id = null` |
 | Algorithm | Hopcroft-Karp | Min-Cost Max-Flow (MCMF) |
 | Speedup fields | `speedup_vp`, `speedup_mo` | `speedup_mon`, `speedup_tue`, `speedup_thu` |
-| Duplicate check | (legacy) | `player_id + cycle_id + day_of_week` only |
+| Re-submit behavior | (legacy) one per day, duplicate rejected | Full DELETE + INSERT per `player_id + cycle_id` |
 | Reset behavior | Data permanently deleted | Backed up to `archived_*` tables before deletion |
 | Application paths | Secret link only | Secret link + Google Form |
 | Time display | UTC/KST toggle | UTC only |

@@ -77,24 +77,19 @@ function DayStepContent({
         </span>
       </div>
 
-      {isReserved ? (
-        <div className="card border-green-200 bg-green-50">
-          <span className="inline-block rounded-full bg-green-200 px-2 py-0.5 text-xs font-semibold text-green-900">
-            Already reserved
-          </span>
-          <p className="mt-2 text-sm text-green-800">
-            You already have a reservation for {DAY_CONFIG[day].label}. Check
-            your status on the reservation check page.
-          </p>
-        </div>
-      ) : (
-        <>
-          <p className="text-sm text-slate-600">
-            Set speedup and time slots for {DAY_CONFIG[day].label}, or leave
-            blank to skip.
-          </p>
+      {isReserved && (
+        <p className="text-sm text-amber-800">
+          You already applied for {DAY_CONFIG[day].label}. Submitting again will
+          replace your entire application for this cycle.
+        </p>
+      )}
 
-          <div className="card">
+      <p className="text-sm text-slate-600">
+        Set speedup and time slots for {DAY_CONFIG[day].label}, or leave blank to
+        skip.
+      </p>
+
+      <div className="card">
             <label className="mb-1 block text-sm font-medium text-slate-600">
               {speedupLabelFor(day)}
             </label>
@@ -128,8 +123,6 @@ function DayStepContent({
               ))}
             </div>
           </div>
-        </>
-      )}
 
       <div className="flex gap-2">
         <button type="button" onClick={onBack} className="btn-secondary flex-1">
@@ -226,8 +219,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   }
 
   function validateDay(day: DayOfWeek): string | null {
-    if (reservedDays.includes(day)) return null;
-
     const d = dayState[day];
     const hasBlocks = d.blocks.length > 0;
     const hasSpeedup = d.speedup !== "" && !isNaN(parseInt(d.speedup, 10));
@@ -250,9 +241,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   function getSelectedDays(): DayOfWeek[] {
     return (["mon", "tue", "thu"] as DayOfWeek[]).filter(
       (day) =>
-        !reservedDays.includes(day) &&
-        dayState[day].blocks.length > 0 &&
-        dayState[day].speedup !== ""
+        dayState[day].blocks.length > 0 && dayState[day].speedup !== ""
     );
   }
 
@@ -263,14 +252,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   }
 
   function goNextFromDay(day: DayOfWeek) {
-    if (reservedDays.includes(day)) {
-      setMessage(null);
-      const next = nextStepAfter(day);
-      if (day === "thu") return;
-      setStep(next);
-      return;
-    }
-
     const err = validateDay(day);
     if (err) {
       setMessage({ type: "err", text: err });
@@ -310,7 +291,6 @@ export function ReservationForm({ reservationOpen, token }: Props) {
 
   function openConfirmDialog() {
     for (const { day } of DAY_STEPS) {
-      if (reservedDays.includes(day)) continue;
       const err = validateDay(day);
       if (err) {
         setMessage({ type: "err", text: err });
@@ -323,7 +303,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
     if (selected.length === 0) {
       setMessage({
         type: "err",
-        text: "Apply for at least one day that is not already reserved.",
+        text: "Select at least one day.",
       });
       return;
     }
@@ -450,13 +430,14 @@ export function ReservationForm({ reservationOpen, token }: Props) {
 
           {reservedDays.length > 0 && (
             <p className="text-sm text-amber-800">
-              Already reserved:{" "}
-              {reservedDays.map((d) => DAY_CONFIG[d].label).join(", ")}. Those
-              days cannot be submitted again.
+              You already applied for:{" "}
+              {reservedDays.map((d) => DAY_CONFIG[d].label).join(", ")}.
+              Submitting again replaces your entire application for this cycle.
             </p>
           )}
           <p className="text-sm text-slate-500">
-            Monday → Tuesday → Thursday. You cannot edit after submitting.
+            Monday → Tuesday → Thursday. You can resubmit to update your
+            application before assignment runs.
           </p>
           <button type="button" onClick={handleInfoNext} className="btn-primary">
             Next — Monday

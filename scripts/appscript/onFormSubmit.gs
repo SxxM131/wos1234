@@ -6,6 +6,9 @@
  *
  * Sheet row layout (email collection OFF):
  *   row[0] timestamp, row[1] Player ID, row[2] Player Name, row[3] Alliance, ...
+ *
+ * Re-submits for the same Player ID replace the entire application server-side
+ * (DELETE + INSERT preferences for that cycle).
  */
 const WEBHOOK_URL = "https://wos1234.vercel.app/api/google-form-submit";
 
