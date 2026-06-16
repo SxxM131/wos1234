@@ -115,9 +115,9 @@ flowchart TD
 | # | 상황 | 조건 | 결과 | 사용자 메시지 |
 |---|------|------|------|---------------|
 | 1 | 정상 첫 신청 | `reservation_open = true`, 중복 없음 | `players` upsert + `preferences` insert | *Application received…* |
-| 2 | 동일 요일 재신청 | `game_id + cycle_id + day_of_week` preferences 존재 | 거부 | `DUPLICATE_DAY_MESSAGE` |
+| 2 | 동일 요일 재신청 | `player_id + cycle_id + day_of_week` preferences 존재 | 거부 | `DUPLICATE_DAY_MESSAGE` |
 | 3 | 마감 후 신청 | `reservation_open = false` | 거부 | *Reservations are closed* |
-| 4 | 채널 간 중복 | 구글 폼 후 시크릿 URL (동일 Game ID·요일) | 2번째 거부 | `DUPLICATE_DAY_MESSAGE` |
+| 4 | 채널 간 중복 | 구글 폼 후 시크릿 URL (동일 Player ID·요일) | 2번째 거부 | `DUPLICATE_DAY_MESSAGE` |
 | 5 | 선호 블록 없는 요일 | speedup/블록 비움 | 해당 요일 skip | — |
 | 6 | 상태 조회 | `/r/[token]/check` | 배정 전/후 분기 | Application received / Assigned / On waitlist |
 
@@ -161,7 +161,7 @@ flowchart TD
 | 경로 | 접근 | 설명 |
 |------|------|------|
 | `/r/[token]` | 비밀 토큰 일치 시 | 다단계 신청 폼 (정보 → 월 → 화 → 목) |
-| `/r/[token]/check` | 동일 토큰 | Game ID로 신청·배정·대기 상태 조회 |
+| `/r/[token]/check` | 동일 토큰 | Player ID로 신청·배정·대기 상태 조회 |
 | `/status` | 공개 | 실시간 스케줄·대기열 (배정 전/후 문구 분기) |
 | `/admin` | 로그인 후 | URL·마감·배정·검색·그리드·Reset |
 | `/admin/login` | — | 비밀번호 로그인 |
@@ -189,7 +189,7 @@ erDiagram
   players ||--o{ archived_players : "archived on reset"
 
   players {
-    integer game_id PK
+    integer player_id PK
     text name
     text alliance
     integer speedup_mon
@@ -269,7 +269,7 @@ Reset cycle 실행 시 삭제 전 현재 사이클 데이터를 백업합니다.
 
 ```mermaid
 flowchart LR
-  A[Your info\nGame ID / 이름 / 연맹] --> B[Monday\n스피드업 + 선호 블록]
+  A[Your info\nPlayer ID / 이름 / 연맹] --> B[Monday\n스피드업 + 선호 블록]
   B --> C[Tuesday\n스피드업 + 선호 블록]
   C --> D[Thursday\n스피드업 + 선호 블록]
   D --> E[Submit\n확인 다이얼로그]
@@ -288,7 +288,7 @@ flowchart LR
 
 ### 중복 방지 기준
 
-`game_id + cycle_id + day_of_week` 조합으로 중복을 판단합니다. 다른 `game_id`로의 신청은 허용됩니다.
+`player_id + cycle_id + day_of_week` 조합으로 중복을 판단합니다. 다른 `player_id`로의 신청은 허용됩니다.
 
 ### 본인 조회 (`/r/[token]/check`)
 
@@ -546,8 +546,8 @@ flowchart LR
 |-----------|--------|------|
 | `row[0]` | 타임스탬프 | 자동 |
 | `row[1]` | 이메일 주소 | 자동 수집 (응답 수정 기능용) |
-| `row[2]` | Game ID | 단답형 — 정수 유효성 검사 |
-| `row[3]` | Game Name | 단답형 |
+| `row[2]` | Player ID | 단답형 — 정수 유효성 검사 |
+| `row[3]` | Player Name | 단답형 |
 | `row[4]` | Alliance | 단답형 |
 | `row[5]` | Monday Speedups (days) | 단답형 — 정수 유효성 검사 |
 | `row[6]` | Preferred time on Monday | 체크박스 |
@@ -599,10 +599,10 @@ flowchart LR
 
 | 경로 | 1차 | 2차 |
 |------|-----|-----|
-| 구글 폼 | 폼 응답 1회 제한 (구글 계정 기준) | Apps Script: `game_id + cycle_id + day_of_week` |
-| 시크릿 링크 | `game_id + cycle_id + day_of_week` | — |
+| 구글 폼 | 폼 응답 1회 제한 (구글 계정 기준) | Apps Script: `player_id + cycle_id + day_of_week` |
+| 시크릿 링크 | `player_id + cycle_id + day_of_week` | — |
 
-같은 `game_id`로 두 경로에서 같은 요일을 신청하면 두 번째 시도는 무시됩니다.
+같은 `player_id`로 두 경로에서 같은 요일을 신청하면 두 번째 시도는 무시됩니다.
 
 ### 주의 사항
 
@@ -620,7 +620,7 @@ flowchart LR
 | 대기열 생성 | eliminated 즉시 생성 | 일괄 배정 후 `slot_id = null` eliminated |
 | 알고리즘 | Hopcroft-Karp | Min-Cost Max-Flow (MCMF) |
 | 스피드업 필드 | `speedup_vp`, `speedup_mo` | `speedup_mon`, `speedup_tue`, `speedup_thu` |
-| 중복 체크 기준 | email + game_id 혼용 | `game_id + cycle_id + day_of_week`만 |
+| 중복 체크 기준 | (구버전) | `player_id + cycle_id + day_of_week`만 |
 | Reset 동작 | 데이터 소멸 | `archived_*` 테이블에 백업 후 삭제 |
 | 신청 경로 | 시크릿 링크만 | 시크릿 링크 + 구글 폼 병행 |
 | 시간 표시 | UTC/KST 토글 | UTC만 |

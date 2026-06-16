@@ -35,40 +35,40 @@ async function main() {
   console.log(`Current Cycle ID: ${cycleId}`);
 
   // We will insert 6 testers to verify the 2nd pass matching behavior.
-  // We use game_ids 990001 - 990006 to avoid conflicts.
+  // We use player_ids 990001 - 990006 to avoid conflicts.
   const testData = [
     {
-      gameId: 990001,
+      playerId: 990001,
       name: "테스터_A_100",
       alliance: "WOS",
       dayInputs: [{ dayOfWeek: "mon" as const, speedup: 100, preferredBlocks: [10] }],
     },
     {
-      gameId: 990002,
+      playerId: 990002,
       name: "테스터_B_90",
       alliance: "WOS",
       dayInputs: [{ dayOfWeek: "mon" as const, speedup: 90, preferredBlocks: [10] }],
     },
     {
-      gameId: 990003,
+      playerId: 990003,
       name: "테스터_C_80",
       alliance: "WOS",
       dayInputs: [{ dayOfWeek: "mon" as const, speedup: 80, preferredBlocks: [10] }],
     },
     {
-      gameId: 990004,
+      playerId: 990004,
       name: "테스터_D_70",
       alliance: "WOS",
       dayInputs: [{ dayOfWeek: "mon" as const, speedup: 70, preferredBlocks: [10] }],
     },
     {
-      gameId: 990005,
+      playerId: 990005,
       name: "테스터_E_50", // Preferred both 10 and 12. Block 10 will be full. Must go to Block 12 in 2nd pass.
       alliance: "WOS",
       dayInputs: [{ dayOfWeek: "mon" as const, speedup: 50, preferredBlocks: [10, 12] }],
     },
     {
-      gameId: 990006,
+      playerId: 990006,
       name: "테스터_F_60",
       alliance: "WOS",
       dayInputs: [{ dayOfWeek: "mon" as const, speedup: 60, preferredBlocks: [12] }],
@@ -85,16 +85,16 @@ async function main() {
   for (const item of testData) {
     const res = await processMultiDayReservation(
       supabase,
-      item.gameId,
+      item.playerId,
       item.name,
       item.alliance,
       item.dayInputs
     );
 
     if (res.success) {
-      console.log(`  ✓ ${item.name} (Game ID: ${item.gameId}) submitted successfully.`);
+      console.log(`  ✓ ${item.name} (Player ID: ${item.playerId}) submitted successfully.`);
     } else {
-      console.log(`  ✗ ${item.name} (Game ID: ${item.gameId}) failed: ${res.message}`);
+      console.log(`  ✗ ${item.name} (Player ID: ${item.playerId}) failed: ${res.message}`);
     }
   }
 

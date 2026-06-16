@@ -388,7 +388,7 @@ npm run check-env
 <tr>
 <td>2</td>
 <td>동일 요일 재신청</td>
-<td><code translate="no">game_id + cycle_id + day_of_week</code> preferences 존재</td>
+<td><code translate="no">player_id + cycle_id + day_of_week</code> preferences 존재</td>
 <td>거부</td>
 <td><code translate="no">DUPLICATE_DAY_MESSAGE</code></td>
 </tr>
@@ -402,7 +402,7 @@ npm run check-env
 <tr>
 <td>4</td>
 <td>채널 간 중복</td>
-<td>구글 폼 후 시크릿 URL (동일 Game ID·요일)</td>
+<td>구글 폼 후 시크릿 URL (동일 Player ID·요일)</td>
 <td>2번째 거부</td>
 <td><code translate="no">DUPLICATE_DAY_MESSAGE</code></td>
 </tr>
@@ -580,7 +580,7 @@ npm run check-env
 <tr>
 <td><code translate="no">/r/[token]/check</code></td>
 <td>동일 토큰</td>
-<td>Game ID로 신청·배정·대기 상태 조회</td>
+<td>Player ID로 신청·배정·대기 상태 조회</td>
 </tr>
 <tr>
 <td><code translate="no">/status</code></td>
@@ -642,7 +642,7 @@ npm run check-env
   players ||--o{ archived_players : "archived on reset"
 
   players {
-    integer game_id PK
+    integer player_id PK
     text name
     text alliance
     integer speedup_mon
@@ -757,7 +757,7 @@ npm run check-env
 <h2>7. 플레이어 신청 흐름</h2>
 <h3>신청 단계</h3>
 <pre class="mermaid" translate="no">flowchart LR
-  A[Your info\nGame ID / 이름 / 연맹] --> B[Monday\n스피드업 + 선호 블록]
+  A[Your info\nPlayer ID / 이름 / 연맹] --> B[Monday\n스피드업 + 선호 블록]
   B --> C[Tuesday\n스피드업 + 선호 블록]
   C --> D[Thursday\n스피드업 + 선호 블록]
   D --> E[Submit\n확인 다이얼로그]
@@ -788,7 +788,7 @@ npm run check-env
 <p>성공 메시지: <em>&quot;Your application has been received. Assignment results will be announced after the booking window closes.&quot;</em></p>
 </blockquote>
 <h3>중복 방지 기준</h3>
-<p><code translate="no">game_id + cycle_id + day_of_week</code> 조합으로 중복을 판단합니다. 다른 <code translate="no">game_id</code>로의 신청은 허용됩니다.</p>
+<p><code translate="no">player_id + cycle_id + day_of_week</code> 조합으로 중복을 판단합니다. 다른 <code translate="no">player_id</code>로의 신청은 허용됩니다.</p>
 <h3>본인 조회 (<code translate="no">/r/[token]/check</code>)</h3>
 <table>
 <thead>
@@ -1226,12 +1226,12 @@ npm run verify:assignment
 </tr>
 <tr>
 <td><code translate="no">row[2]</code></td>
-<td>Game ID</td>
+<td>Player ID</td>
 <td>단답형 — 정수 유효성 검사</td>
 </tr>
 <tr>
 <td><code translate="no">row[3]</code></td>
-<td>Game Name</td>
+<td>Player Name</td>
 <td>단답형</td>
 </tr>
 <tr>
@@ -1324,15 +1324,15 @@ npm run verify:assignment
 <tbody><tr>
 <td>구글 폼</td>
 <td>폼 응답 1회 제한 (구글 계정 기준)</td>
-<td>Apps Script: <code translate="no">game_id + cycle_id + day_of_week</code></td>
+<td>Apps Script: <code translate="no">player_id + cycle_id + day_of_week</code></td>
 </tr>
 <tr>
 <td>시크릿 링크</td>
-<td><code translate="no">game_id + cycle_id + day_of_week</code></td>
+<td><code translate="no">player_id + cycle_id + day_of_week</code></td>
 <td>—</td>
 </tr>
 </tbody></table>
-<p>같은 <code translate="no">game_id</code>로 두 경로에서 같은 요일을 신청하면 두 번째 시도는 무시됩니다.</p>
+<p>같은 <code translate="no">player_id</code>로 두 경로에서 같은 요일을 신청하면 두 번째 시도는 무시됩니다.</p>
 <h3>주의 사항</h3>
 <ul>
 <li><code translate="no">WEBHOOK_SECRET</code>은 Apps Script 스크립트 속성에만 보관하고, GitHub·채팅 등에 <strong>절대 공유하지 마세요.</strong> 유출 시 Vercel에서 <code translate="no">GOOGLE_FORM_WEBHOOK_SECRET</code>을 재발급하세요.</li>
@@ -1375,8 +1375,8 @@ npm run verify:assignment
 </tr>
 <tr>
 <td>중복 체크 기준</td>
-<td>email + game_id 혼용</td>
-<td><code translate="no">game_id + cycle_id + day_of_week</code>만</td>
+<td>(구버전)</td>
+<td><code translate="no">player_id + cycle_id + day_of_week</code>만</td>
 </tr>
 <tr>
 <td>Reset 동작</td>

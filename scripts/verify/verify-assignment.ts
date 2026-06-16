@@ -117,7 +117,7 @@ async function main() {
   }
 
   const playerMap = new Map<number, any>();
-  for (const p of players) playerMap.set(p.game_id, p);
+  for (const p of players) playerMap.set(p.player_id, p);
 
   function getSpeedup(playerId: number, day: string): number {
     const p = playerMap.get(playerId);

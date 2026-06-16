@@ -12,7 +12,7 @@ type DayPayload = {
 };
 
 type GoogleFormPayload = {
-  game_id?: unknown;
+  player_id?: unknown;
   name?: unknown;
   alliance?: unknown;
   days?: Partial<Record<DayOfWeek, DayPayload>>;
@@ -69,12 +69,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const gameId = parseInt(String(body.game_id ?? ""), 10);
+  const playerId = parseInt(String(body.player_id ?? ""), 10);
   const name = String(body.name ?? "").trim();
   const alliance = String(body.alliance ?? "").trim();
 
-  if (!gameId || isNaN(gameId)) {
-    return NextResponse.json({ error: "Invalid game_id." }, { status: 400 });
+  if (!playerId || isNaN(playerId)) {
+    return NextResponse.json({ error: "Invalid player_id." }, { status: 400 });
   }
   if (!name) {
     return NextResponse.json({ error: "name is required." }, { status: 400 });
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
   const result = await processMultiDayReservation(
     supabase,
-    gameId,
+    playerId,
     name,
     alliance,
     daySubmits

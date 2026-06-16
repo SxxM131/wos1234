@@ -2,10 +2,9 @@
 -- Supabase SQL Editor에서 전체 실행
 
 CREATE TABLE players (
-  game_id INTEGER PRIMARY KEY,
+  player_id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   alliance TEXT NOT NULL,
-  email TEXT,
   speedup_mon INTEGER NOT NULL DEFAULT 0,
   speedup_tue INTEGER NOT NULL DEFAULT 0,
   speedup_thu INTEGER NOT NULL DEFAULT 0,
@@ -30,7 +29,7 @@ FROM (VALUES ('mon','VP'),('tue','VP'),('thu','MO')) AS d(day,office),
 
 CREATE TABLE reservations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  player_id INTEGER REFERENCES players(game_id) ON DELETE CASCADE,
+  player_id INTEGER REFERENCES players(player_id) ON DELETE CASCADE,
   slot_id INTEGER REFERENCES slots(id),
   status TEXT NOT NULL DEFAULT 'assigned',
   cycle_id INTEGER NOT NULL DEFAULT 1,
@@ -40,7 +39,7 @@ CREATE TABLE reservations (
 
 CREATE TABLE preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  player_id INTEGER REFERENCES players(game_id) ON DELETE CASCADE,
+  player_id INTEGER REFERENCES players(player_id) ON DELETE CASCADE,
   day_of_week TEXT NOT NULL,
   block_start_utc INTEGER NOT NULL,
   cycle_id INTEGER NOT NULL DEFAULT 1,
@@ -79,10 +78,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE reservations;
 -- Archive Tables for Reset Cycle
 CREATE TABLE archived_players (
   archive_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  game_id INTEGER NOT NULL,
+  player_id INTEGER NOT NULL,
   name TEXT NOT NULL,
   alliance TEXT NOT NULL,
-  email TEXT,
   speedup_mon INTEGER NOT NULL DEFAULT 0,
   speedup_tue INTEGER NOT NULL DEFAULT 0,
   speedup_thu INTEGER NOT NULL DEFAULT 0,
@@ -116,8 +114,8 @@ CREATE TABLE archived_reservations (
 CREATE OR REPLACE FUNCTION archive_and_reset_cycle() RETURNS void AS $$
 BEGIN
   -- Copy data
-  INSERT INTO archived_players (game_id, name, alliance, email, speedup_mon, speedup_tue, speedup_thu, created_at)
-  SELECT game_id, name, alliance, email, speedup_mon, speedup_tue, speedup_thu, created_at FROM players;
+  INSERT INTO archived_players (player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu, created_at)
+  SELECT player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu, created_at FROM players;
 
   INSERT INTO archived_preferences (original_id, player_id, day_of_week, block_start_utc, cycle_id, applied_at)
   SELECT id, player_id, day_of_week, block_start_utc, cycle_id, applied_at FROM preferences;
@@ -128,7 +126,7 @@ BEGIN
   -- Delete data
   DELETE FROM reservations WHERE cycle_id >= 0;
   DELETE FROM preferences WHERE cycle_id >= 0;
-  DELETE FROM players WHERE game_id >= 0;
+  DELETE FROM players WHERE player_id >= 0;
 END;
 $$ LANGUAGE plpgsql;
 

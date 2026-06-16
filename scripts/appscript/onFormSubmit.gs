@@ -3,6 +3,9 @@
  *
  * Supabase sb_secret_ keys reject Google Apps Script's User-Agent, so this script
  * never calls Supabase directly. Set WEBHOOK_URL and WEBHOOK_SECRET in Script properties.
+ *
+ * Sheet row layout (email collection ON):
+ *   row[0] timestamp, row[1] email, row[2] Player ID, row[3] Player Name, ...
  */
 const WEBHOOK_URL = "https://wos1234.vercel.app/api/google-form-submit";
 
@@ -10,7 +13,7 @@ function onFormSubmit(e) {
   const row = e.values;
   Logger.log("row 전체: " + JSON.stringify(row));
 
-  const gameId = parseInt(String(row[2]).split(".")[0], 10);
+  const playerId = parseInt(String(row[2]).split(".")[0], 10);
   const name = row[3];
   const alliance = row[4];
   const speedupMon = Number(row[5]);
@@ -20,15 +23,15 @@ function onFormSubmit(e) {
   const speedupThu = Number(row[9]);
   const thuBlocks = parseBlocks(row[10]);
 
-  Logger.log("gameId: " + gameId);
+  Logger.log("playerId: " + playerId);
 
-  if (isNaN(gameId)) {
-    Logger.log("유효하지 않은 Game ID: " + row[2]);
+  if (isNaN(playerId)) {
+    Logger.log("유효하지 않은 Player ID: " + row[2]);
     return;
   }
 
   const payload = {
-    game_id: gameId,
+    player_id: playerId,
     name: name,
     alliance: alliance,
     days: {
@@ -40,7 +43,7 @@ function onFormSubmit(e) {
 
   const result = postToWebhook(payload);
   if (!result) {
-    Logger.log("웹훅 호출 실패 — gameId: " + gameId);
+    Logger.log("웹훅 호출 실패 — playerId: " + playerId);
     return;
   }
 
@@ -49,16 +52,16 @@ function onFormSubmit(e) {
   );
 
   if (result.status >= 200 && result.status < 300 && result.body.success) {
-    Logger.log("신청 완료: " + gameId);
+    Logger.log("신청 완료: " + playerId);
   } else {
-    Logger.log("신청 거부 또는 오류: " + gameId);
+    Logger.log("신청 거부 또는 오류: " + playerId);
   }
 }
 
 /** Run once in editor to verify webhook URL + secret. */
 function testWebhookConnection() {
   const result = postToWebhook({
-    game_id: 0,
+    player_id: 0,
     name: "__connection_test__",
     alliance: "NWO",
     days: {},

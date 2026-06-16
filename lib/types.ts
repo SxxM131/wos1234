@@ -10,7 +10,7 @@ export function isValidAlliance(value: string): value is AllianceCode {
 }
 
 export interface Player {
-  game_id: number;
+  player_id: number;
   name: string;
   alliance: string;
   speedup_mon: number;

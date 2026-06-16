@@ -6,8 +6,8 @@
 -- Supabase SQL Editor에 전체 붙여넣고 Run 클릭
 -- ============================================================
 
--- STEP 1: players 삽입 (game_id 중복 시 업데이트)
-INSERT INTO players (game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)
+-- STEP 1: players 삽입 (player_id 중복 시 업데이트)
+INSERT INTO players (player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)
 VALUES
 (319315173, 'Aliza', 'NWO', 0, 0, 25),
 (321985751, 'Saitama', 'NWO', 0, 0, 31),
@@ -57,7 +57,7 @@ VALUES
 (429494987, 'Bonsai', 'BOS', 10, 31, 7),
 (446816246, 'ꪮꪻꫝꫀ᥅ꪑꪖꪶꪑö', 'NWO', 18, 24, 29),
 (490920106, 'Rhysie', 'MAR', 10, 8, 37)
-ON CONFLICT (game_id) DO UPDATE SET
+ON CONFLICT (player_id) DO UPDATE SET
   name = EXCLUDED.name,
   alliance = EXCLUDED.alliance,
   speedup_mon = EXCLUDED.speedup_mon,

@@ -33,11 +33,11 @@ const supabase = createClient(
 
 const ALLIANCES = [...ALLIANCE_OPTIONS];
 const TIME_BLOCKS = Array.from({ length: 12 }, (_, i) => i * 2);
-const DEFAULT_BASE_GAME_ID = 300001;
+const DEFAULT_BASE_PLAYER_ID = 300001;
 
 const DEFAULT_COUNT = 120;
 
-function parseCliArgs(): { count: number; baseGameIdArg?: string } {
+function parseCliArgs(): { count: number; basePlayerIdArg?: string } {
   const args = process.argv.slice(2);
   const hasBadDash = args.some((a) => /[\u2013\u2014\u2212]/.test(a));
   const numeric = args
@@ -56,21 +56,21 @@ function parseCliArgs(): { count: number; baseGameIdArg?: string } {
   }
 
   const count = numeric[0] ?? DEFAULT_COUNT;
-  const baseGameIdArg =
+  const basePlayerIdArg =
     numeric.length >= 2 ? String(numeric[1]) : undefined;
 
   if (!Number.isFinite(count) || count < 1) {
     console.error(
-      `Invalid count. Usage: npm run inject:random [-- <count> [baseGameId]]\n` +
+      `Invalid count. Usage: npm run inject:random [-- <count> [basePlayerId]]\n` +
         `Example: npm run inject:random -- 120`
     );
     process.exit(1);
   }
 
-  return { count, baseGameIdArg };
+  return { count, basePlayerIdArg };
 }
 
-const { count, baseGameIdArg } = parseCliArgs();
+const { count, basePlayerIdArg } = parseCliArgs();
 
 function getRandomPrefs(n: number): number[] {
   const primeTime = [10, 12, 14, 16, 20];
@@ -100,23 +100,23 @@ function randomSpeedup(): number {
 async function main() {
   const cycleId = await getCurrentCycleId(supabase);
 
-  let baseGameId = DEFAULT_BASE_GAME_ID;
-  if (baseGameIdArg) {
-    baseGameId = parseInt(baseGameIdArg, 10);
+  let basePlayerId = DEFAULT_BASE_PLAYER_ID;
+  if (basePlayerIdArg) {
+    basePlayerId = parseInt(basePlayerIdArg, 10);
   } else {
     const { data: maxRow } = await supabase
       .from("players")
-      .select("game_id")
-      .order("game_id", { ascending: false })
+      .select("player_id")
+      .order("player_id", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (maxRow?.game_id != null) {
-      baseGameId = Math.max(DEFAULT_BASE_GAME_ID, maxRow.game_id + 1);
+    if (maxRow?.player_id != null) {
+      basePlayerId = Math.max(DEFAULT_BASE_PLAYER_ID, maxRow.player_id + 1);
     }
   }
 
   console.log(
-    `Injecting ${count} random applicants into cycle #${cycleId} (game_id ${baseGameId}–${baseGameId + count - 1})...\n`
+    `Injecting ${count} random applicants into cycle #${cycleId} (player_id ${basePlayerId}–${basePlayerId + count - 1})...\n`
   );
 
   await supabase
@@ -127,7 +127,7 @@ async function main() {
   let fail = 0;
 
   for (let i = 0; i < count; i++) {
-    const gameId = baseGameId + i;
+    const playerId = basePlayerId + i;
     const name = `테스터_${String(i + 1).padStart(2, "0")}`;
     const alliance = ALLIANCES[Math.floor(Math.random() * ALLIANCES.length)];
 
@@ -170,7 +170,7 @@ async function main() {
 
     const res = await processMultiDayReservation(
       supabase,
-      gameId,
+      playerId,
       name,
       alliance,
       dayInputs
@@ -179,7 +179,7 @@ async function main() {
     if (res.success) ok++;
     else {
       fail++;
-      console.log(`  ✗ ${name} (${gameId}): ${res.message}`);
+      console.log(`  ✗ ${name} (${playerId}): ${res.message}`);
     }
 
     if ((i + 1) % 10 === 0 || i === count - 1) {

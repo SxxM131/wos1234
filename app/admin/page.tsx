@@ -37,7 +37,7 @@ export default async function AdminPage() {
   const { data: reservations } = await supabase
     .from("reservations")
     .select(
-      "id, status, player_id, slot_id, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu), slots(id, day_of_week, block_start_utc, slot_index, office_type, is_active)"
+      "id, status, player_id, slot_id, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu), slots(id, day_of_week, block_start_utc, slot_index, office_type, is_active)"
     )
     .eq("cycle_id", cycleId)
     .not("slot_id", "is", null)
@@ -45,7 +45,7 @@ export default async function AdminPage() {
 
   const { data: eliminated } = await supabase
     .from("reservations")
-    .select("id, player_id, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
+    .select("id, player_id, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
     .eq("cycle_id", cycleId)
     .eq("status", "eliminated");
 
@@ -63,7 +63,7 @@ export default async function AdminPage() {
   const { data: prefRows } = await supabase
     .from("preferences")
     .select(
-      "player_id, day_of_week, block_start_utc, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
+      "player_id, day_of_week, block_start_utc, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
     )
     .eq("cycle_id", cycleId);
 
@@ -72,7 +72,7 @@ export default async function AdminPage() {
     {
       player_id: number;
       players: {
-        game_id: number;
+        player_id: number;
         name: string;
         alliance: string;
         speedup_mon: number;
@@ -85,7 +85,7 @@ export default async function AdminPage() {
 
   for (const row of prefRows ?? []) {
     const players = row.players as unknown as {
-      game_id: number;
+      player_id: number;
       name: string;
       alliance: string;
       speedup_mon: number;

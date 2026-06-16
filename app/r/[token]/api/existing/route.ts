@@ -8,12 +8,12 @@ export async function GET(
 ) {
   await params;
   const searchParams = new URL(request.url).searchParams;
-  const gameId = parseInt(searchParams.get("gameId") ?? "", 10);
-  if (!gameId || isNaN(gameId)) {
+  const playerId = parseInt(searchParams.get("playerId") ?? "", 10);
+  if (!playerId || isNaN(playerId)) {
     return NextResponse.json({ reservedDays: [] });
   }
 
   const supabase = createServiceClient();
-  const reservedDays = await getReservedDaysForPlayer(supabase, gameId);
+  const reservedDays = await getReservedDaysForPlayer(supabase, playerId);
   return NextResponse.json({ reservedDays });
 }

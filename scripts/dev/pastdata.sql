@@ -7,7 +7,7 @@
 -- ============================================================
 
 -- STEP 1: players 삽입 (중복 시 업데이트)
-INSERT INTO players (game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)
+INSERT INTO players (player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)
 VALUES
 (449555760, 'Lavender', 'SXY', 100, 125, 110),
 (396537890, 'Viiii', 'SXY', 0, 125, 0),
@@ -62,7 +62,7 @@ VALUES
 (411286085, 'Nyamo', 'NWO', 0, 0, 30),
 (487418559, 'Snowman', 'MAR', 0, 0, 0),
 (360768809, 'SONYOUNG', 'NWO', 0, 0, 50)
-ON CONFLICT (game_id) DO UPDATE SET
+ON CONFLICT (player_id) DO UPDATE SET
   name = EXCLUDED.name,
   alliance = EXCLUDED.alliance,
   speedup_mon = EXCLUDED.speedup_mon,

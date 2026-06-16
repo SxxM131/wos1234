@@ -25,7 +25,7 @@ interface ReservationRow {
   player_id: number;
   slot_id: number;
   players: {
-    game_id: number;
+    player_id: number;
     name: string;
     alliance: string;
     speedup_mon: number;
@@ -218,7 +218,7 @@ export function AdminDashboard({
     if (!term || !r.players) return false;
     const nameMatch = r.players.name?.toLowerCase().includes(term);
     const allianceMatch = r.players.alliance?.toLowerCase().includes(term);
-    const idMatch = String(r.players.game_id ?? "").includes(term);
+    const idMatch = String(r.players.player_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
 
@@ -226,7 +226,7 @@ export function AdminDashboard({
     if (!term || !e.players) return false;
     const nameMatch = e.players.name?.toLowerCase().includes(term);
     const allianceMatch = e.players.alliance?.toLowerCase().includes(term);
-    const idMatch = String(e.players.game_id ?? "").includes(term);
+    const idMatch = String(e.players.player_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
 
@@ -243,7 +243,7 @@ export function AdminDashboard({
     if (!term || !a.players) return false;
     const nameMatch = a.players.name?.toLowerCase().includes(term);
     const allianceMatch = a.players.alliance?.toLowerCase().includes(term);
-    const idMatch = String(a.players.game_id ?? "").includes(term);
+    const idMatch = String(a.players.player_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
 
@@ -463,7 +463,7 @@ export function AdminDashboard({
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search by Game ID, name, or alliance..."
+          placeholder="Search by Player ID, name, or alliance..."
           className="input-field w-full"
         />
       </div>
@@ -498,7 +498,7 @@ export function AdminDashboard({
                         {a.players?.name ?? "Unknown"}{" "}
                         <span className="text-xs font-normal text-slate-500">
                           ({a.players?.alliance ?? "?"}) · ID{" "}
-                          {a.players?.game_id ?? "?"}
+                          {a.players?.player_id ?? "?"}
                         </span>
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600">
@@ -571,7 +571,7 @@ export function AdminDashboard({
                       <p className="font-semibold text-slate-900">
                         {r.players?.name ?? "Unknown"}{" "}
                         <span className="text-xs text-slate-500 font-normal">
-                          ({r.players?.alliance ?? "Unknown"}) · ID: {r.players?.game_id ?? "Unknown"}
+                          ({r.players?.alliance ?? "Unknown"}) · ID: {r.players?.player_id ?? "Unknown"}
                         </span>
                       </p>
                       <p className="text-xs text-slate-600 mt-0.5">
@@ -624,7 +624,7 @@ export function AdminDashboard({
                     <p className="font-semibold text-slate-900">
                       {e.players?.name ?? "Unknown"}{" "}
                       <span className="text-xs text-slate-500 font-normal">
-                        ({e.players?.alliance ?? "Unknown"}) · ID: {e.players?.game_id ?? "Unknown"}
+                        ({e.players?.alliance ?? "Unknown"}) · ID: {e.players?.player_id ?? "Unknown"}
                       </span>
                     </p>
                     <p className="text-xs text-amber-600 font-semibold mt-0.5">
@@ -673,7 +673,7 @@ export function AdminDashboard({
                       {a.players?.name ?? "Unknown"}{" "}
                       <span className="text-xs font-normal text-slate-500">
                         ({a.players?.alliance ?? "?"}) · ID{" "}
-                        {a.players?.game_id ?? "?"}
+                        {a.players?.player_id ?? "?"}
                       </span>
                     </p>
                     <p className="mt-0.5 text-xs text-slate-600">
@@ -742,7 +742,7 @@ export function AdminDashboard({
                                 {res.players?.name ?? "Unknown"}
                               </p>
                               <p className="text-[11px] truncate text-slate-500">
-                                {res.players?.alliance ?? "Unknown"} (ID: {res.players?.game_id ?? "Unknown"})
+                                {res.players?.alliance ?? "Unknown"} (ID: {res.players?.player_id ?? "Unknown"})
                               </p>
                             </>
                           ) : (
@@ -806,7 +806,7 @@ export function AdminDashboard({
                   <p className="font-semibold text-slate-900">
                     {e.players?.name ?? "Unknown"}{" "}
                     <span className="text-xs text-slate-500 font-normal">
-                      ({e.players?.alliance ?? "Unknown"}) · ID {e.players?.game_id ?? "Unknown"}
+                      ({e.players?.alliance ?? "Unknown"}) · ID {e.players?.player_id ?? "Unknown"}
                     </span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">

@@ -17,7 +17,7 @@ interface ReservationRow {
 }
 
 interface Player {
-  game_id: number;
+  player_id: number;
   name: string;
   alliance: string;
   speedup_mon: number;
@@ -38,12 +38,12 @@ export function CheckForm() {
   const [pending, startTransition] = useTransition();
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const gameId = parseInt(
-      new FormData(e.currentTarget).get("game_id") as string,
+    const playerId = parseInt(
+      new FormData(e.currentTarget).get("player_id") as string,
       10
     );
     startTransition(async () => {
-      const res = await checkReservation(gameId);
+      const res = await checkReservation(playerId);
       if ("error" in res && res.error) {
         setError(res.error);
         setResult(null);
@@ -108,13 +108,13 @@ export function CheckForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="card flex flex-col gap-3">
-        <label className="text-sm font-medium text-slate-600">Game ID</label>
+        <label className="text-sm font-medium text-slate-600">Player ID</label>
         <input
-          name="game_id"
+          name="player_id"
           type="number"
           required
           className="input-field"
-          placeholder="Enter Game ID"
+          placeholder="Enter Player ID"
         />
         <button type="submit" disabled={pending} className="btn-primary">
           {pending ? "Looking up..." : "Check reservation"}
@@ -132,7 +132,7 @@ export function CheckForm() {
           <div className="card">
             <p className="font-semibold">{result.player.name}</p>
             <p className="text-sm text-slate-500">
-              {result.player.alliance} · ID {result.player.game_id}
+              {result.player.alliance} · ID {result.player.player_id}
             </p>
           </div>
 

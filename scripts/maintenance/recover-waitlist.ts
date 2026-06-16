@@ -53,7 +53,7 @@ async function main() {
     const { data: eliminated } = await supabase
       .from("reservations")
       .select("id")
-      .eq("player_id", player.game_id)
+      .eq("player_id", player.player_id)
       .eq("cycle_id", cycleId)
       .eq("status", "eliminated");
 
@@ -65,7 +65,7 @@ async function main() {
     const { data: prefs } = await supabase
       .from("preferences")
       .select("day_of_week, block_start_utc")
-      .eq("player_id", player.game_id)
+      .eq("player_id", player.player_id)
       .eq("cycle_id", cycleId);
 
     if (!prefs?.length) {
@@ -82,7 +82,7 @@ async function main() {
     }
 
     console.log(`  → ${player.name}: queued for heal + backfill`);
-    await healEliminatedReservations(supabase, [player.game_id], cycleId, now);
+    await healEliminatedReservations(supabase, [player.player_id], cycleId, now);
   }
 
   const filled = await backfillEmptySlotsForCycle(supabase, cycleId);

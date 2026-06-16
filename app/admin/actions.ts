@@ -268,7 +268,7 @@ export async function exportCsv(): Promise<string> {
   // Fetch all assigned reservations for this cycle
   const { data: reservations, error: resError } = await supabase
     .from("reservations")
-    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
+    .select("slot_id, player_id, status, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
   if (resError) {
@@ -313,7 +313,7 @@ export async function exportCsv(): Promise<string> {
               player_id: r.player_id,
               status: r.status,
               players: r.players as unknown as {
-                game_id: number;
+                player_id: number;
                 name: string;
                 alliance: string;
                 speedup_mon: number;
@@ -371,7 +371,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
   // Fetch all assigned reservations for this cycle
   const { data: reservations, error: resError } = await supabase
     .from("reservations")
-    .select("slot_id, player_id, status, players(game_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
+    .select("slot_id, player_id, status, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
   if (resError) {
@@ -411,7 +411,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
               player_id: r.player_id,
               status: r.status,
               players: r.players as unknown as {
-                game_id: number;
+                player_id: number;
                 name: string;
                 alliance: string;
                 speedup_mon: number;
@@ -426,7 +426,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
   }
 
   const playerShape = {
-    game_id: 0,
+    player_id: 0,
     name: "",
     alliance: "",
     speedup_mon: 0,

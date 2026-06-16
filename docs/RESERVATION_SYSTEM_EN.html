@@ -388,7 +388,7 @@ npm run check-env
 <tr>
 <td>2</td>
 <td>Same-day re-apply</td>
-<td><code>game_id + cycle_id + day_of_week</code> exists</td>
+<td><code>player_id + cycle_id + day_of_week</code> exists</td>
 <td>Rejected</td>
 <td><code>DUPLICATE_DAY_MESSAGE</code></td>
 </tr>
@@ -402,7 +402,7 @@ npm run check-env
 <tr>
 <td>4</td>
 <td>Cross-channel duplicate</td>
-<td>Google Form then secret link (same Game ID + day)</td>
+<td>Google Form then secret link (same Player ID + day)</td>
 <td>Second attempt rejected</td>
 <td><code>DUPLICATE_DAY_MESSAGE</code></td>
 </tr>
@@ -580,7 +580,7 @@ npm run check-env
 <tr>
 <td><code>/r/[token]/check</code></td>
 <td>Same token</td>
-<td>Check application, assignment, and waitlist status by Game ID</td>
+<td>Check application, assignment, and waitlist status by Player ID</td>
 </tr>
 <tr>
 <td><code>/status</code></td>
@@ -642,7 +642,7 @@ npm run check-env
   players ||--o{ archived_players : "archived on reset"
 
   players {
-    integer game_id PK
+    integer player_id PK
     text name
     text alliance
     integer speedup_mon
@@ -757,7 +757,7 @@ Total: 12 blocks × 4 slots = 48 slots / day
 <h2>7. Player Application Flow</h2>
 <h3>Application Steps</h3>
 <pre class="mermaid">flowchart LR
-  A[Your info\nGame ID / Name / Alliance] --> B[Monday\nSpeedup + preferred blocks]
+  A[Your info\nPlayer ID / Name / Alliance] --> B[Monday\nSpeedup + preferred blocks]
   B --> C[Tuesday\nSpeedup + preferred blocks]
   C --> D[Thursday\nSpeedup + preferred blocks]
   D --> E[Submit\nConfirmation dialog]
@@ -788,7 +788,7 @@ Total: 12 blocks × 4 slots = 48 slots / day
 <p>Success message: <em>&quot;Your application has been received. Assignment results will be announced after the booking window closes.&quot;</em></p>
 </blockquote>
 <h3>Duplicate Prevention</h3>
-<p>Duplicates are detected by the combination <code>game_id + cycle_id + day_of_week</code>. Applications from different <code>game_id</code> values are always allowed.</p>
+<p>Duplicates are detected by the combination <code>player_id + cycle_id + day_of_week</code>. Applications from different <code>player_id</code> values are always allowed.</p>
 <h3>Self-Check (<code>/r/[token]/check</code>)</h3>
 <table>
 <thead>
@@ -1226,12 +1226,12 @@ npm run verify:assignment
 </tr>
 <tr>
 <td><code>row[2]</code></td>
-<td>Game ID</td>
+<td>Player ID</td>
 <td>Short answer — integer validation</td>
 </tr>
 <tr>
 <td><code>row[3]</code></td>
-<td>Game Name</td>
+<td>Player Name</td>
 <td>Short answer</td>
 </tr>
 <tr>
@@ -1315,15 +1315,15 @@ npm run verify:assignment
 <tbody><tr>
 <td>Google Form</td>
 <td>1 response limit per Google account</td>
-<td>Apps Script: <code>game_id + cycle_id + day_of_week</code></td>
+<td>Apps Script: <code>player_id + cycle_id + day_of_week</code></td>
 </tr>
 <tr>
 <td>Secret link</td>
-<td><code>game_id + cycle_id + day_of_week</code></td>
+<td><code>player_id + cycle_id + day_of_week</code></td>
 <td>—</td>
 </tr>
 </tbody></table>
-<p>If the same <code>game_id</code> submits for the same day via both paths, the second attempt is silently ignored.</p>
+<p>If the same <code>player_id</code> submits for the same day via both paths, the second attempt is silently ignored.</p>
 <h3>Security Notes</h3>
 <ul>
 <li>Keep <code>SUPABASE_SERVICE_KEY</code> only in Apps Script code — <strong>never share it on GitHub, chat, or anywhere else.</strong> If leaked, regenerate it immediately from the Supabase dashboard.</li>
@@ -1366,8 +1366,8 @@ npm run verify:assignment
 </tr>
 <tr>
 <td>Duplicate check</td>
-<td>Mixed email + game_id</td>
-<td><code>game_id + cycle_id + day_of_week</code> only</td>
+<td>(legacy)</td>
+<td><code>player_id + cycle_id + day_of_week</code> only</td>
 </tr>
 <tr>
 <td>Reset behavior</td>

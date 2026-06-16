@@ -13,12 +13,12 @@ import { DayOfWeek, DAY_CONFIG, ALLIANCE_OPTIONS, isValidAlliance } from "@/lib/
 const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
 
 export async function submitReservation(formData: FormData) {
-  const gameId = parseInt(formData.get("game_id") as string, 10);
+  const playerId = parseInt(formData.get("player_id") as string, 10);
   const name = (formData.get("name") as string)?.trim();
   const alliance = (formData.get("alliance") as string)?.trim();
   const selectedDays = formData.getAll("days") as DayOfWeek[];
 
-  if (!gameId || !name || !alliance || !isValidAlliance(alliance)) {
+  if (!playerId || !name || !alliance || !isValidAlliance(alliance)) {
     return { success: false, message: "Please fill in all required fields and select an alliance." };
   }
 
@@ -69,16 +69,16 @@ export async function submitReservation(formData: FormData) {
 
   return processMultiDayReservation(
     supabase,
-    gameId,
+    playerId,
     name,
     alliance,
     daySubmits
   );
 }
 
-export async function checkReservation(gameId: number) {
-  if (!gameId || isNaN(gameId)) {
-    return { error: "Please enter your Game ID." };
+export async function checkReservation(playerId: number) {
+  if (!playerId || isNaN(playerId)) {
+    return { error: "Please enter your Player ID." };
   }
 
   const supabase = createServiceClient();
@@ -92,26 +92,26 @@ export async function checkReservation(gameId: number) {
   const { data: player } = await supabase
     .from("players")
     .select("*")
-    .eq("game_id", gameId)
+    .eq("player_id", playerId)
     .maybeSingle();
 
   const { data: preferences } = await supabase
     .from("preferences")
     .select("*")
-    .eq("player_id", gameId)
+    .eq("player_id", playerId)
     .eq("cycle_id", cycleId);
 
   if (!preferences?.length) {
     if (player) {
-      await supabase.from("players").delete().eq("game_id", gameId);
+      await supabase.from("players").delete().eq("player_id", playerId);
     }
-    return { error: "No reservation found for this Game ID." };
+    return { error: "No reservation found for this Player ID." };
   }
 
   const { data: reservations } = await supabase
     .from("reservations")
     .select("*, slots(day_of_week, block_start_utc, slot_index, office_type)")
-    .eq("player_id", gameId)
+    .eq("player_id", playerId)
     .eq("cycle_id", cycleId)
     .in("status", ["assigned", "eliminated"]);
 

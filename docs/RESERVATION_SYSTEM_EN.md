@@ -115,9 +115,9 @@ The tables below summarize **situation-specific responses** from production test
 | # | Situation | Condition | Result | User message |
 |---|-----------|-----------|--------|--------------|
 | 1 | First valid submission | `reservation_open = true`, no duplicate | `players` upsert + `preferences` insert | *Application received…* |
-| 2 | Same-day re-apply | `game_id + cycle_id + day_of_week` exists | Rejected | `DUPLICATE_DAY_MESSAGE` |
+| 2 | Same-day re-apply | `player_id + cycle_id + day_of_week` exists | Rejected | `DUPLICATE_DAY_MESSAGE` |
 | 3 | After deadline | `reservation_open = false` | Rejected | *Reservations are closed* |
-| 4 | Cross-channel duplicate | Google Form then secret link (same Game ID + day) | Second attempt rejected | `DUPLICATE_DAY_MESSAGE` |
+| 4 | Cross-channel duplicate | Google Form then secret link (same Player ID + day) | Second attempt rejected | `DUPLICATE_DAY_MESSAGE` |
 | 5 | Empty day (no blocks) | speedup/blocks blank | Day skipped | — |
 | 6 | Status check | `/r/[token]/check` | Before/after assignment | Application received / Assigned / On waitlist |
 
@@ -161,7 +161,7 @@ The tables below summarize **situation-specific responses** from production test
 | Path | Access | Description |
 |------|--------|-------------|
 | `/r/[token]` | Matching secret token | Multi-step application form (info → Mon → Tue → Thu) |
-| `/r/[token]/check` | Same token | Check application, assignment, and waitlist status by Game ID |
+| `/r/[token]/check` | Same token | Check application, assignment, and waitlist status by Player ID |
 | `/status` | Public | Live schedule and waitlist (different text before/after assignment) |
 | `/admin` | After login | URL, close, assign, search, grid, reset |
 | `/admin/login` | — | Password login |
@@ -189,7 +189,7 @@ erDiagram
   players ||--o{ archived_players : "archived on reset"
 
   players {
-    integer game_id PK
+    integer player_id PK
     text name
     text alliance
     integer speedup_mon
@@ -269,7 +269,7 @@ Total: 12 blocks × 4 slots = 48 slots / day
 
 ```mermaid
 flowchart LR
-  A[Your info\nGame ID / Name / Alliance] --> B[Monday\nSpeedup + preferred blocks]
+  A[Your info\nPlayer ID / Name / Alliance] --> B[Monday\nSpeedup + preferred blocks]
   B --> C[Tuesday\nSpeedup + preferred blocks]
   C --> D[Thursday\nSpeedup + preferred blocks]
   D --> E[Submit\nConfirmation dialog]
@@ -288,7 +288,7 @@ flowchart LR
 
 ### Duplicate Prevention
 
-Duplicates are detected by the combination `game_id + cycle_id + day_of_week`. Applications from different `game_id` values are always allowed.
+Duplicates are detected by the combination `player_id + cycle_id + day_of_week`. Applications from different `player_id` values are always allowed.
 
 ### Self-Check (`/r/[token]/check`)
 
@@ -546,8 +546,8 @@ Both paths write to the same `players` / `preferences` tables.
 |-----------|-------|------|
 | `row[0]` | Timestamp | Auto |
 | `row[1]` | Email address | Auto-collected (for edit response feature) |
-| `row[2]` | Game ID | Short answer — integer validation |
-| `row[3]` | Game Name | Short answer |
+| `row[2]` | Player ID | Short answer — integer validation |
+| `row[3]` | Player Name | Short answer |
 | `row[4]` | Alliance | Short answer |
 | `row[5]` | Monday Speedups (days) | Short answer — integer validation |
 | `row[6]` | Preferred time on Monday | Checkboxes |
@@ -599,10 +599,10 @@ Checkbox block options (same for all three days):
 
 | Path | First check | Second check |
 |------|------------|--------------|
-| Google Form | 1 response limit per Google account | Apps Script: `game_id + cycle_id + day_of_week` |
-| Secret link | `game_id + cycle_id + day_of_week` | — |
+| Google Form | 1 response limit per Google account | Apps Script: `player_id + cycle_id + day_of_week` |
+| Secret link | `player_id + cycle_id + day_of_week` | — |
 
-If the same `game_id` submits for the same day via both paths, the second attempt is silently ignored.
+If the same `player_id` submits for the same day via both paths, the second attempt is silently ignored.
 
 ### Security Notes
 
@@ -620,7 +620,7 @@ If the same `game_id` submits for the same day via both paths, the second attemp
 | Waitlist creation | `eliminated` created immediately | Created after batch assignment with `slot_id = null` |
 | Algorithm | Hopcroft-Karp | Min-Cost Max-Flow (MCMF) |
 | Speedup fields | `speedup_vp`, `speedup_mo` | `speedup_mon`, `speedup_tue`, `speedup_thu` |
-| Duplicate check | Mixed email + game_id | `game_id + cycle_id + day_of_week` only |
+| Duplicate check | (legacy) | `player_id + cycle_id + day_of_week` only |
 | Reset behavior | Data permanently deleted | Backed up to `archived_*` tables before deletion |
 | Application paths | Secret link only | Secret link + Google Form |
 | Time display | UTC/KST toggle | UTC only |

@@ -7,14 +7,14 @@ export function exportDayLabel(day: DayOfWeek): string {
 }
 
 export const EXPORT_CSV_HEADER =
-  "Day,Block (UTC),Slot # (1-4),Slot start (UTC),Game ID,Name,Alliance,Speedup (days),Status";
+  "Day,Block (UTC),Slot # (1-4),Slot start (UTC),Player ID,Player Name,Alliance,Speedup (days),Status";
 
 export interface SlotExportRow {
   day: string;
   blockUtc: string;
   slotStartUtc: string;
   slotNum: number;
-  gameId: string;
+  playerId: string;
   name: string;
   alliance: string;
   speedup: string;
@@ -33,7 +33,7 @@ interface ReservationRecord {
   player_id: number;
   status: string;
   players: {
-    game_id: number;
+    player_id: number;
     name: string;
     alliance: string;
     speedup_mon: number;
@@ -54,14 +54,14 @@ export function buildSlotExportRow(
   const utcBlockStr = `${pad(slot.block_start_utc)}:00~${pad(slot.block_start_utc + 2)}:00`;
   const day = slot.day_of_week as DayOfWeek;
 
-  let gameId = "";
+  let playerId = "";
   let name = "";
   let alliance = "";
   let speedup = "";
   let status = "";
 
   if (reservation) {
-    gameId = String(reservation.player_id ?? "");
+    playerId = String(reservation.player_id ?? "");
     status = reservation.status ?? "";
     const p = reservation.players;
     if (!p) {
@@ -82,7 +82,7 @@ export function buildSlotExportRow(
     blockUtc: utcBlockStr,
     slotStartUtc: slotStartUtcStr,
     slotNum: slot.slot_index + 1,
-    gameId,
+    playerId,
     name,
     alliance,
     speedup,
@@ -99,7 +99,7 @@ export function slotExportRowToCsvCells(
     escape(row.blockUtc),
     escape(row.slotNum),
     escape(row.slotStartUtc),
-    escape(row.gameId),
+    escape(row.playerId),
     escape(row.name),
     escape(row.alliance),
     escape(row.speedup),
@@ -215,8 +215,8 @@ export function slotExportRowToExcelRecord(row: SlotExportRow): Record<string, s
     "Block (UTC)": row.blockUtc,
     "Slot # (1-4)": row.slotNum,
     "Slot start (UTC)": row.slotStartUtc,
-    "Game ID": row.gameId ? Number(row.gameId) : "",
-    Name: row.name,
+    "Player ID": row.playerId ? Number(row.playerId) : "",
+    "Player Name": row.name,
     Alliance: row.alliance,
     "Speedup (days)": row.speedup ? Number(row.speedup) : "",
     Status: row.status,

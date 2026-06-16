@@ -160,7 +160,7 @@ function DayStepContent({
 
 export function ReservationForm({ reservationOpen, token }: Props) {
   const [step, setStep] = useState<Step>("info");
-  const [gameId, setGameId] = useState("");
+  const [playerId, setPlayerId] = useState("");
   const [name, setName] = useState("");
   const [alliance, setAlliance] = useState("");
   const [dayState, setDayState] = useState(emptyDayState);
@@ -180,7 +180,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
         return;
       }
       try {
-        const query = new URLSearchParams({ gameId: String(parsed) });
+        const query = new URLSearchParams({ playerId: String(parsed) });
         const res = await fetch(`/r/${token}/api/existing?${query}`);
         const data = await res.json();
         setReservedDays((data.reservedDays ?? []) as DayOfWeek[]);
@@ -192,15 +192,15 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   );
 
   useEffect(() => {
-    const t = setTimeout(() => fetchReservedDays(gameId), 400);
+    const t = setTimeout(() => fetchReservedDays(playerId), 400);
     return () => clearTimeout(t);
-  }, [gameId, fetchReservedDays]);
+  }, [playerId, fetchReservedDays]);
 
   useEffect(() => {
-    if (step !== "info" && gameId.trim()) {
-      fetchReservedDays(gameId);
+    if (step !== "info" && playerId.trim()) {
+      fetchReservedDays(playerId);
     }
-  }, [step, gameId, fetchReservedDays]);
+  }, [step, playerId, fetchReservedDays]);
 
   const setSpeedupForDay = useCallback((day: DayOfWeek, value: string) => {
     setDayState((prev) => ({
@@ -289,10 +289,10 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   }
 
   function handleInfoNext() {
-    if (!gameId.trim() || !name.trim() || !alliance) {
+    if (!playerId.trim() || !name.trim() || !alliance) {
       setMessage({
         type: "err",
-        text: "Please fill in Game ID, Name, and select an alliance.",
+        text: "Please fill in Player ID, Player Name, and select an alliance.",
       });
       return;
     }
@@ -335,7 +335,7 @@ export function ReservationForm({ reservationOpen, token }: Props) {
   function submitConfirmed() {
     const selected = getSelectedDays();
     const fd = new FormData();
-    fd.set("game_id", gameId);
+    fd.set("player_id", playerId);
     fd.set("name", name);
     fd.set("alliance", alliance);
 
@@ -356,13 +356,13 @@ export function ReservationForm({ reservationOpen, token }: Props) {
       });
       if (result.success) {
         setStep("info");
-        setGameId("");
+        setPlayerId("");
         setName("");
         setAlliance("");
         setDayState(emptyDayState());
         setReservedDays([]);
       } else {
-        await fetchReservedDays(gameId);
+        await fetchReservedDays(playerId);
       }
     });
   }
@@ -394,21 +394,21 @@ export function ReservationForm({ reservationOpen, token }: Props) {
             <div className="flex flex-col gap-3">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600">
-                  Game ID
+                  Player ID
                 </label>
                 <input
                   type="number"
                   required
-                  value={gameId}
-                  onChange={(e) => setGameId(e.target.value)}
-                  onBlur={() => fetchReservedDays(gameId)}
+                  value={playerId}
+                  onChange={(e) => setPlayerId(e.target.value)}
+                  onBlur={() => fetchReservedDays(playerId)}
                   className="input-field"
                   placeholder="e.g. 12345678"
                 />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600">
-                  Name
+                  Player Name
                 </label>
                 <input
                   type="text"

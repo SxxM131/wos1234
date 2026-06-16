@@ -22,19 +22,19 @@ const supabase = createClient(
 );
 
 async function main() {
-  const { data: players } = await supabase.from("players").select("game_id");
+  const { data: players } = await supabase.from("players").select("player_id");
   let removed = 0;
 
   for (const p of players ?? []) {
     const { count } = await supabase
       .from("preferences")
       .select("*", { count: "exact", head: true })
-      .eq("player_id", p.game_id);
+      .eq("player_id", p.player_id);
 
     if (!count) {
-      await supabase.from("players").delete().eq("game_id", p.game_id);
+      await supabase.from("players").delete().eq("player_id", p.player_id);
       removed++;
-      console.log(`Removed orphan player ${p.game_id}`);
+      console.log(`Removed orphan player ${p.player_id}`);
     }
   }
 

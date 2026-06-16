@@ -15,14 +15,14 @@ export const SUBMIT_SUCCESS_MESSAGE =
  */
 export async function hasActiveDayReservation(
   supabase: SupabaseClient,
-  gameId: number,
+  playerId: number,
   day: DayOfWeek,
   cycleId: number
 ): Promise<boolean> {
   const { data: prefs } = await supabase
     .from("preferences")
     .select("id")
-    .eq("player_id", gameId)
+    .eq("player_id", playerId)
     .eq("day_of_week", day)
     .eq("cycle_id", cycleId)
     .limit(1);
@@ -31,12 +31,12 @@ export async function hasActiveDayReservation(
 
 export async function getReservedDaysForPlayer(
   supabase: SupabaseClient,
-  gameId: number
+  playerId: number
 ): Promise<DayOfWeek[]> {
   const cycleId = await getCurrentCycleId(supabase);
   const reserved: DayOfWeek[] = [];
   for (const day of ALL_DAYS) {
-    if (await hasActiveDayReservation(supabase, gameId, day, cycleId)) {
+    if (await hasActiveDayReservation(supabase, playerId, day, cycleId)) {
       reserved.push(day);
     }
   }
@@ -46,14 +46,14 @@ export async function getReservedDaysForPlayer(
 /** After admin cancel, remove preferences on this day so the player can re-apply. */
 export async function clearCancelledDayReservations(
   supabase: SupabaseClient,
-  gameId: number,
+  playerId: number,
   day: DayOfWeek,
   cycleId: number
 ): Promise<void> {
   await supabase
     .from("preferences")
     .delete()
-    .eq("player_id", gameId)
+    .eq("player_id", playerId)
     .eq("day_of_week", day)
     .eq("cycle_id", cycleId);
 }

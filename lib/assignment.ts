@@ -8,7 +8,7 @@ import {
 } from "./reservation-guard";
 
 export interface SubmitInput {
-  gameId: number;
+  playerId: number;
   name: string;
   alliance: string;
   dayOfWeek: DayOfWeek;
@@ -74,14 +74,14 @@ export async function processReservation(
 
   if (!input.skipPlayerUpsert) {
     const playerData: Record<string, unknown> = {
-      game_id: input.gameId,
+      player_id: input.playerId,
       name: input.name,
       alliance: input.alliance,
       [speedupKey]: input.speedup,
     };
     const { error: playerError } = await supabase
       .from("players")
-      .upsert(playerData, { onConflict: "game_id" });
+      .upsert(playerData, { onConflict: "player_id" });
     if (playerError) {
       return { success: false, message: `Failed to save player: ${playerError.message}` };
     }
@@ -90,7 +90,7 @@ export async function processReservation(
   if (
     await hasActiveDayReservation(
       supabase,
-      input.gameId,
+      input.playerId,
       input.dayOfWeek,
       cycleId
     )
@@ -100,7 +100,7 @@ export async function processReservation(
 
   await clearCancelledDayReservations(
     supabase,
-    input.gameId,
+    input.playerId,
     input.dayOfWeek,
     cycleId
   );
@@ -109,7 +109,7 @@ export async function processReservation(
 
   for (const block of preferredBlocks) {
     const prefRow: Record<string, unknown> = {
-      player_id: input.gameId,
+      player_id: input.playerId,
       day_of_week: input.dayOfWeek,
       block_start_utc: block,
       cycle_id: cycleId,
@@ -129,7 +129,7 @@ export async function processReservation(
   return {
     success: true,
     message: SUBMIT_SUCCESS_MESSAGE,
-    touchedPlayerIds: [input.gameId],
+    touchedPlayerIds: [input.playerId],
   };
 }
 
@@ -141,7 +141,7 @@ function getSpeedup(player: { speedup_mon: number; speedup_tue: number; speedup_
 
 async function upsertPlayerForDays(
   supabase: SupabaseClient,
-  gameId: number,
+  playerId: number,
   name: string,
   alliance: string,
   days: DaySubmit[]
@@ -149,7 +149,7 @@ async function upsertPlayerForDays(
   const { data: existing } = await supabase
     .from("players")
     .select("speedup_mon, speedup_tue, speedup_thu")
-    .eq("game_id", gameId)
+    .eq("player_id", playerId)
     .maybeSingle();
 
   let speedupMon = existing?.speedup_mon ?? 0;
@@ -169,7 +169,7 @@ async function upsertPlayerForDays(
   }
 
   const playerRow: Record<string, unknown> = {
-    game_id: gameId,
+    player_id: playerId,
     name,
     alliance,
     speedup_mon: speedupMon,
@@ -179,13 +179,13 @@ async function upsertPlayerForDays(
 
   const { error } = await supabase
     .from("players")
-    .upsert(playerRow, { onConflict: "game_id" });
+    .upsert(playerRow, { onConflict: "player_id" });
   return error;
 }
 
 export async function processMultiDayReservation(
   supabase: SupabaseClient,
-  gameId: number,
+  playerId: number,
   name: string,
   alliance: string,
   days: DaySubmit[]
@@ -196,7 +196,7 @@ export async function processMultiDayReservation(
 
   const playerError = await upsertPlayerForDays(
     supabase,
-    gameId,
+    playerId,
     name,
     alliance,
     days
@@ -214,7 +214,7 @@ export async function processMultiDayReservation(
     if (
       await hasActiveDayReservation(
         supabase,
-        gameId,
+        playerId,
         day.dayOfWeek,
         cycleId
       )
@@ -231,7 +231,7 @@ export async function processMultiDayReservation(
 
   for (const day of days) {
     const result = await processReservation(supabase, {
-      gameId,
+      playerId,
       name,
       alliance,
       dayOfWeek: day.dayOfWeek,
@@ -419,7 +419,7 @@ async function runReassignmentQueue(
     const { data: player } = await supabase
       .from("players")
       .select("speedup_mon, speedup_tue, speedup_thu")
-      .eq("game_id", playerId)
+      .eq("player_id", playerId)
       .single();
     if (!player) continue;
 
