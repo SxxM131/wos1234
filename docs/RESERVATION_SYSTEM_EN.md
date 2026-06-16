@@ -114,8 +114,8 @@ The tables below summarize **situation-specific responses** from production test
 
 | # | Situation | Condition | Result | User message |
 |---|-----------|-----------|--------|--------------|
-| 1 | First valid submission | `reservation_open = true`, no `last_assignment_run` | `players` upsert + `preferences` INSERT | *Your application has been received.* |
-| 2 | Re-submit same `player_id` | Existing `preferences` in cycle | DELETE all + INSERT new | *Your application has been updated.* |
+| 1 | First valid submission | `reservation_open = true`, no `last_assignment_run` | `processMultiDayReservation` → `players` upsert + DELETE (player+cycle) + INSERT `preferences` | *Your application has been received.* |
+| 2 | Re-submit same `player_id` | Existing `preferences` in cycle | Same function, full replace | *Your application has been updated.* |
 | 3 | After deadline | `reservation_open = false` | Rejected | *Reservations are currently closed.* |
 | 4 | After assignment run | `last_assignment_run` set | Rejected | `ASSIGNMENT_LOCKED_MESSAGE` |
 | 5 | Empty day (no blocks) | speedup/blocks blank | Day skipped (not in submission) | — |
@@ -174,6 +174,12 @@ The tables below summarize **situation-specific responses** from production test
 | POST | `/api/admin/login` | `{ password }` | Create session |
 | POST | `/api/admin/action` | `{ action: "run_batch_assignment" }` | Same as button |
 | GET | `/api/admin/assignment-preview` | — | Applicant count and last assignment time |
+
+**API (webhook — no admin session)**
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/google-form-submit` | `X-Webhook-Secret` header | Google Form payload → `processMultiDayReservation` (same logic as secret link) |
 
 ---
 
@@ -291,6 +297,8 @@ flowchart LR
 ### Full Replace on Re-Submit
 
 Re-submitting with the same `player_id` + `cycle_id` **DELETEs all** `preferences` for that cycle, then INSERTs the new submission. Applies equally to Google Form and secret link. Different `player_id` values are independent.
+
+**Entry point:** Both paths call only `processMultiDayReservation` in `lib/assignment.ts`. (Google Form: `app/api/google-form-submit/route.ts` → secret link: `app/r/[token]/actions.ts`)
 
 ### Self-Check (`/r/[token]/check`)
 
@@ -507,10 +515,11 @@ npm run verify:assignment
 
 | Area | File |
 |------|------|
-| Assignment & MCMF | `lib/assignment.ts` |
+| Submit handling, assignment & MCMF | `lib/assignment.ts` (`processMultiDayReservation`) |
 | Re-submit & messages | `lib/reservation-guard.ts` |
 | Day & block constants | `lib/types.ts` |
 | UTC formatting | `lib/utils.ts` |
+| Google Form webhook | `app/api/google-form-submit/route.ts` |
 | Admin UI | `app/admin/AdminDashboard.tsx`, `app/admin/actions.ts` |
 | Application & check | `app/r/[token]/ReservationForm.tsx`, `app/r/[token]/actions.ts` |
 | Public status | `app/status/StatusView.tsx`, `app/status/page.tsx` |
@@ -534,13 +543,15 @@ A Google Form submission path runs in parallel to work around Vercel cold starts
 ```mermaid
 flowchart LR
   GF[Google Form submission] --> AS[Apps Script\nonFormSubmit]
-  AS --> SB[(Supabase\nplayers / preferences)]
-  RL[Secret link /r/token] --> SA[Server Action]
-  SA --> SB
+  AS --> WH[POST /api/google-form-submit]
+  WH --> PMR[processMultiDayReservation]
+  RL[Secret link /r/token] --> SA[submitReservation\nServer Action]
+  SA --> PMR
+  PMR --> SB[(Supabase\nplayers / preferences)]
   SB --> BA[Assignment algorithm]
 ```
 
-Both paths write to the same `players` / `preferences` tables.
+Both paths go through `processMultiDayReservation` into the same `players` / `preferences` tables. Apps Script does not call Supabase directly.
 
 ### Form description (copy-paste)
 
@@ -654,6 +665,7 @@ With email collection **off**, Google Form responses have **no edit link** — u
 | Algorithm | Hopcroft-Karp | Min-Cost Max-Flow (MCMF) |
 | Speedup fields | `speedup_vp`, `speedup_mo` | `speedup_mon`, `speedup_tue`, `speedup_thu` |
 | Re-submit behavior | (legacy) one per day, duplicate rejected | Full DELETE + INSERT per `player_id + cycle_id` |
+| Submit handler | `processReservation` (per-day upsert) | `processMultiDayReservation` only (`processReservation` removed) |
 | Reset behavior | Data permanently deleted | Backed up to `archived_*` tables before deletion |
 | Application paths | Secret link only | Secret link + Google Form |
 | Time display | UTC/KST toggle | UTC only |

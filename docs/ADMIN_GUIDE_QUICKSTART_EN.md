@@ -17,7 +17,7 @@ For R4+ admins with access to this site. Explains how the reservation system wor
 | **Google Form** | Main path during the normal application window (email collection **off** — no post-submit edit link; **re-submit form** to update) |
 | **Secret link** (`/r/...`) | Corrections during the window, late cases after form closes — share from dashboard when needed |
 
-**Re-submit rule (both channels):** same **Player ID + cycle** → **full replace** (DELETE all preferences for that player in the cycle, then INSERT the new submission). Latest submission wins. **After assignment runs**, preference changes are **rejected**.
+**Re-submit rule (both channels):** same **Player ID + cycle** → **full replace** via `processMultiDayReservation` (DELETE all preferences for that player in the cycle, then INSERT the new submission). Latest submission wins. **After assignment runs**, preference changes are **rejected**.
 
 ```mermaid
 flowchart TD

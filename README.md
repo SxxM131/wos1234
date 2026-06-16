@@ -164,6 +164,8 @@ flowchart TD
     F --> H
 ```
 
+신청 제출은 구글 폼·시크릿 URL 모두 `processMultiDayReservation`으로 처리됩니다 (full replace).
+
 > **MCMF 도입 이유:** 이전 Hopcroft-Karp 방식에서 발생하던 ① 빈 슬롯 + 대기자 동시 존재(V1), ② 스피드업 역전(V4) 문제를 해결했습니다. `verify:assignment` 기준 에러 0건·경고 0건.
 
  상세 동작: [docs/RESERVATION_SYSTEM.md](docs/RESERVATION_SYSTEM.md)
@@ -177,14 +179,16 @@ Vercel 콜드스타트 우회 목적으로 구글 폼 신청을 병행 운영할
 ```mermaid
 flowchart LR
     A[구글 폼 제출] -->|onFormSubmit| B[Apps Script]
-    C[시크릿 링크 /r/token] -->|Server Action| D[Supabase\nplayers / preferences]
-    B --> D
-    D --> E[배정 알고리즘]
+    B -->|POST /api/google-form-submit| C[processMultiDayReservation]
+    D[시크릿 링크 /r/token] -->|Server Action| C
+    C --> E[Supabase\nplayers / preferences]
+    E --> F[배정 알고리즘]
 ```
 
 | 항목 | 내용 |
 |------|------|
-| 재제출(전체 교체) | 같은 `player_id` + `cycle_id` → DELETE 전체 후 INSERT (구글 폼·시크릿 URL 동일) |
+| 재제출(전체 교체) | 같은 `player_id` + `cycle_id` → DELETE 전체 후 INSERT (`processMultiDayReservation`) |
+| 웹훅 | Apps Script → `POST /api/google-form-submit` — Supabase 직접 호출 없음 |
 | 폼 안내 문구 | 폼 설명란에 재제출 안내 붙여넣기 — [§17 복사용 문구](docs/RESERVATION_SYSTEM.md#폼-상단-안내-문구-복사용) |
 | cycle_id | Supabase settings 테이블에서 동적 조회 — Reset 후 코드 수정 불필요 |
 | Apps Script | [`scripts/appscript/onFormSubmit.gs`](scripts/appscript/onFormSubmit.gs) |
