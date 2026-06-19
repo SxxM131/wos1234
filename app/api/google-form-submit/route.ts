@@ -104,7 +104,8 @@ export async function POST(request: Request) {
     playerId,
     name,
     alliance,
-    daySubmits
+    daySubmits,
+    { skipOpenCheck: true }
   );
 
   return NextResponse.json(result, { status: result.success ? 200 : 409 });

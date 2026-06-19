@@ -3,7 +3,6 @@ import { DayOfWeek, DAY_CONFIG } from "./types";
 import {
   SUBMIT_RECEIVED_MESSAGE,
   SUBMIT_UPDATED_MESSAGE,
-  ASSIGNMENT_LOCKED_MESSAGE,
   playerHasAnyPreferencesInCycle,
 } from "./reservation-guard";
 
@@ -101,20 +100,28 @@ async function upsertPlayerForDays(
   return error;
 }
 
+export interface ProcessMultiDayReservationOptions {
+  /** Member-facing paths: skip reservation_open (enforced elsewhere or via Google Form). */
+  skipOpenCheck?: boolean;
+}
+
 export async function processMultiDayReservation(
   supabase: SupabaseClient,
   playerId: number,
   name: string,
   alliance: string,
-  days: DaySubmit[]
+  days: DaySubmit[],
+  options?: ProcessMultiDayReservationOptions
 ): Promise<AssignmentResult> {
   if (days.length === 0) {
     return { success: false, message: "Select at least one day." };
   }
 
-  const lastRun = await getLastAssignmentRun(supabase);
-  if (lastRun) {
-    return { success: false, message: ASSIGNMENT_LOCKED_MESSAGE };
+  if (!options?.skipOpenCheck) {
+    const open = await isReservationOpen(supabase);
+    if (!open) {
+      return { success: false, message: "Reservations are currently closed." };
+    }
   }
 
   const cycleId = await getCurrentCycleId(supabase);

@@ -72,7 +72,8 @@ export async function submitReservation(formData: FormData) {
     playerId,
     name,
     alliance,
-    daySubmits
+    daySubmits,
+    { skipOpenCheck: true }
   );
 }
 
