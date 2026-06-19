@@ -88,10 +88,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### 경우 2 — 배정 전 (구글 폼 마감 후, 배정 실행 전)
 
-`reservation_open = false`이면 구글 폼·시크릿 URL 모두 거부됩니다.
+**시크릿 URL**이 닫혀 있으면 (`reservation_open = false`) 웹 재제출은 거부됩니다. **구글 폼**은 구글 쪽에서 **응답 수락 중지**할 때까지 계속 접수됩니다.
 
 1. R4에게 연락
-2. R4가 **시크릿 URL**을 제공하면 해당 링크로 **재제출** (전체 교체)
+2. R4가 **시크릿 URL**을 다시 열어 주거나, 구글 폼으로 **재제출** (전체 교체)
 3. (선택) R4가 Search에서 요일별 **Delete** 후 재제출 유도
 
 ### 경우 3 — 배정 후
@@ -129,7 +129,8 @@ R4가 Schedule Grid에서 **Cancel** 등으로 처리합니다. 자가 재신청
 |---|------|-------------|------|
 | 1 | 신청 기간 · 첫 제출 | `preferences` INSERT (`reservations` 없음) | *Your application has been received.* |
 | 2 | 같은 `player_id` 재제출 | 기존 `preferences` DELETE 후 INSERT (전체 교체) | *Your application has been updated.* |
-| 3 | 마감 후 (`reservation_open = false`) | 거부 | *Reservations are currently closed.* |
+| 3 | 시크릿 URL 마감 후 (`reservation_open = false`) | 시크릿 URL만 거부 | *Secret URL applications are currently closed.* |
+| 3b | 구글 폼 마감 후 (구글에서 응답 수락 중지) | 구글 폼 제출 불가 | — |
 | 4 | 배정 실행 후 (`last_assignment_run`) | preferences 변경 거부 | *Applications cannot be changed after assignment…* |
 | 5 | `/r/[token]/check` 조회 | 배정 전·후 상태 표시 | Application received / Assigned / On waitlist |
 

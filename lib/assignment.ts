@@ -112,11 +112,6 @@ export async function processMultiDayReservation(
     return { success: false, message: "Select at least one day." };
   }
 
-  const open = await isReservationOpen(supabase);
-  if (!open) {
-    return { success: false, message: "Reservations are currently closed." };
-  }
-
   const lastRun = await getLastAssignmentRun(supabase);
   if (lastRun) {
     return { success: false, message: ASSIGNMENT_LOCKED_MESSAGE };
