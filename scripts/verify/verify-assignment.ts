@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { fetchAllPages } from "../../lib/supabase";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(
@@ -42,10 +43,19 @@ async function main() {
     .eq("cycle_id", cycleId);
   const reservations = resData ?? [];
 
-  const { data: prefData } = await supabase
-    .from("preferences")
-    .select("*")
-    .eq("cycle_id", cycleId);
+  const { data: prefData, error: prefError } = await fetchAllPages(async (from, to) =>
+    await supabase
+      .from("preferences")
+      .select("*")
+      .eq("cycle_id", cycleId)
+      .order("player_id")
+      .order("day_of_week")
+      .order("block_start_utc")
+      .range(from, to)
+  );
+  if (prefError) {
+    throw new Error(`Failed to load preferences: ${prefError.message}`);
+  }
   const preferences = prefData ?? [];
 
   const { data: playersData } = await supabase.from("players").select("*");

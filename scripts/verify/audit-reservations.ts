@@ -7,6 +7,7 @@ import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { getCurrentCycleId } from "../../lib/assignment";
+import { fetchAllPages } from "../../lib/supabase";
 import { DayOfWeek, DAY_CONFIG } from "../../lib/types";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -43,10 +44,19 @@ async function main() {
     )
     .eq("cycle_id", cycleId);
 
-  const { data: prefs } = await supabase
-    .from("preferences")
-    .select("player_id, day_of_week, block_start_utc")
-    .eq("cycle_id", cycleId);
+  const { data: prefs, error: prefError } = await fetchAllPages(async (from, to) =>
+    await supabase
+      .from("preferences")
+      .select("player_id, day_of_week, block_start_utc")
+      .eq("cycle_id", cycleId)
+      .order("player_id")
+      .order("day_of_week")
+      .order("block_start_utc")
+      .range(from, to)
+  );
+  if (prefError) {
+    throw new Error(`Failed to load preferences: ${prefError.message}`);
+  }
 
   const slotMap = new Map((slots ?? []).map((s) => [s.id, s]));
   const resList = reservations ?? [];
