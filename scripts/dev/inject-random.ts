@@ -12,10 +12,10 @@ import {
   processMultiDayReservation,
   getCurrentCycleId,
   getAssignmentApplicantCounts,
-} from "../lib/assignment";
-import { DayOfWeek, ALLIANCE_OPTIONS } from "../lib/types";
+} from "../../lib/assignment";
+import { DayOfWeek, ALLIANCE_OPTIONS } from "../../lib/types";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(
   readFileSync(resolve(root, ".env.local"), "utf8")
     .split("\n")

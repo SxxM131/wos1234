@@ -145,6 +145,20 @@ export async function processMultiDayReservation(
     };
   }
 
+  if (options?.skipOpenCheck && (await getLastAssignmentRun(supabase))) {
+    const { error: resDeleteError } = await supabase
+      .from("reservations")
+      .delete()
+      .eq("player_id", playerId)
+      .eq("cycle_id", cycleId);
+    if (resDeleteError) {
+      return {
+        success: false,
+        message: `Failed to clear prior assignments: ${resDeleteError.message}`,
+      };
+    }
+  }
+
   const { error: deleteError } = await supabase
     .from("preferences")
     .delete()

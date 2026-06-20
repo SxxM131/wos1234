@@ -8,10 +8,10 @@ import {
   getLastAssignmentRun,
   computeEligibleByBlock,
   type BatchApplicant,
-} from "../lib/assignment";
-import { DayOfWeek, DAY_CONFIG } from "../lib/types";
+} from "../../lib/assignment";
+import { DayOfWeek, DAY_CONFIG } from "../../lib/types";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(
   readFileSync(resolve(root, ".env.local"), "utf8")
     .split("\n")

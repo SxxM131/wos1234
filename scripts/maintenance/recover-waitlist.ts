@@ -12,11 +12,11 @@ import {
   getCurrentCycleId,
   healEliminatedReservations,
   backfillEmptySlotsForCycle,
-} from "../lib/assignment";
-import { DayOfWeek } from "../lib/types";
+} from "../../lib/assignment";
+import { DayOfWeek } from "../../lib/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, "..");
+const root = resolve(__dirname, "../..");
 const env = Object.fromEntries(
   readFileSync(resolve(root, ".env.local"), "utf8")
     .split("\n")

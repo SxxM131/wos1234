@@ -7,9 +7,9 @@ import { fileURLToPath } from "url";
 import {
   backfillEmptySlotsForCycle,
   getCurrentCycleId,
-} from "../lib/assignment";
+} from "../../lib/assignment";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(
   readFileSync(resolve(root, ".env.local"), "utf8")
     .split("\n")
