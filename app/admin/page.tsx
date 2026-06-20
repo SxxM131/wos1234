@@ -60,8 +60,8 @@ export default async function AdminPage() {
     })
   );
 
-  const { data: prefRows, error: prefError } = await fetchAllPages((from, to) =>
-    supabase
+  const { data: prefRows, error: prefError } = await fetchAllPages(async (from, to) =>
+    await supabase
       .from("preferences")
       .select(
         "player_id, day_of_week, block_start_utc, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"

@@ -21,7 +21,7 @@ export async function fetchAllPages<T>(
   fetchPage: (
     from: number,
     to: number
-  ) => Promise<{ data: T[] | null; error: { message: string } | null }>
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
 ): Promise<{ data: T[]; error: { message: string } | null }> {
   const all: T[] = [];
   let from = 0;
