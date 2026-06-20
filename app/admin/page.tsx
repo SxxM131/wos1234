@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 import { getAdminSession } from "@/lib/session";
-import { createServiceClient } from "@/lib/supabase";
+import { createServiceClient, fetchAllPages } from "@/lib/supabase";
 import { getCurrentCycleId, getLastAssignmentRun } from "@/lib/assignment";
 import { AdminDashboard } from "./AdminDashboard";
 import { DayOfWeek } from "@/lib/types";
@@ -60,12 +60,21 @@ export default async function AdminPage() {
     })
   );
 
-  const { data: prefRows } = await supabase
-    .from("preferences")
-    .select(
-      "player_id, day_of_week, block_start_utc, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
-    )
-    .eq("cycle_id", cycleId);
+  const { data: prefRows, error: prefError } = await fetchAllPages((from, to) =>
+    supabase
+      .from("preferences")
+      .select(
+        "player_id, day_of_week, block_start_utc, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
+      )
+      .eq("cycle_id", cycleId)
+      .order("player_id")
+      .order("day_of_week")
+      .order("block_start_utc")
+      .range(from, to)
+  );
+  if (prefError) {
+    throw new Error(`Failed to load applicants: ${prefError.message}`);
+  }
 
   const applicantMap = new Map<
     number,

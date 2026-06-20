@@ -13,3 +13,33 @@ export function createServiceClient() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+const SUPABASE_PAGE_SIZE = 1000;
+
+/** PostgREST caps responses at 1000 rows; paginate until all rows are fetched. */
+export async function fetchAllPages<T>(
+  fetchPage: (
+    from: number,
+    to: number
+  ) => Promise<{ data: T[] | null; error: { message: string } | null }>
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const all: T[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await fetchPage(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) {
+      return { data: all, error };
+    }
+    if (!data?.length) {
+      break;
+    }
+    all.push(...data);
+    if (data.length < SUPABASE_PAGE_SIZE) {
+      break;
+    }
+    from += SUPABASE_PAGE_SIZE;
+  }
+
+  return { data: all, error: null };
+}
