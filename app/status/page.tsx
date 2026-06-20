@@ -35,22 +35,16 @@ export default async function StatusPage() {
     .eq("cycle_id", cycleId)
     .eq("status", "eliminated");
 
-  const assignedPlayerIds = new Set(
-    (reservations ?? []).map((r) => r.player_id)
-  );
-
   const elimWithPrefs = (
     await Promise.all(
-      (eliminated ?? [])
-        .filter((e) => !assignedPlayerIds.has(e.player_id))
-        .map(async (e) => {
-          const { data: prefs } = await supabase
-            .from("preferences")
-            .select("block_start_utc, day_of_week")
-            .eq("player_id", e.player_id)
-            .eq("cycle_id", cycleId);
-          return { ...e, preferences: prefs ?? [] };
-        })
+      (eliminated ?? []).map(async (e) => {
+        const { data: prefs } = await supabase
+          .from("preferences")
+          .select("block_start_utc, day_of_week")
+          .eq("player_id", e.player_id)
+          .eq("cycle_id", cycleId);
+        return { ...e, preferences: prefs ?? [] };
+      })
     )
   ).filter((e) => e.preferences.length > 0);
 

@@ -42,6 +42,13 @@ interface Props {
   assignmentPending: boolean;
 }
 
+function preferencesForDay(
+  prefs: EliminatedData["preferences"],
+  day: DayOfWeek
+) {
+  return prefs.filter((p) => p.day_of_week === day);
+}
+
 export function StatusView({
   initialSlots,
   initialReservations,
@@ -75,15 +82,6 @@ export function StatusView({
 
     if (resData) setReservations(resData as unknown as ReservationData[]);
 
-    const assignedOnDay = new Set(
-      (resData ?? [])
-        .filter((r) => {
-          const slot = r.slots as unknown as { day_of_week: string } | null;
-          return slot?.day_of_week === day;
-        })
-        .map((r) => r.player_id)
-    );
-
     const { data: elimData } = await supabase
       .from("reservations")
       .select("player_id, players(name, alliance, speedup_mon, speedup_tue, speedup_thu)")
@@ -93,24 +91,21 @@ export function StatusView({
     if (elimData) {
       const withPrefs = (
         await Promise.all(
-          elimData
-            .filter((e) => !assignedOnDay.has(e.player_id))
-            .map(async (e) => {
-              const { data: prefs } = await supabase
-                .from("preferences")
-                .select("block_start_utc, day_of_week")
-                .eq("player_id", e.player_id)
-                .eq("cycle_id", cycleId)
-                .eq("day_of_week", day);
-              return { ...e, preferences: prefs ?? [] };
-            })
+          elimData.map(async (e) => {
+            const { data: prefs } = await supabase
+              .from("preferences")
+              .select("block_start_utc, day_of_week")
+              .eq("player_id", e.player_id)
+              .eq("cycle_id", cycleId);
+            return { ...e, preferences: prefs ?? [] };
+          })
         )
       ).filter((e) => e.preferences.length > 0);
       setEliminated(withPrefs as unknown as EliminatedData[]);
     } else {
       setEliminated([]);
     }
-  }, [cycleId, day]);
+  }, [cycleId]);
 
   useEffect(() => {
     refresh();
@@ -146,10 +141,10 @@ export function StatusView({
   );
 
   const dayEliminated = eliminated
-    .filter(
-      (e) =>
-        e.preferences.length > 0 && !assignedPlayerIdsOnDay.has(e.player_id)
-    )
+    .filter((e) => {
+      const dayPrefs = preferencesForDay(e.preferences, day);
+      return dayPrefs.length > 0 && !assignedPlayerIdsOnDay.has(e.player_id);
+    })
     .sort((a, b) => {
       const sa = a.players ? a.players[config.speedupKey] ?? 0 : 0;
       const sb = b.players ? b.players[config.speedupKey] ?? 0 : 0;
@@ -236,7 +231,9 @@ export function StatusView({
                 ? e.players[config.speedupKey] ?? 0
                 : 0;
               const prefs = Array.from(
-                new Set(e.preferences?.map((p) => p.block_start_utc) ?? [])
+                new Set(
+                  preferencesForDay(e.preferences, day).map((p) => p.block_start_utc)
+                )
               )
                 .sort((a, b) => a - b)
                 .map((b) => formatBlockRange(b))
