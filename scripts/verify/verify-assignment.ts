@@ -37,10 +37,18 @@ async function main() {
   const { data: slotsData } = await supabase.from("slots").select("*");
   const slots = slotsData ?? [];
 
-  const { data: resData } = await supabase
-    .from("reservations")
-    .select("*")
-    .eq("cycle_id", cycleId);
+  const { data: resData, error: resError } = await fetchAllPages(async (from, to) =>
+    await supabase
+      .from("reservations")
+      .select("*")
+      .eq("cycle_id", cycleId)
+      .order("player_id")
+      .order("status")
+      .range(from, to)
+  );
+  if (resError) {
+    throw new Error(`Failed to load reservations: ${resError.message}`);
+  }
   const reservations = resData ?? [];
 
   const { data: prefData, error: prefError } = await fetchAllPages(async (from, to) =>
