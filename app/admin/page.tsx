@@ -64,7 +64,7 @@ export default async function AdminPage() {
     await supabase
       .from("preferences")
       .select(
-        "player_id, day_of_week, block_start_utc, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
+        "player_id, day_of_week, block_start_utc, applied_at, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
       )
       .eq("cycle_id", cycleId)
       .order("player_id")
@@ -89,6 +89,7 @@ export default async function AdminPage() {
         speedup_thu: number;
       };
       preferences: { day_of_week: string; block_start_utc: number }[];
+      submittedAt: string;
     }
   >();
 
@@ -105,20 +106,49 @@ export default async function AdminPage() {
       day_of_week: row.day_of_week as string,
       block_start_utc: row.block_start_utc,
     };
+    const appliedAt = (row.applied_at as string | null) ?? new Date(0).toISOString();
     const existing = applicantMap.get(row.player_id);
     if (existing) {
       existing.preferences.push(pref);
+      if (new Date(appliedAt).getTime() > new Date(existing.submittedAt).getTime()) {
+        existing.submittedAt = appliedAt;
+      }
     } else {
       applicantMap.set(row.player_id, {
         player_id: row.player_id,
         players,
         preferences: [pref],
+        submittedAt: appliedAt,
       });
     }
   }
 
   const applicants = Array.from(applicantMap.values());
   const assignmentPublished = !!(await getLastAssignmentRun(supabase));
+
+  const { data: reservationPlayers } = await supabase
+    .from("reservations")
+    .select("player_id")
+    .eq("cycle_id", cycleId);
+  const reservedPlayerIds = new Set(
+    (reservationPlayers ?? []).map((r) => r.player_id)
+  );
+
+  const dayOrder: DayOfWeek[] = ["mon", "tue", "thu"];
+  const pendingApplicants = applicants
+    .filter((a) => !reservedPlayerIds.has(a.player_id))
+    .map((a) => ({
+      player_id: a.player_id,
+      players: a.players,
+      daysApplied: Array.from(
+        new Set(a.preferences.map((p) => p.day_of_week as DayOfWeek))
+      ).sort((x, y) => dayOrder.indexOf(x) - dayOrder.indexOf(y)),
+      submittedAt: a.submittedAt,
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
 
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL ||
@@ -139,6 +169,7 @@ export default async function AdminPage() {
           : []) as unknown as Parameters<typeof AdminDashboard>[0]["eliminated"]
       }
       applicants={applicants}
+      pendingApplicants={pendingApplicants}
       assignmentPublished={assignmentPublished}
       slots={(slots ?? []).map((s) => ({
         ...s,

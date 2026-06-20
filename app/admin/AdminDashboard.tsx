@@ -57,6 +57,13 @@ interface ApplicantRow {
   preferences: { day_of_week: string; block_start_utc: number }[];
 }
 
+interface PendingRow {
+  player_id: number;
+  players: ReservationRow["players"];
+  daysApplied: DayOfWeek[];
+  submittedAt: string;
+}
+
 interface Props {
   reservations: ReservationRow[];
   eliminated: {
@@ -66,6 +73,7 @@ interface Props {
     preferences: { day_of_week: string; block_start_utc: number }[];
   }[];
   applicants: ApplicantRow[];
+  pendingApplicants: PendingRow[];
   assignmentPublished: boolean;
   slots: SlotRow[];
   accessToken: string;
@@ -78,6 +86,7 @@ export function AdminDashboard({
   reservations,
   eliminated,
   applicants,
+  pendingApplicants,
   assignmentPublished,
   slots,
   accessToken,
@@ -451,6 +460,59 @@ export function AdminDashboard({
         <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-900">
           Assignment has not been run yet. Review applicants below, then use{" "}
           <strong>Run full assignment</strong> to fill the schedule and waitlist.
+        </div>
+      )}
+
+      {assignmentPublished && (
+        <div className="card">
+          <h2 className="mb-1 text-sm font-bold text-slate-800">
+            Pending ({pendingApplicants.length})
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Submitted after the last assignment run. Included on the next{" "}
+            <strong>Run full assignment</strong>.
+          </p>
+          {pendingApplicants.length === 0 ? (
+            <p className="text-sm italic text-slate-500">No pending submissions.</p>
+          ) : (
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full min-w-[520px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs font-semibold text-slate-500">
+                    <th className="px-2 py-2 font-semibold">Player ID</th>
+                    <th className="px-2 py-2 font-semibold">Name</th>
+                    <th className="px-2 py-2 font-semibold">Alliance</th>
+                    <th className="px-2 py-2 font-semibold">Days</th>
+                    <th className="px-2 py-2 font-semibold">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingApplicants.map((p) => (
+                    <tr
+                      key={p.player_id}
+                      className="border-b border-slate-100 last:border-b-0"
+                    >
+                      <td className="px-2 py-2 font-mono text-xs text-slate-700">
+                        {p.player_id}
+                      </td>
+                      <td className="px-2 py-2 font-medium text-slate-900">
+                        {p.players?.name ?? "Unknown"}
+                      </td>
+                      <td className="px-2 py-2 text-slate-600">
+                        {p.players?.alliance ?? "—"}
+                      </td>
+                      <td className="px-2 py-2 text-slate-600">
+                        {p.daysApplied.map((d) => dayLabel(d)).join(", ")}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-slate-600 whitespace-nowrap">
+                        {new Date(p.submittedAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
