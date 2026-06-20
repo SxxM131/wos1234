@@ -43,6 +43,20 @@ export async function getReservedDaysForPlayer(
   return ALL_DAYS.filter((d) => days.has(d));
 }
 
+/** One waitlist row per player (DB may hold multiple eliminated rows per player). */
+export function dedupeEliminatedByPlayer<T extends { player_id: number }>(
+  rows: T[]
+): T[] {
+  const seen = new Set<number>();
+  const out: T[] = [];
+  for (const row of rows) {
+    if (seen.has(row.player_id)) continue;
+    seen.add(row.player_id);
+    out.push(row);
+  }
+  return out;
+}
+
 /** After admin cancel, remove preferences on this day so the player can re-apply. */
 export async function clearCancelledDayReservations(
   supabase: SupabaseClient,

@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { getAdminSession } from "@/lib/session";
 import { createServiceClient, fetchAllPages } from "@/lib/supabase";
 import { getCurrentCycleId, getLastAssignmentRun } from "@/lib/assignment";
+import { dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
 import { AdminDashboard } from "./AdminDashboard";
 import { DayOfWeek } from "@/lib/types";
 
@@ -50,7 +51,7 @@ export default async function AdminPage() {
     .eq("status", "eliminated");
 
   const elimWithPrefs = await Promise.all(
-    (eliminated ?? []).map(async (e) => {
+    dedupeEliminatedByPlayer(eliminated ?? []).map(async (e) => {
       const { data: prefs } = await supabase
         .from("preferences")
         .select("day_of_week, block_start_utc")

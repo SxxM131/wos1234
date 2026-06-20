@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase";
 import { getCurrentCycleId, getLastAssignmentRun } from "@/lib/assignment";
+import { dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
 import { StatusView } from "./StatusView";
 import { DayOfWeek } from "@/lib/types";
 
@@ -37,7 +38,7 @@ export default async function StatusPage() {
 
   const elimWithPrefs = (
     await Promise.all(
-      (eliminated ?? []).map(async (e) => {
+      dedupeEliminatedByPlayer(eliminated ?? []).map(async (e) => {
         const { data: prefs } = await supabase
           .from("preferences")
           .select("block_start_utc, day_of_week")

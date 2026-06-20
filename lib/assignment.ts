@@ -435,6 +435,7 @@ export async function healEliminatedReservations(
 
     const prefDays = Array.from(new Set(prefs.map((p) => p.day_of_week)));
 
+    let needsEliminated = false;
     for (const day of prefDays) {
       const { data: slots } = await supabase
         .from("slots")
@@ -453,14 +454,19 @@ export async function healEliminatedReservations(
         .limit(1);
 
       if (!assigned?.length) {
-        await supabase.from("reservations").insert({
-          player_id: playerId,
-          slot_id: null,
-          status: "eliminated",
-          cycle_id: cycleId,
-          applied_at: now,
-        });
+        needsEliminated = true;
+        break;
       }
+    }
+
+    if (needsEliminated) {
+      await supabase.from("reservations").insert({
+        player_id: playerId,
+        slot_id: null,
+        status: "eliminated",
+        cycle_id: cycleId,
+        applied_at: now,
+      });
     }
   }
 }

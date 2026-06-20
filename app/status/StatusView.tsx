@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createAnonClient } from "@/lib/supabase";
+import { dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
 import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS } from "@/lib/types";
 import { DayTabs } from "@/components/DayTabs";
 import { formatSlotTime, formatBlockRange } from "@/lib/utils";
@@ -91,7 +92,7 @@ export function StatusView({
     if (elimData) {
       const withPrefs = (
         await Promise.all(
-          elimData.map(async (e) => {
+          dedupeEliminatedByPlayer(elimData).map(async (e) => {
             const { data: prefs } = await supabase
               .from("preferences")
               .select("block_start_utc, day_of_week")
@@ -226,7 +227,7 @@ export function StatusView({
             Waitlist ({config.office})
           </h2>
           <div className="flex flex-col gap-2">
-            {dayEliminated.map((e, i) => {
+            {dayEliminated.map((e) => {
               const speedup = e.players
                 ? e.players[config.speedupKey] ?? 0
                 : 0;
@@ -239,7 +240,7 @@ export function StatusView({
                 .map((b) => formatBlockRange(b))
                 .join(", ");
               return (
-                <div key={i} className="card !py-2 text-sm">
+                <div key={e.player_id} className="card !py-2 text-sm">
                   <p className="font-medium">
                     {e.players.name}{" "}
                     <span className="text-slate-500">({e.players.alliance})</span>

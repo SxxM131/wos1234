@@ -845,7 +845,7 @@ export function AdminDashboard({
             Waitlist ({DAY_CONFIG[activeDay].office})
           </h2>
           <div className="flex flex-col gap-2">
-            {dayEliminated.map((e, i) => {
+            {dayEliminated.map((e) => {
               const speedup = e.players
                 ? e.players[DAY_CONFIG[activeDay].speedupKey] ?? 0
                 : 0;
@@ -864,7 +864,7 @@ export function AdminDashboard({
                 .map((b) => formatBlockRange(b))
                 .join(", ");
               return (
-                <div key={i} className="card !py-2.5 !px-3 text-sm">
+                <div key={e.player_id} className="card !py-2.5 !px-3 text-sm">
                   <p className="font-semibold text-slate-900">
                     {e.players?.name ?? "Unknown"}{" "}
                     <span className="text-xs text-slate-500 font-normal">
