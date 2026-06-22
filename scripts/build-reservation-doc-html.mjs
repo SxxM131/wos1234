@@ -20,7 +20,7 @@ const originalCode = renderer.code.bind(renderer);
 renderer.code = function (code, infostring, escaped) {
   const lang = (infostring || "").trim().toLowerCase();
   if (lang === "mermaid") {
-    return `<pre class="mermaid" translate="no">${code.replace(/</g, "&lt;")}</pre>`;
+    return `<div class="mermaid" translate="no">${code.replace(/</g, "&lt;")}</div>`;
   }
   return originalCode(code, infostring, escaped);
 };
@@ -42,7 +42,7 @@ const bodyHtml = bodyHtmlRaw
         .replace(/&gt;/g, ">")
         .replace(/&amp;/g, "&")
         .replace(/&quot;/g, '"');
-      return `<pre class="mermaid" translate="no">${decoded}</pre>`;
+      return `<div class="mermaid" translate="no">${decoded}</div>`;
     }
   )
   .replace(/<code>/g, '<code translate="no">');
@@ -158,7 +158,8 @@ const html = `<!DOCTYPE html>
       padding: 0;
       color: inherit;
     }
-    pre.mermaid {
+    pre.mermaid,
+    div.mermaid {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 0.5rem;
@@ -167,6 +168,10 @@ const html = `<!DOCTYPE html>
       -webkit-overflow-scrolling: touch;
       margin: 1rem 0;
       text-align: center;
+    }
+    div.mermaid svg {
+      max-width: 100%;
+      height: auto;
     }
     details {
       background: var(--card);

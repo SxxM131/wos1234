@@ -58,13 +58,24 @@ export function GuideView({
         startOnLoad: false,
         theme: "default",
         securityLevel: "loose",
-        flowchart: { useMaxWidth: true, htmlLabels: true },
+        flowchart: { useMaxWidth: true, htmlLabels: false },
         er: { useMaxWidth: true },
       });
 
       const nodes = articleRef.current.querySelectorAll<HTMLElement>(".mermaid");
-      if (nodes.length > 0) {
-        await mermaid.run({ nodes: Array.from(nodes) });
+      let index = 0;
+      for (const node of Array.from(nodes)) {
+        const code = node.textContent?.trim() ?? "";
+        if (!code) continue;
+        const id = `guide-mermaid-${sections ? activeTab : "single"}-${index++}`;
+        try {
+          const { svg } = await mermaid.render(id, code);
+          if (!cancelled) {
+            node.innerHTML = svg;
+          }
+        } catch (err) {
+          console.error("Mermaid render failed:", err);
+        }
       }
     }
 
@@ -73,7 +84,7 @@ export function GuideView({
     return () => {
       cancelled = true;
     };
-  }, [activeHtml]);
+  }, [activeHtml, activeTab, sections]);
 
   return (
     <div className="flex flex-col gap-4 pb-20">

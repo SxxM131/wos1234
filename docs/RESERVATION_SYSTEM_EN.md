@@ -45,10 +45,10 @@ The assignment algorithm uses **Min-Cost Max-Flow (MCMF)**.
 
 ```mermaid
 flowchart LR
-  A[Player application\n/r/token or Google Form] --> B[(preferences DB)]
-  C[Booking deadline] --> D[Speedup verification]
-  D --> E[Run full assignment]
-  E --> F[(reservations assigned)]
+  A["Player application\n/r/token or Google Form"] --> B[("preferences DB")]
+  C["Booking deadline"] --> D["Speedup verification"]
+  D --> E["Run full assignment"]
+  E --> F[("reservations assigned")]
   F --> G["/status announcement"]
 ```
 
@@ -77,10 +77,10 @@ npm run check-env
 
 ```mermaid
 flowchart TD
-  A[Application window\nPlayers submit via /r/token or Google Form] --> B[Close bookings\nAdmin: Close reservations]
-  B --> C[Speedup verification\nCross-check actual values in reservation list]
-  C --> D[Run assignment\nAdmin: Run full assignment]
-  D --> E[Announce results\nShare /status link]
+  A["Application window\nPlayers submit via /r/token or Google Form"] --> B["Close bookings\nAdmin: Close reservations"]
+  B --> C["Speedup verification\nCross-check actual values in reservation list"]
+  C --> D["Run assignment\nAdmin: Run full assignment"]
+  D --> E["Announce results\nShare /status link"]
 ```
 
 | Step | Owner | Action | DB Change |
@@ -275,11 +275,11 @@ Total: 12 blocks × 4 slots = 48 slots / day
 
 ```mermaid
 flowchart LR
-  A[Your info\nPlayer ID / Name / Alliance] --> B[Monday\nSpeedup + preferred blocks]
-  B --> C[Tuesday\nSpeedup + preferred blocks]
-  C --> D[Thursday\nSpeedup + preferred blocks]
-  D --> E[Submit\nConfirmation dialog]
-  E --> F[(DELETE player+cycle preferences\nINSERT new submission\nno reservations insert)]
+  A["Your info\nPlayer ID / Name / Alliance"] --> B["Monday\nSpeedup + preferred blocks"]
+  B --> C["Tuesday\nSpeedup + preferred blocks"]
+  C --> D["Thursday\nSpeedup + preferred blocks"]
+  D --> E["Submit\nConfirmation dialog"]
+  E --> F[("DELETE preferences\nINSERT new submission")]
 ```
 
 ### Server-Side Rules
@@ -318,12 +318,12 @@ Entry point: `runBatchAssignmentForCycle` → per-day `runBatchAssignment` (orde
 
 ```mermaid
 flowchart TD
-  P[Load preferences] --> E[Compute Top-N eligibility per block\ncomputeEligibleByBlock]
-  E --> G[Build MCMF network graph]
-  G --> H[Run SPFA-based MCMF]
-  H --> A[Insert assigned]
-  H --> W[Insert eliminated]
-  A --> Z[Update last_assignment_run]
+  P["Load preferences"] --> E["Compute Top-N eligibility per block\ncomputeEligibleByBlock"]
+  E --> G["Build MCMF network graph"]
+  G --> H["Run SPFA-based MCMF"]
+  H --> A["Insert assigned"]
+  H --> W["Insert eliminated"]
+  A --> Z["Update last_assignment_run"]
   W --> Z
 ```
 
@@ -364,8 +364,8 @@ R = player's global speedup rank (1st = 1, 2nd = 2, ...)
 
 ```mermaid
 flowchart LR
-  A[Admin: Search → Delete mon/tue/thu button] --> B[Delete preferences for that day]
-  B --> C[Refresh search results]
+  A["Admin: Search → Delete mon/tue/thu button"] --> B["Delete preferences for that day"]
+  B --> C["Refresh search results"]
 ```
 
 - **Visibility:** Delete buttons appear in search results only when `last_assignment_run` is not set (pre-assignment)
@@ -378,13 +378,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  A[Admin: Cancel button] --> B[reservations.status = cancelled]
-  B --> C[Delete preferences for that day]
-  C --> D[Run promoteOnCancel]
-  D --> E{Waitlisted player?}
-  E -->|Yes| F[Promote 1 eliminated → assigned]
-  E -->|No| G[Slot remains empty]
-  F --> H[healEliminatedReservations\nbackfillEmptySlotsForDay]
+  A["Admin: Cancel button"] --> B["reservations.status = cancelled"]
+  B --> C["Delete preferences for that day"]
+  C --> D["Run promoteOnCancel"]
+  D --> E{"Waitlisted player?"}
+  E -->|Yes| F["Promote 1 eliminated → assigned"]
+  E -->|No| G["Slot remains empty"]
+  F --> H["healEliminatedReservations\nbackfillEmptySlotsForDay"]
 ```
 
 - The cancelled player can re-apply
@@ -542,13 +542,13 @@ A Google Form submission path runs in parallel to work around Vercel cold starts
 
 ```mermaid
 flowchart LR
-  GF[Google Form submission] --> AS[Apps Script\nonFormSubmit]
-  AS --> WH[POST /api/google-form-submit]
-  WH --> PMR[processMultiDayReservation]
-  RL[Secret link /r/token] --> SA[submitReservation\nServer Action]
+  GF["Google Form submission"] --> AS["Apps Script\nonFormSubmit"]
+  AS --> WH["POST /api/google-form-submit"]
+  WH --> PMR["processMultiDayReservation"]
+  RL["Secret link /r/token"] --> SA["submitReservation\nServer Action"]
   SA --> PMR
-  PMR --> SB[(Supabase\nplayers / preferences)]
-  SB --> BA[Assignment algorithm]
+  PMR --> SB[("Supabase\nplayers / preferences")]
+  SB --> BA["Assignment algorithm"]
 ```
 
 Both paths go through `processMultiDayReservation` into the same `players` / `preferences` tables. Apps Script does not call Supabase directly.

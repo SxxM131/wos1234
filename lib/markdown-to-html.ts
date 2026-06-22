@@ -21,7 +21,7 @@ export function markdownToHtml(markdown: string): string {
         .replace(/&gt;/g, ">")
         .replace(/&amp;/g, "&")
         .replace(/&quot;/g, '"');
-      return `<pre class="mermaid">${decoded}</pre>`;
+      return `<div class="mermaid" translate="no">${decoded}</div>`;
     }
   );
 
