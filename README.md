@@ -96,7 +96,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### 경우 3 — 배정 후
 
-각 연맹의 **R4**에게 문의하세요. **배정 실행 후에는 플레이어가 직접 preferences를 수정할 수 없습니다** (`ASSIGNMENT_LOCKED_MESSAGE`).
+**구글 폼**은 배정 실행 후에도 재제출이 가능합니다. 재제출 시 해당 player의 기존 `reservations`(배정·대기)가 **삭제**되고 `preferences`가 **전체 교체**됩니다 (assigned·eliminated 동일).
+
+**시크릿 URL**은 `reservation_open` 상태에만 의존합니다. `reservation_open = false`이면 거부되고, `true`이면 구글 폼과 동일하게 처리됩니다.
+
+슬롯을 **유지**하거나 운영진이 직접 조정해야 할 때는 각 연맹 **R4**에게 문의하세요.
 
 ```
 요청 내용:
@@ -104,9 +108,10 @@ https://wos1234.vercel.app/admin 에서
 슬롯 취소(Cancel) 등 운영진 조치 요청
 ```
 
-R4가 Schedule Grid에서 **Cancel** 등으로 처리합니다. 자가 재신청은 불가합니다.
+R4가 Schedule Grid에서 **Cancel** 등으로 처리할 수 있습니다.
 
-> Cancel 후 재신청하지 않으면 해당 사이클에서 배정 대상에서 제외될 수 있습니다.
+> Cancel 후 재신청하지 않으면 해당 사이클에서 배정 대상에서 제외될 수 있습니다.  
+> 배정 후 폼 재제출은 기존 배정을 지우므로, 의도치 않은 재제출에 주의하세요.
 
 상세 시나리오 표: [docs/RESERVATION_SYSTEM.md §3.5](docs/RESERVATION_SYSTEM.md#35-운영-시나리오-및-대응)
 
@@ -120,7 +125,8 @@ R4가 Schedule Grid에서 **Cancel** 등으로 처리합니다. 자가 재신청
 |---|------|-----------|----------|-----------|
 | A | 신청 기간 중 · **내용 수정 필요** | `/r/[token]` 또는 구글 폼 재제출 | **같은 Player ID로 재제출** (전체 교체) | (선택) Search → **Delete** |
 | B | 폼 마감 후 · **배정 실행 전** | `/r/[token]` (시크릿 URL) | R4 연락 후 시크릿 URL **재제출** | (선택) Search → **Delete** |
-| C | **배정 실행 후** | — | R4에게 취소·변경 요청 | Schedule Grid **Cancel** (자가 재신청 불가) |
+| C | **배정 실행 후** · 재제출 | 구글 폼 (항상) / 시크릿 URL (`reservation_open = true`) | **재제출** — 기존 배정 삭제 후 preferences 전체 교체 | — |
+| C-2 | **배정 실행 후** · R4 조정 | — | R4에게 취소·변경 요청 | Schedule Grid **Cancel** |
 | D | Admin 취소/삭제 후 **재신청 안 함** | — | 해당 요일·사이클에서 **배정 대상 제외** | — |
 
 ### 플레이어 신청
@@ -129,9 +135,9 @@ R4가 Schedule Grid에서 **Cancel** 등으로 처리합니다. 자가 재신청
 |---|------|-------------|------|
 | 1 | 신청 기간 · 첫 제출 | `preferences` INSERT (`reservations` 없음) | *Your application has been received.* |
 | 2 | 같은 `player_id` 재제출 | 기존 `preferences` DELETE 후 INSERT (전체 교체) | *Your application has been updated.* |
-| 3 | 시크릿 URL 마감 후 (`reservation_open = false`) | 시크릿 URL만 거부 | *Secret URL applications are currently closed.* |
-| 3b | 구글 폼 마감 후 (구글에서 응답 수락 중지) | 구글 폼 제출 불가 | — |
-| 4 | 배정 실행 후 (`last_assignment_run`) | preferences 변경 거부 | *Applications cannot be changed after assignment…* |
+| 3 | 시크릿 URL 마감 (`reservation_open = false`) | 시크릿 URL만 거부 | *Secret URL applications are currently closed.* |
+| 3b | 구글 폼 제출 | `reservation_open` 무관 (`skipOpenCheck`) | *Your application has been received.* / *…updated.* |
+| 4 | 배정 실행 후 재제출 (`last_assignment_run`) | 구글 폼: 항상 허용. 시크릿 URL: `reservation_open = true`일 때만. `reservations` DELETE + `preferences` 전체 교체 | *Your application has been updated.* |
 | 5 | `/r/[token]/check` 조회 | 배정 전·후 상태 표시 | Application received / Assigned / On waitlist |
 
 ### Admin 단계별 UI

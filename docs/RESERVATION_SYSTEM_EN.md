@@ -104,9 +104,10 @@ The tables below summarize **situation-specific responses** from production test
 | A | During application window · **needs to change answers** | `/r/[token]` or Google Form re-submit | **Re-submit with same Player ID** (full replace) | (Optional) Search → **Delete** if removal only | DELETE all `preferences` + INSERT new |
 | B | After form close · **before Run full assignment** | `/r/[token]` (secret link) | Contact R4 → **re-submit** via secret link | (Optional) Search → **Delete** | Full `preferences` replace for cycle |
 | B-2 | After B | `/r/[token]` | Re-submit via secret link (only days in this submit remain) | — | Full `preferences` replace |
-| C | **After assignment run** | Either | Request cancellation from R4 | Schedule Grid **Cancel** | `cancelled` + day `preferences` deleted |
-| C-2 | After C | — | **Self re-apply blocked** (`last_assignment_run` set) | Manual adjustment or next cycle | `ASSIGNMENT_LOCKED_MESSAGE` |
-| D | After admin cancel/delete · **no re-apply** | — | Excluded from assignment that cycle/day | — | No preferences → not eligible |
+| C | **After assignment run** · re-submit | Google Form (always) / secret link (`reservation_open = true`) | **Re-submit** — DELETE existing `reservations`, full `preferences` replace | — | Same for assigned and eliminated |
+| C-2 | **After assignment run** · secret link closed | `/r/[token]` | **Rejected** when `reservation_open = false` | — | No DB change |
+| D | **After assignment run** · R4 adjustment | — | Request cancellation from R4 | Schedule Grid **Cancel** | `cancelled` + day `preferences` deleted |
+| E | After admin cancel/delete · **no re-apply** | — | Excluded from assignment that cycle/day | — | No preferences → not eligible |
 
 > **Delete vs Cancel:** Delete appears in Search **only before assignment** (`last_assignment_run` unset). Cancel is per-slot on the Schedule Grid after assignment, with waitlist promotion.
 
@@ -114,10 +115,11 @@ The tables below summarize **situation-specific responses** from production test
 
 | # | Situation | Condition | Result | User message |
 |---|-----------|-----------|--------|--------------|
-| 1 | First valid submission | `reservation_open = true`, no `last_assignment_run` | `processMultiDayReservation` → `players` upsert + DELETE (player+cycle) + INSERT `preferences` | *Your application has been received.* |
+| 1 | First valid submission | Google Form or secret link (`reservation_open = true`) | `processMultiDayReservation` → `players` upsert + DELETE (player+cycle) + INSERT `preferences` | *Your application has been received.* |
 | 2 | Re-submit same `player_id` | Existing `preferences` in cycle | Same function, full replace | *Your application has been updated.* |
-| 3 | After deadline | `reservation_open = false` | Rejected | *Reservations are currently closed.* |
-| 4 | After assignment run | `last_assignment_run` set | Rejected | `ASSIGNMENT_LOCKED_MESSAGE` |
+| 3 | Secret link closed | `reservation_open = false` (secret link only) | Rejected | *Secret URL applications are currently closed.* |
+| 3b | Google Form submit | **`reservation_open` ignored** (`skipOpenCheck`) | Accepted if valid (independent of close flag) | *Your application has been received.* / *…updated.* |
+| 4 | Re-submit after assignment | `last_assignment_run` set | Google Form: always allowed. Secret link: only when `reservation_open = true`. DELETE player `reservations` + full `preferences` replace (assigned·eliminated same) | *Your application has been updated.* |
 | 5 | Empty day (no blocks) | speedup/blocks blank | Day skipped (not in submission) | — |
 | 6 | Status check | `/r/[token]/check` | Before/after assignment | Application received / Assigned / On waitlist |
 
@@ -141,7 +143,7 @@ The tables below summarize **situation-specific responses** from production test
 | 1 | Cancel assigned slot | Grid **Cancel** | `status = cancelled`, delete day `preferences` |
 | 2 | Waitlisted player available | (automatic) | `promoteOnCancel` → 1 `eliminated` → `assigned` |
 | 3 | No waitlist | Cancel only | Slot stays empty (`healEliminated` / backfill) |
-| 4 | Cancelled player re-applies | Player uses `/r/[token]` (**before** assignment only) | `clearCancelledDayReservations` then full-replace re-submit |
+| 4 | Cancelled player re-applies | Google Form or `/r/[token]` (`reservation_open = true`) | After Admin Cancel deletes day `preferences`, full-replace re-submit allowed |
 | 5 | Re-run assignment | Run full assignment again | Deletes that day's assignments, full MCMF recalc |
 
 #### Assignment Verification (`verify:assignment`)
@@ -284,21 +286,27 @@ flowchart LR
 
 ### Server-Side Rules
 
-| Condition | Result |
-|-----------|--------|
-| `reservation_open = false` | Rejected |
-| `last_assignment_run` set | Rejected (`ASSIGNMENT_LOCKED_MESSAGE`) |
-| Valid (first submit) | `players` upsert + DELETE (player+cycle) + INSERT `preferences` | *Your application has been received.* |
-| Valid (re-submit) | Same full replace | *Your application has been updated.* |
+**Common:** Both paths call `processMultiDayReservation` in `lib/assignment.ts`. (Google Form: `app/api/google-form-submit/route.ts` → secret link: `app/r/[token]/actions.ts`)  
+On success: `players` upsert + DELETE all `preferences` for that `player_id`+`cycle_id`, then INSERT.
+
+| Path | `reservation_open` check | When `last_assignment_run` is set |
+|------|--------------------------|-----------------------------------|
+| **Google Form** | **Not checked** (`skipOpenCheck: true`) | DELETE that player's `reservations`, then full `preferences` replace (assigned·eliminated same) |
+| **Secret link** | **Rejected** if `false` (pre-checked in `actions.ts`) | Same as Google Form when `reservation_open = true` |
+
+| Situation | User message |
+|-----------|--------------|
+| First submit | *Your application has been received.* |
+| Re-submit (before or after assignment) | *Your application has been updated.* |
+| Secret link closed | *Secret URL applications are currently closed.* |
 
 > Re-submitting keeps **only the days included in this submission**. Example: if you first applied for Mon+Tue then re-submit Tue only, Mon preferences are removed.  
+> **After assignment**, re-submitting deletes existing `assigned` and `eliminated` rows first, so assignment results may disappear from `/status` and the check page until assignment is run again.  
 > The check page (`/r/[token]/check`) pending text still uses *"Your application has been received. Assignment results will be announced after the booking window closes."* (`SUBMIT_SUCCESS_MESSAGE`)
 
 ### Full Replace on Re-Submit
 
-Re-submitting with the same `player_id` + `cycle_id` **DELETEs all** `preferences` for that cycle, then INSERTs the new submission. Applies equally to Google Form and secret link. Different `player_id` values are independent.
-
-**Entry point:** Both paths call only `processMultiDayReservation` in `lib/assignment.ts`. (Google Form: `app/api/google-form-submit/route.ts` → secret link: `app/r/[token]/actions.ts`)
+Re-submitting with the same `player_id` + `cycle_id` **DELETEs all** `preferences` for that cycle, then INSERTs the new submission. After `last_assignment_run` is set, that player's `reservations` are also DELETEd first. Different `player_id` values are independent.
 
 ### Self-Check (`/r/[token]/check`)
 
@@ -562,14 +570,14 @@ Paste into the Google Form description. **Email collection is off** — members 
 > Resubmitting with the same Player ID **replaces your entire application** for this cycle with your latest submission.  
 > Monday, Tuesday, and Thursday can each be applied for separately. **Days not included in this submission are removed** from your preferences.  
 > If you play multiple characters, **submit the form once per Player ID**.  
-> You cannot edit a Google Form response after submit — submit the form again with the same Player ID, use the **secret link**, or contact ops (r4). After assignment runs, changes are locked — contact r4.
+> You cannot edit a Google Form response after submit — submit the form again with the same Player ID, use the **secret link**, or contact ops (r4). After assignment runs, re-submitting **deletes your existing assignment** and replaces your preferences — contact r4 if you need to keep a slot or need an ops adjustment.
 
 **한글**
 
 > 같은 Player ID로 **다시 제출하면 이번 제출 내용으로 신청 전체가 교체**됩니다 (해당 사이클).  
 > 월·화·목은 각각 별도로 신청할 수 있습니다. **이번 제출에 넣지 않은 요일은 preferences에서 제거**됩니다.  
 > 여러 캐릭터를 운영하는 경우 **Player ID마다 폼을 따로 제출**하세요.  
-> 구글 폼은 **제출 후 수정 링크가 없습니다** — 내용 변경은 **같은 Player ID로 폼을 다시 제출**하거나 **시크릿 링크**로 재제출하세요. 배정 실행 후에는 변경할 수 없습니다 — 운영진(r4)에게 문의하세요.
+> 구글 폼은 **제출 후 수정 링크가 없습니다** — 내용 변경은 **같은 Player ID로 폼을 다시 제출**하거나 **시크릿 링크**로 재제출하세요. 배정 실행 후 재제출하면 **기존 배정이 삭제**되고 신청 내용이 교체됩니다 — 슬롯 유지·운영진 조정이 필요하면 r4에게 문의하세요.
 
 **Behavior summary**
 
@@ -578,9 +586,10 @@ Paste into the Google Form description. **Email collection is off** — members 
 | Same Player ID re-submit (same cycle) | **Latest submission only** in DB (full DELETE + INSERT) |
 | Same Player ID, different days (Mon/Tue/Thu) | Multiple days in one submission |
 | **Different Player IDs** (same Google account) | **Each counted** — submit once per Player ID |
-| After Google Form submit — need to change | **Re-submit form** or secret link (before assignment) |
+| After Google Form submit — need to change | **Re-submit form** or secret link (before or after assignment) |
 | Same Player ID via Form and secret link | **Latest submission overwrites** previous |
-| After assignment (`last_assignment_run`) | Preference changes **rejected** |
+| Re-submit after assignment (`last_assignment_run`) | DELETE `reservations` + full `preferences` replace (Google Form always / secret link when `reservation_open = true`) |
+| Secret link closed (`reservation_open = false`) | Secret link rejected — Google Form still accepts |
 
 ### Google Form Fields
 
@@ -639,14 +648,14 @@ Checkbox block options (same for all three days):
 
 ### Full Replace Behavior
 
-| Path | Behavior |
-|------|----------|
-| Google Form | Full **DELETE + INSERT** per `player_id + cycle_id` — **multiple submissions per Google account** when **Player IDs differ** |
-| Secret link | Same (full replace) |
+| Path | `reservation_open` | After assignment (`last_assignment_run`) |
+|------|-------------------|------------------------------------------|
+| Google Form | **Not checked** (`skipOpenCheck`) | DELETE player `reservations` + full `preferences` replace |
+| Secret link | Rejected if `false` | Same as Google Form when `true` |
 
 Re-submitting with the same `player_id` via **either path** keeps **only the latest submission**.  
 **Different days** (Mon/Tue/Thu) can be included in one submission. **Different Player IDs** may each submit via the same Google account.  
-With email collection **off**, Google Form responses have **no edit link** — use **form re-submit** or **secret link** re-submit. After assignment runs, rejected with `ASSIGNMENT_LOCKED_MESSAGE`.
+With email collection **off**, Google Form responses have **no edit link** — use **form re-submit** or **secret link** re-submit. Google Form re-submit remains allowed after assignment; existing assignment and waitlist rows are deleted before preferences are replaced.
 
 ### Security Notes
 

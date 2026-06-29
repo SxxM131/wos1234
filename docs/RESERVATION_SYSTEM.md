@@ -104,9 +104,10 @@ flowchart TD
 | A | 신청 기간 중 · **내용 수정 필요** | `/r/[token]` 또는 구글 폼 재제출 | **같은 Player ID로 재제출** (전체 교체) | (선택) Search → **Delete** — 제거만 필요할 때 | 기존 `preferences` DELETE 후 새 내용 INSERT |
 | B | 폼 마감 후 · **Run full assignment 전** | `/r/[token]` (시크릿 URL) | R4에게 연락 후 시크릿 URL로 **재제출** | (선택) Search → **Delete** | 해당 사이클 `preferences` 전체 교체 |
 | B-2 | B 이후 | `/r/[token]` | 시크릿 URL로 **재제출** (이번 제출에 포함된 요일만 남음) | — | `preferences` 전체 교체 |
-| C | **배정 실행 후** | 양쪽 | R4에게 취소·변경 요청 | Schedule Grid **Cancel** | `cancelled` + 해당 요일 `preferences` 삭제 |
-| C-2 | C 이후 | — | **자가 재신청 불가** (`last_assignment_run` 있음) | 수동 조정 또는 다음 사이클 | `ASSIGNMENT_LOCKED_MESSAGE` |
-| D | Admin 취소/삭제 후 **미재신청** | — | 해당 사이클 해당 요일 **배정 제외** | — | 선호 없음 → 배정 대상 아님 |
+| C | **배정 실행 후** · 재제출 | 구글 폼 (항상) / 시크릿 URL (`reservation_open = true`) | **재제출** — 기존 `reservations` 삭제 후 `preferences` 전체 교체 | — | assigned·eliminated 동일 처리 |
+| C-2 | **배정 실행 후** · 시크릿 URL 마감 | `/r/[token]` | `reservation_open = false`이면 **거부** | — | DB 변화 없음 |
+| D | **배정 실행 후** · R4 조정 | — | R4에게 취소·변경 요청 | Schedule Grid **Cancel** | `cancelled` + 해당 요일 `preferences` 삭제 |
+| E | Admin 취소/삭제 후 **미재신청** | — | 해당 사이클 해당 요일 **배정 제외** | — | 선호 없음 → 배정 대상 아님 |
 
 > **Delete vs Cancel:** Delete는 **배정 전**(`last_assignment_run` 없음) Search에서만 표시. Cancel은 **배정 후** Schedule Grid에서 슬롯 단위 취소 + 대기자 승격.
 
@@ -114,10 +115,11 @@ flowchart TD
 
 | # | 상황 | 조건 | 결과 | 사용자 메시지 |
 |---|------|------|------|---------------|
-| 1 | 정상 첫 신청 | `reservation_open = true`, `last_assignment_run` 없음 | `processMultiDayReservation` → `players` upsert + `preferences` DELETE(해당 player+cycle) + INSERT | *Your application has been received.* |
+| 1 | 정상 첫 신청 | 구글 폼 또는 시크릿 URL (`reservation_open = true`) | `processMultiDayReservation` → `players` upsert + `preferences` DELETE(해당 player+cycle) + INSERT | *Your application has been received.* |
 | 2 | 같은 `player_id` 재제출 | 동일 사이클에 기존 `preferences` 있음 | 동일 함수, 전체 교체 | *Your application has been updated.* |
-| 3 | 마감 후 신청 | `reservation_open = false` | 거부 | *Reservations are currently closed.* |
-| 4 | 배정 실행 후 수정 | `last_assignment_run` 있음 | 거부 | `ASSIGNMENT_LOCKED_MESSAGE` |
+| 3 | 시크릿 URL 마감 | `reservation_open = false` (시크릿 URL만) | 거부 | *Secret URL applications are currently closed.* |
+| 3b | 구글 폼 제출 | `reservation_open` **무관** (`skipOpenCheck`) | 정상 처리 (마감 여부와 무관) | *Your application has been received.* / *…updated.* |
+| 4 | 배정 실행 후 재제출 | `last_assignment_run` 있음 | 구글 폼: 항상 허용. 시크릿 URL: `reservation_open = true`일 때만. 해당 player `reservations` DELETE + `preferences` 전체 교체 (assigned·eliminated 동일) | *Your application has been updated.* |
 | 5 | 선호 블록 없는 요일 | speedup/블록 비움 | 해당 요일 skip (제출에 미포함) | — |
 | 6 | 상태 조회 | `/r/[token]/check` | 배정 전/후 분기 | Application received / Assigned / On waitlist |
 
@@ -141,7 +143,7 @@ flowchart TD
 | 1 | 배정된 슬롯 취소 | Grid **Cancel** | `status = cancelled`, 해당 요일 `preferences` 삭제 |
 | 2 | 같은 블록 대기자 있음 | (자동) | `promoteOnCancel` → `eliminated` 1명 `assigned` 승격 |
 | 3 | 대기자 없음 | Cancel만 | 빈 슬롯 유지 (`healEliminated` / backfill) |
-| 4 | 취소된 플레이어 재신청 | 플레이어 `/r/[token]` (배정 **전**만) | `clearCancelledDayReservations` 후 전체 교체 재제출 가능 |
+| 4 | 취소된 플레이어 재신청 | 구글 폼 또는 `/r/[token]` (`reservation_open = true`) | Admin Cancel로 해당 요일 `preferences` 삭제 후 전체 교체 재제출 가능 |
 | 5 | 배정 **재실행** | Run full assignment 다시 | 해당 요일 배정 전부 삭제 후 MCMF 재계산 |
 
 #### 배정 검증 (`verify:assignment`)
@@ -284,21 +286,27 @@ flowchart LR
 
 ### 서버 처리 규칙
 
-| 조건 | 결과 |
-|------|------|
-| `reservation_open = false` | 거부 |
-| `last_assignment_run` 있음 | 거부 (`ASSIGNMENT_LOCKED_MESSAGE`) |
-| 정상 (첫 신청) | `players` upsert + `preferences` DELETE(해당 player+cycle) + INSERT | *Your application has been received.* |
-| 정상 (재제출) | 위와 동일 (전체 교체) | *Your application has been updated.* |
+**공통:** 두 경로 모두 `lib/assignment.ts`의 `processMultiDayReservation`을 호출합니다. (구글 폼: `app/api/google-form-submit/route.ts` → 시크릿 URL: `app/r/[token]/actions.ts`)  
+성공 시 `players` upsert + 해당 `player_id`+`cycle_id`의 `preferences` DELETE 후 INSERT.
+
+| 경로 | `reservation_open` 검사 | `last_assignment_run` 있을 때 |
+|------|-------------------------|------------------------------|
+| **구글 폼** | **검사 안 함** (`skipOpenCheck: true`) | 해당 player의 `reservations` DELETE 후 `preferences` 전체 교체 (assigned·eliminated 동일) |
+| **시크릿 URL** | `false`이면 **거부** (`actions.ts`에서 선검사) | `reservation_open = true`이면 구글 폼과 동일 |
+
+| 상황 | 사용자 메시지 |
+|------|---------------|
+| 첫 신청 | *Your application has been received.* |
+| 재제출 (배정 전·후 공통) | *Your application has been updated.* |
+| 시크릿 URL 마감 | *Secret URL applications are currently closed.* |
 
 > 재제출 시 **이번 제출에 포함된 요일만** `preferences`에 남습니다. 예: 처음 월·화 신청 후 화만 재제출하면 월 preferences는 삭제됩니다.  
+> **배정 실행 후** 재제출하면 기존 슬롯 배정(`assigned`)·대기(`eliminated`) 행이 먼저 삭제되므로, 재배정 전까지 `/status`·조회 화면에 배정 결과가 보이지 않을 수 있습니다.  
 > 조회 페이지(`/r/[token]/check`) 대기 문구는 기존과 같이 *"Your application has been received. Assignment results will be announced after the booking window closes."* (`SUBMIT_SUCCESS_MESSAGE`)
 
 ### 재제출(전체 교체) 기준
 
-같은 `player_id` + `cycle_id`로 재제출하면 해당 사이클의 **모든** `preferences`를 DELETE한 뒤, 이번 제출 내용으로 INSERT합니다. 구글 폼·시크릿 URL 어느 경로든 동일하게 적용됩니다. 다른 `player_id`로의 신청은 독립적으로 처리됩니다.
-
-**진입점:** 두 경로 모두 `lib/assignment.ts`의 `processMultiDayReservation`만 호출합니다. (구글 폼: `app/api/google-form-submit/route.ts` → Server Action: `app/r/[token]/actions.ts`)
+같은 `player_id` + `cycle_id`로 재제출하면 해당 사이클의 **모든** `preferences`를 DELETE한 뒤, 이번 제출 내용으로 INSERT합니다. `last_assignment_run`이 설정된 이후에는 같은 player의 `reservations`도 먼저 DELETE됩니다. 다른 `player_id`로의 신청은 독립적으로 처리됩니다.
 
 ### 본인 조회 (`/r/[token]/check`)
 
@@ -562,14 +570,14 @@ flowchart LR
 > 같은 Player ID로 **다시 제출하면 이번 제출 내용으로 신청 전체가 교체**됩니다 (해당 사이클).  
 > 월·화·목은 각각 별도로 신청할 수 있습니다. **이번 제출에 넣지 않은 요일은 preferences에서 제거**됩니다.  
 > 여러 캐릭터를 운영하는 경우 **Player ID마다 폼을 따로 제출**하세요.  
-> 구글 폼은 **제출 후 수정 링크가 없습니다** — 내용 변경은 **같은 Player ID로 폼을 다시 제출**하거나 **시크릿 링크**로 재제출하세요. 배정 실행 후에는 변경할 수 없습니다 — 운영진(r4)에게 문의하세요.
+> 구글 폼은 **제출 후 수정 링크가 없습니다** — 내용 변경은 **같은 Player ID로 폼을 다시 제출**하거나 **시크릿 링크**로 재제출하세요. 배정 실행 후 재제출하면 **기존 배정이 삭제**되고 신청 내용이 교체됩니다 — 슬롯 유지·운영진 조정이 필요하면 r4에게 문의하세요.
 
 **English**
 
 > Resubmitting with the same Player ID **replaces your entire application** for this cycle with your latest submission.  
 > Monday, Tuesday, and Thursday can each be applied for separately. **Days not included in this submission are removed** from your preferences.  
 > If you play multiple characters, **submit the form once per Player ID**.  
-> You cannot edit a Google Form response after submit — submit the form again with the same Player ID, use the **secret link**, or contact ops (r4). After assignment runs, changes are locked — contact r4.
+> You cannot edit a Google Form response after submit — submit the form again with the same Player ID, use the **secret link**, or contact ops (r4). After assignment runs, resubmitting **deletes your existing assignment** and replaces your preferences — contact r4 if you need to keep a slot or need an ops adjustment.
 
 **시스템 동작 요약**
 
@@ -578,9 +586,10 @@ flowchart LR
 | 같은 Player ID 재제출 (같은 사이클) | **최신 제출만** DB에 남음 (전체 DELETE + INSERT) |
 | 같은 Player ID, 요일만 다름 (월/화/목) | 한 번의 제출에 여러 요일 포함 가능 |
 | **다른 Player ID** (같은 구글 계정) | **각각 반영** — 폼을 Player ID마다 따로 제출 |
-| 구글 폼 제출 후 수정 | **폼 재제출** 또는 시크릿 링크 재제출 (배정 전) |
+| 구글 폼 제출 후 수정 | **폼 재제출** 또는 시크릿 링크 재제출 (배정 전·후 동일) |
 | 구글 폼 + 시크릿 링크, 동일 Player ID | **최신 제출이 이전 내용을 덮어씀** |
-| 배정 실행 후 (`last_assignment_run`) | preferences 변경 **거부** |
+| 배정 실행 후 재제출 (`last_assignment_run`) | 기존 `reservations` DELETE + `preferences` 전체 교체 (구글 폼 항상 / 시크릿 URL은 `reservation_open = true`일 때) |
+| 시크릿 URL 마감 후 (`reservation_open = false`) | 시크릿 URL만 거부 — 구글 폼은 계속 접수 |
 
 ### 구글 폼 항목 구성
 
@@ -639,14 +648,14 @@ flowchart LR
 
 ### 재제출(전체 교체) 동작
 
-| 경로 | 동작 |
-|------|------|
-| 구글 폼 | `player_id + cycle_id` 기준 **전체 DELETE 후 INSERT** — 구글 계정당 **여러 번** 제출 가능 (**Player ID가 다르면** 각각 반영) |
-| 시크릿 링크 | 동일 (전체 교체) |
+| 경로 | `reservation_open` | 배정 후 (`last_assignment_run`) |
+|------|-------------------|----------------------------------|
+| 구글 폼 | **검사 안 함** (`skipOpenCheck`) | 해당 player `reservations` DELETE + `preferences` 전체 교체 |
+| 시크릿 링크 | `false`이면 거부 | `true`이면 구글 폼과 동일 |
 
 같은 `player_id`로 구글 폼과 시크릿 URL **어느 쪽에서든** 재제출하면 **가장 최근 제출만** 남습니다.  
 **요일이 다르면** (월·화·목) 한 제출에 함께 넣을 수 있습니다. **Player ID가 다르면** 같은 구글 계정으로 폼을 여러 번 제출해도 됩니다.  
-이메일 수집을 끈 구글 폼은 **제출 후 수정 링크 없음** — 변경은 **폼 재제출** 또는 **시크릿 링크** 재제출로 처리합니다. **배정 실행 후**에는 `ASSIGNMENT_LOCKED_MESSAGE`로 거부됩니다.
+이메일 수집을 끈 구글 폼은 **제출 후 수정 링크 없음** — 변경은 **폼 재제출** 또는 **시크릿 링크** 재제출로 처리합니다. 배정 실행 후에도 구글 폼 재제출은 허용되며, 기존 배정·대기 행이 삭제된 뒤 preferences가 교체됩니다.
 
 ### 주의 사항
 

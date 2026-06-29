@@ -17,7 +17,7 @@ For R4+ admins with access to this site. Explains how the reservation system wor
 | **Google Form** | Main path during the normal application window (email collection **off** — no post-submit edit link; **re-submit form** to update) |
 | **Secret link** (`/r/...`) | Corrections during the window, late cases after form closes — share from dashboard when needed |
 
-**Re-submit rule (both channels):** same **Player ID + cycle** → **full replace** via `processMultiDayReservation` (DELETE all preferences for that player in the cycle, then INSERT the new submission). Latest submission wins. **After assignment runs**, preference changes are **rejected**.
+**Re-submit rule (both channels):** same **Player ID + cycle** → **full replace** via `processMultiDayReservation` (DELETE all preferences for that player in the cycle, then INSERT the new submission). Latest submission wins. **Google Form** ignores `reservation_open` (`skipOpenCheck`). **Secret link** is rejected when `reservation_open = false`. **After assignment**, re-submitting also DELETEs that player's `reservations` (assigned and eliminated) before replacing preferences — accidental re-submits can clear slots.
 
 ```mermaid
 flowchart TD
@@ -47,7 +47,8 @@ flowchart TD
 |---|--------|--------|-----------|
 | A | During application window · needs to change | **Re-submit** via Google Form (same Player ID) or **secret link** | (Optional) Search → **Delete** if removal only |
 | B | After form close · before assignment | Contact R4 → **re-submit via secret link** | (Optional) Search → **Delete** |
-| C | After assignment | Request change from R4 (case by case — may affect others) | Schedule Grid **Cancel** — **no self re-apply** |
+| C | After assignment · re-submit | Google Form (always) or secret link (`reservation_open = true`) — **re-submit** deletes existing assignment + replaces preferences | — |
+| C-2 | After assignment · R4 adjustment | Request change from R4 (case by case — may affect others) | Schedule Grid **Cancel** |
 
 Full scenario tables: **Technical Reference → §3.5 Operational Scenarios** below.
 
@@ -84,13 +85,13 @@ How members apply and what they experience — useful when answering questions o
 
 Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION_SYSTEM.md#폼-상단-안내-문구-복사용) for full text):
 
-> Resubmitting with the same Player ID **replaces your entire application** for this cycle with your latest submission. Monday, Tuesday, and Thursday can each be applied for separately. If you play multiple characters, **submit the form once per Player ID**. You cannot edit a Google Form response after submit — submit the form again with the same Player ID, use the **secret link**, or contact ops (r4). After assignment runs, changes are locked — contact r4.
+> Resubmitting with the same Player ID **replaces your entire application** for this cycle with your latest submission. Monday, Tuesday, and Thursday can each be applied for separately. If you play multiple characters, **submit the form once per Player ID**. You cannot edit a Google Form response after submit — submit the form again with the same Player ID, use the **secret link**, or contact ops (r4). After assignment runs, re-submitting **deletes your existing assignment** and replaces your preferences — contact r4 if you need to keep a slot or need an ops adjustment.
 
 1. Enter Player ID, Player Name, and alliance.
 2. For each day (**Monday VP**, **Tuesday VP**, **Thursday MO**): speedup (days) + one or more UTC blocks.
 3. Submit.
 
-- **Cannot edit** the form after submit (email collection is off). To fix a mistake: **submit the form again** with the same Player ID, or use the **secret link** (before assignment).
+- **Cannot edit** the form after submit (email collection is off). To fix a mistake: **submit the form again** with the same Player ID, or use the **secret link** (when `reservation_open = true` for the secret link).
 
 **Secret link** (`/r/...`) — when R4 provides it
 
@@ -106,9 +107,9 @@ Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION
 | Days omitted | Days **not** included in a re-submit are **removed** from preferences |
 | No form edit after submit | Google Form has no edit link — re-submit form or use secret link |
 | Google account vs Player ID | **Limit to 1 response: Off** — same Google account can submit **multiple times** for **different Player IDs** |
-| Deadline | Rejected after R4 closes reservations |
+| Deadline | Secret link rejected after R4 closes reservations (`reservation_open = false`); Google Form still accepts until Google stops responses |
 | Both channels | Form and secret link both **full replace** — latest wins |
-| After assignment | Self-service changes **rejected** — contact R4 |
+| After assignment | Google Form re-submit always allowed (deletes `reservations` + replaces preferences). Secret link: same when `reservation_open = true`. Contact R4 to keep a slot or for ops adjustments |
 
 ## Check status
 
@@ -129,6 +130,7 @@ Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION
 |-----------|---------------|
 | During application window · wrong answers | **Re-submit** Google Form (same Player ID) or **secret link** |
 | After form close, before assignment | Contact R4 → **secret link** re-submit |
-| After assignment | Contact R4 — changes depend on situation; **cannot self re-apply** |
+| After assignment · re-submit | Google Form (always) or secret link (`reservation_open = true`) — **re-submit** replaces preferences and deletes existing assignment rows |
+| After assignment · keep slot / ops change | Contact R4 — Schedule Grid **Cancel** etc. |
 
 ---
