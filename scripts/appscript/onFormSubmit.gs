@@ -4,11 +4,8 @@
  * Supabase sb_secret_ keys reject Google Apps Script's User-Agent, so this script
  * never calls Supabase directly. Set WEBHOOK_URL and WEBHOOK_SECRET in Script properties.
  *
- * Sheet row layout (email collection OFF):
- *   row[0] timestamp, row[1] Player ID, row[2] Player Name, row[3] Alliance, ...
- *
- * Re-submits for the same Player ID replace the entire application server-side
- * (DELETE + INSERT preferences for that cycle).
+ * Sheet row layout (email collection ON):
+ *   row[0] timestamp, row[1] email, row[2] Player ID, row[3] Player Name, ...
  */
 const WEBHOOK_URL = "https://wos1234.vercel.app/api/google-form-submit";
 
@@ -16,20 +13,20 @@ function onFormSubmit(e) {
   const row = e.values;
   Logger.log("row 전체: " + JSON.stringify(row));
 
-  const playerId = parseInt(String(row[1]).split(".")[0], 10);
-  const name = row[2];
-  const alliance = row[3];
-  const speedupMon = Number(row[4]);
-  const monBlocks = parseBlocks(row[5]);
-  const speedupTue = Number(row[6]);
-  const tueBlocks = parseBlocks(row[7]);
-  const speedupThu = Number(row[8]);
-  const thuBlocks = parseBlocks(row[9]);
+  const playerId = parseInt(String(row[2]).split(".")[0], 10);
+  const name = row[3];
+  const alliance = row[4];
+  const speedupMon = Number(row[5]);
+  const monBlocks = parseBlocks(row[6]);
+  const speedupTue = Number(row[7]);
+  const tueBlocks = parseBlocks(row[8]);
+  const speedupThu = Number(row[9]);
+  const thuBlocks = parseBlocks(row[10]);
 
   Logger.log("playerId: " + playerId);
 
   if (isNaN(playerId)) {
-    Logger.log("유효하지 않은 Player ID: " + row[1]);
+    Logger.log("유효하지 않은 Player ID: " + row[2]);
     return;
   }
 
