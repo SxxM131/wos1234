@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { createServiceClient } from "@/lib/supabase";
-import { processMultiDayReservation, DaySubmit } from "@/lib/assignment";
+import { submitMultiDayReservationRpc, DaySubmit } from "@/lib/assignment";
 import { DayOfWeek, isValidAlliance } from "@/lib/types";
 
 const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
-  const result = await processMultiDayReservation(
+  const result = await submitMultiDayReservationRpc(
     supabase,
     playerId,
     name,

@@ -2,7 +2,7 @@
 
 import { createServiceClient } from "@/lib/supabase";
 import {
-  processMultiDayReservation,
+  submitMultiDayReservationRpc,
   DaySubmit,
   getLastAssignmentRun,
   isReservationOpen,
@@ -67,7 +67,7 @@ export async function submitReservation(formData: FormData) {
     return { success: false, message: SECRET_URL_CLOSED_MESSAGE };
   }
 
-  return processMultiDayReservation(
+  return submitMultiDayReservationRpc(
     supabase,
     playerId,
     name,
@@ -103,9 +103,6 @@ export async function checkReservation(playerId: number) {
     .eq("cycle_id", cycleId);
 
   if (!preferences?.length) {
-    if (player) {
-      await supabase.from("players").delete().eq("player_id", playerId);
-    }
     return { error: "No reservation found for this Player ID." };
   }
 

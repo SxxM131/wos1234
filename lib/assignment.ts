@@ -3,7 +3,6 @@ import { DayOfWeek, DAY_CONFIG } from "./types";
 import {
   SUBMIT_RECEIVED_MESSAGE,
   SUBMIT_UPDATED_MESSAGE,
-  playerHasAnyPreferencesInCycle,
 } from "./reservation-guard";
 
 export interface DaySubmit {
@@ -56,56 +55,36 @@ function getSpeedup(player: { speedup_mon: number; speedup_tue: number; speedup_
   return player.speedup_thu;
 }
 
-async function upsertPlayerForDays(
-  supabase: SupabaseClient,
-  playerId: number,
-  name: string,
-  alliance: string,
-  days: DaySubmit[]
-) {
-  const { data: existing } = await supabase
-    .from("players")
-    .select("speedup_mon, speedup_tue, speedup_thu")
-    .eq("player_id", playerId)
-    .maybeSingle();
-
-  let speedupMon = existing?.speedup_mon ?? 0;
-  let speedupTue = existing?.speedup_tue ?? 0;
-  let speedupThu = existing?.speedup_thu ?? 0;
-
-  for (const d of days) {
-    if (d.dayOfWeek === "mon") {
-      speedupMon = d.speedup;
-    }
-    if (d.dayOfWeek === "tue") {
-      speedupTue = d.speedup;
-    }
-    if (d.dayOfWeek === "thu") {
-      speedupThu = d.speedup;
-    }
-  }
-
-  const playerRow: Record<string, unknown> = {
-    player_id: playerId,
-    name,
-    alliance,
-    speedup_mon: speedupMon,
-    speedup_tue: speedupTue,
-    speedup_thu: speedupThu,
-  };
-
-  const { error } = await supabase
-    .from("players")
-    .upsert(playerRow, { onConflict: "player_id" });
-  return error;
-}
-
 export interface ProcessMultiDayReservationOptions {
   /** Member-facing paths: skip reservation_open (enforced elsewhere or via Google Form). */
   skipOpenCheck?: boolean;
 }
 
-export async function processMultiDayReservation(
+interface SubmitMultiDayReservationRpcResult {
+  success: boolean;
+  message?: string;
+  had_existing?: boolean;
+  player_id?: number;
+}
+
+function buildSubmitDaysPayload(days: DaySubmit[]) {
+  return days.map((day) => ({
+    day_of_week: day.dayOfWeek,
+    speedup: day.speedup,
+    preferred_blocks: Array.from(new Set(day.preferredBlocks)),
+  }));
+}
+
+function rpcErrorMessage(error: { message: string }): string {
+  const prefix = "Failed to ";
+  const idx = error.message.indexOf(prefix);
+  if (idx >= 0) {
+    return error.message.slice(idx);
+  }
+  return error.message;
+}
+
+export async function submitMultiDayReservationRpc(
   supabase: SupabaseClient,
   playerId: number,
   name: string,
@@ -117,6 +96,44 @@ export async function processMultiDayReservation(
     return { success: false, message: "Select at least one day." };
   }
 
+  const { data, error } = await supabase.rpc("submit_multi_day_reservation", {
+    p_player_id: playerId,
+    p_name: name,
+    p_alliance: alliance,
+    p_days: buildSubmitDaysPayload(days),
+    p_skip_open_check: options?.skipOpenCheck ?? false,
+  });
+
+  if (error) {
+    return { success: false, message: rpcErrorMessage(error) };
+  }
+
+  const result = data as SubmitMultiDayReservationRpcResult | null;
+  if (!result?.success) {
+    return {
+      success: false,
+      message: result?.message ?? "Submission failed.",
+    };
+  }
+
+  return {
+    success: true,
+    message: result.had_existing
+      ? SUBMIT_UPDATED_MESSAGE
+      : SUBMIT_RECEIVED_MESSAGE,
+    touchedPlayerIds: [playerId],
+  };
+}
+
+/** Thin wrapper for scripts — delegates to submitMultiDayReservationRpc. */
+export async function processMultiDayReservation(
+  supabase: SupabaseClient,
+  playerId: number,
+  name: string,
+  alliance: string,
+  days: DaySubmit[],
+  options?: ProcessMultiDayReservationOptions
+): Promise<AssignmentResult> {
   if (!options?.skipOpenCheck) {
     const open = await isReservationOpen(supabase);
     if (!open) {
@@ -124,76 +141,14 @@ export async function processMultiDayReservation(
     }
   }
 
-  const cycleId = await getCurrentCycleId(supabase);
-  const hadExisting = await playerHasAnyPreferencesInCycle(
-    supabase,
-    playerId,
-    cycleId
-  );
-
-  const playerError = await upsertPlayerForDays(
+  return submitMultiDayReservationRpc(
     supabase,
     playerId,
     name,
     alliance,
-    days
+    days,
+    options
   );
-  if (playerError) {
-    return {
-      success: false,
-      message: `Failed to save player: ${playerError.message}`,
-    };
-  }
-
-  if (options?.skipOpenCheck && (await getLastAssignmentRun(supabase))) {
-    const { error: resDeleteError } = await supabase
-      .from("reservations")
-      .delete()
-      .eq("player_id", playerId)
-      .eq("cycle_id", cycleId);
-    if (resDeleteError) {
-      return {
-        success: false,
-        message: `Failed to clear prior assignments: ${resDeleteError.message}`,
-      };
-    }
-  }
-
-  const { error: deleteError } = await supabase
-    .from("preferences")
-    .delete()
-    .eq("player_id", playerId)
-    .eq("cycle_id", cycleId);
-  if (deleteError) {
-    return {
-      success: false,
-      message: `Failed to replace preferences: ${deleteError.message}`,
-    };
-  }
-
-  for (const day of days) {
-    const preferredBlocks = Array.from(new Set(day.preferredBlocks));
-    for (const block of preferredBlocks) {
-      const { error: prefError } = await supabase.from("preferences").insert({
-        player_id: playerId,
-        day_of_week: day.dayOfWeek,
-        block_start_utc: block,
-        cycle_id: cycleId,
-      });
-      if (prefError) {
-        return {
-          success: false,
-          message: `Failed to save preferences: ${prefError.message}`,
-        };
-      }
-    }
-  }
-
-  return {
-    success: true,
-    message: hadExisting ? SUBMIT_UPDATED_MESSAGE : SUBMIT_RECEIVED_MESSAGE,
-    touchedPlayerIds: [playerId],
-  };
 }
 
 async function getAssignedPlayerIdsOnDay(
