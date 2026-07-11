@@ -7,48 +7,56 @@ For R4+ admins with access to this site. Explains how the reservation system wor
 | Phase | What happens |
 |-------|----------------|
 | Application window | Members submit **preferences only** (day, speedup, preferred UTC blocks). No slot assignment yet. |
-| After deadline | You close reservations, verify speedups, then **Run full assignment**. |
-| After assignment | Results appear on **`/status`**. Members can check their own status via the secret link. |
+| After deadline | Stop the **Google Form** (main channel), close the secret URL if needed, verify speedups, then **Run full assignment**. |
+| After assignment | Results appear on **`/status`**. Members can check their own status via `/r/.../check` or `/status`. |
 
 **Application channels**
 
 | Channel | When to use |
 |---------|-------------|
-| **Google Form** | Main path during the normal application window (email collection **off** — no post-submit edit link; **re-submit form** to update) |
-| **Secret link** (`/r/...`) | Corrections during the window, late cases after form closes — share from dashboard when needed |
+| **Google Form** | **Normal path** during the application window (email collection **off** — no post-submit edit link; **re-submit form** to update) |
+| **Secret link** (`/r/...`) | **Plan B only** — not the everyday path. Use for corrections during the window or late/special cases after the form closes. Share from the dashboard only when needed. |
 
-**Re-submit rule (both channels):** same **Player ID + cycle** → **full replace** via `processMultiDayReservation` (DELETE all preferences for that player in the cycle, then INSERT the new submission). Latest submission wins. **Google Form** ignores `reservation_open` (`skipOpenCheck`). **Secret link** is rejected when `reservation_open = false`. **After assignment**, re-submitting also DELETEs that player's `reservations` (assigned and eliminated) before replacing preferences — accidental re-submits can clear slots.
+**Re-submit rule (both channels):** same **Player ID + cycle** → **full replace** via `processMultiDayReservation` (DELETE all preferences for that player in the cycle, then INSERT the new submission). Latest submission wins. **Google Form** ignores `reservation_open` (`skipOpenCheck`). **Secret link** is rejected when `reservation_open = false` (dashboard shows **Close secret URL** / banner **Secret URL closed**). **After assignment**, re-submitting also DELETEs that player's `reservations` (assigned and eliminated) before replacing preferences — accidental re-submits can clear slots. (`ASSIGNMENT_LOCKED_MESSAGE` exists in code but is **not** enforced on submit.)
 
 ```mermaid
 flowchart TD
   A[Open Google Form window] --> B[Members submit preferences]
-  B --> C[Close reservations on dashboard]
-  C --> D[Verify speedups in Search / Export]
-  D --> E[Run full assignment]
-  E --> F[Share /status link]
+  B --> C[Stop Google Form responses]
+  C --> D[Close secret URL on dashboard if needed]
+  D --> E[Verify speedups in Search / Export]
+  E --> F[Run full assignment]
+  F --> G[Share /status link]
 ```
+
+## Operating rules (read first)
+
+- **Secret URL is not the normal path.** It is plan B for special situations only. Day-to-day applications go through the **Google Form**.
+- **Closing reservations** means closing the **Google Form** application window (stop accepting responses in Google Forms). That is the main-channel deadline. The dashboard button **Close secret URL** only toggles `reservation_open` for `/r/...` — it does **not** stop Google Form submissions.
+- **Do not press Run full assignment casually.** It recalculates Mon → Tue → Thu for the whole cycle; a re-run **replaces** current assignments. Close the form, verify speedups, then run it once you are ready.
+- **Delete** (Search, pre-assignment) and **Cancel** (Schedule Grid, post-assignment) are written to the `audit_log` table (snapshot of the deleted/cancelled rows) before the action runs. Review logs in Supabase if you need a trail.
 
 ## Dashboard workflow (each cycle)
 
-| Step | Action on `/admin` |
-|------|---------------------|
-| 1 | Confirm **reservations open**; distribute the Google Form link |
-| 2 | When the window ends → **Close reservations** |
+| Step | Action |
+|------|--------|
+| 1 | Distribute the **Google Form** link (main path). Keep secret URL available only as plan B. |
+| 2 | When the window ends → **stop accepting responses on the Google Form** (close reservations). On `/admin`, use **Close secret URL** if `/r/...` should also reject submits. |
 | 3 | **Search** or **Export Excel** — cross-check speedup values; edit if needed |
-| 4 | **Run full assignment** (yellow panel) |
+| 4 | **Run full assignment** (yellow panel) — only when ready (see Operating rules) |
 | 5 | Share **`/status`** with the alliance |
-| 6 | After assignment: use **Schedule Grid** for slot cancellations; **Waitlist** to review eliminated players |
+| 6 | After assignment: use **Schedule Grid** for slot **Cancel**; **Waitlist** to review eliminated players |
 
-> Before assignment, the schedule grid is expected to be empty — only `preferences` exist until you run assignment.
+> Before assignment, the schedule grid is expected to be empty — only `preferences` exist until you run assignment. Dashboard open/close controls are labeled **Open secret URL** / **Close secret URL**.
 
 ## Handling member changes
 
 | # | Timing | Member | R4 action |
 |---|--------|--------|-----------|
-| A | During application window · needs to change | **Re-submit** via Google Form (same Player ID) or **secret link** | (Optional) Search → **Delete** if removal only |
-| B | After form close · before assignment | Contact R4 → **re-submit via secret link** | (Optional) Search → **Delete** |
+| A | During application window · needs to change | **Re-submit** via Google Form (same Player ID); secret link only if needed (plan B) | (Optional) Search → **Delete** if removal only (logged to `audit_log`) |
+| B | After form close · before assignment | Contact R4 → **re-submit via secret link** (plan B; requires secret URL open) | (Optional) Search → **Delete** (logged to `audit_log`) |
 | C | After assignment · re-submit | Google Form (always) or secret link (`reservation_open = true`) — **re-submit** deletes existing assignment + replaces preferences | — |
-| C-2 | After assignment · R4 adjustment | Request change from R4 (case by case — may affect others) | Schedule Grid **Cancel** |
+| C-2 | After assignment · R4 adjustment | Request change from R4 (case by case — may affect others) | Schedule Grid **Cancel** (logged to `audit_log`) |
 
 Full scenario tables: **Technical Reference → §3.5 Operational Scenarios** below.
 
@@ -56,16 +64,18 @@ Full scenario tables: **Technical Reference → §3.5 Operational Scenarios** be
 
 | Path | Who | Purpose |
 |------|-----|---------|
-| `/admin` | R4+ | Dashboard — open/close, assign, search, grid |
+| `/admin` | R4+ | Dashboard — secret URL open/close, assign, search, grid |
 | `/admin/guide` | R4+ | This page |
 | `/status` | Public | Live schedule and waitlist after assignment |
-| `/r/[token]` | Members (late/special) | Application form |
+| `/r/[token]` | Members (late/special — plan B) | Application form |
 | `/r/[token]/check` | Members | Check application / assignment by Player ID |
 
 ## Warnings
 
+- **Do not press Run full assignment** unless you intend to (re)assign the whole cycle. Prefer verifying applicants first.
 - **Do not press Reset cycle** during an active booking period unless you intentionally want to archive and wipe the entire cycle’s data and start a new cycle number.
 - Regenerating the **secret URL** on the dashboard invalidates all existing `/r/...` links immediately.
+- Admin **Delete** / **Cancel** leave an `audit_log` snapshot; they do not remove the player row from `players`.
 
 ---
 
@@ -93,10 +103,11 @@ Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION
 
 - **Cannot edit** the form after submit (email collection is off). To fix a mistake: **submit the form again** with the same Player ID, or use the **secret link** (when `reservation_open = true` for the secret link).
 
-**Secret link** (`/r/...`) — when R4 provides it
+**Secret link** (`/r/...`) — **plan B only**, when R4 provides it
 
+- Not the everyday application path (Google Form is).
 - Corrections during the application window.
-- Late or special cases after the form closes.
+- Late or special cases after the form closes (requires secret URL open on the dashboard).
 - Re-submitting **replaces** your entire application for the cycle (only days in this submit remain).
 
 ## Rules members should know
@@ -107,7 +118,7 @@ Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION
 | Days omitted | Days **not** included in a re-submit are **removed** from preferences |
 | No form edit after submit | Google Form has no edit link — re-submit form or use secret link |
 | Google account vs Player ID | **Limit to 1 response: Off** — same Google account can submit **multiple times** for **different Player IDs** |
-| Deadline | Secret link rejected after R4 closes reservations (`reservation_open = false`); Google Form still accepts until Google stops responses |
+| Deadline | Main channel: stop Google Form responses. Secret link rejected after R4 uses **Close secret URL** (`reservation_open = false`); Google Form still accepts until Google stops responses |
 | Both channels | Form and secret link both **full replace** — latest wins |
 | After assignment | Google Form re-submit always allowed (deletes `reservations` + replaces preferences). Secret link: same when `reservation_open = true`. Contact R4 to keep a slot or for ops adjustments |
 
