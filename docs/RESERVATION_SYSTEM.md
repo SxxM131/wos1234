@@ -77,21 +77,24 @@ npm run check-env
 
 ```mermaid
 flowchart TD
-  A["신청 기간\n플레이어가 /r/token 또는 구글 폼 제출"] --> B["예약 마감\nAdmin: Close reservations"]
-  B --> C["스피드업 검증\n예약 목록에서 실제 수치 대조·수정"]
+  A["신청 기간\n플레이어가 구글 폼 또는 /r/token 제출"] --> B1["구글 폼: 응답 수락 중지\n(Google Forms, 웹사이트 아님)"]
+  B1 --> B2["Admin: Close secret URL\nreservation_open = false"]
+  B2 --> C["스피드업 검증\n예약 목록에서 실제 수치 대조·수정"]
   C --> D["배정 실행\nAdmin: Run full assignment"]
   D --> E["결과 공지\n/status 링크 공유"]
 ```
 
 | 단계 | 담당 | 동작 | DB 변화 |
 |------|------|------|---------|
-| 신청 기간 | 플레이어 | `/r/[token]` 또는 구글 폼에서 요일·스피드업·선호 블록 제출 | `players`, `preferences` |
-| 예약 마감 | R4+ Admin | **Close reservations** 토글 | `settings.reservation_open = false` |
+| 신청 기간 | 플레이어 | 구글 폼(메인) 또는 `/r/[token]`에서 요일·스피드업·선호 블록 제출 | `players`, `preferences` |
+| 예약 마감 (a) | R4+ | **Google Forms**에서 응답 수락 중지 (웹사이트로 통제 불가) | — (구글 쪽) |
+| 예약 마감 (b) | R4+ Admin | 대시보드 **Close secret URL** (`Open secret URL`의 반대) | `settings.reservation_open = false` |
 | 스피드업 검증 | R4+ Admin | 예약 목록·검색·그리드에서 실제 수치 대조·수정 | `players` (필요 시) |
 | 배정 실행 | R4+ Admin | **Run full assignment** | `reservations` (assigned / eliminated), `last_assignment_run` |
 | 결과 공지 | R4+ | `/status` 링크 공유 | — (조회만) |
 
-> **주의:** 신청 단계에서는 `reservations`에 `assigned` 행이 생기지 않습니다. 그리드가 비어 있어야 정상입니다.
+> **주의:** 신청 단계에서는 `reservations`에 `assigned` 행이 생기지 않습니다. 그리드가 비어 있어야 정상입니다.  
+> **예약 마감**은 (a) 구글 폼 응답 중지와 (b) **Close secret URL** 두 동작이 별개입니다. 대시보드 버튼은 시크릿 URL(`/r/...`)만 통제합니다.
 
 ### 3.5 운영 시나리오 및 대응
 
@@ -102,10 +105,10 @@ flowchart TD
 | # | 시점 | 신청 경로 | 플레이어 대응 | R4+ Admin 대응 | DB 변화 |
 |---|------|-----------|---------------|----------------|---------|
 | A | 신청 기간 중 · **내용 수정 필요** | `/r/[token]` 또는 구글 폼 재제출 | **같은 Player ID로 재제출** (전체 교체) | (선택) Search → **Delete** — 제거만 필요할 때 | 기존 `preferences` DELETE 후 새 내용 INSERT |
-| B | 폼 마감 후 · **Run full assignment 전** | `/r/[token]` (시크릿 URL) | R4에게 연락 후 시크릿 URL로 **재제출** | (선택) Search → **Delete** | 해당 사이클 `preferences` 전체 교체 |
+| B | 구글 폼 응답 중지 후 · **Run full assignment 전** | `/r/[token]` (시크릿 URL) | R4에게 연락 후 **Open secret URL** 상태에서 재제출 | (선택) Search → **Delete** | 해당 사이클 `preferences` 전체 교체 |
 | B-2 | B 이후 | `/r/[token]` | 시크릿 URL로 **재제출** (이번 제출에 포함된 요일만 남음) | — | `preferences` 전체 교체 |
-| C | **배정 실행 후** · 재제출 | 구글 폼 (항상) / 시크릿 URL (`reservation_open = true`) | **재제출** — 기존 `reservations` 삭제 후 `preferences` 전체 교체 | — | assigned·eliminated 동일 처리 |
-| C-2 | **배정 실행 후** · 시크릿 URL 마감 | `/r/[token]` | `reservation_open = false`이면 **거부** | — | DB 변화 없음 |
+| C | **배정 실행 후** · 재제출 | 구글 폼 (항상) / 시크릿 URL (**Open secret URL**) | **재제출** — 기존 `reservations` 삭제 후 `preferences` 전체 교체 | — | assigned·eliminated 동일 처리 |
+| C-2 | **배정 실행 후** · **Close secret URL** | `/r/[token]` | `reservation_open = false`이면 **거부** | — | DB 변화 없음 |
 | D | **배정 실행 후** · R4 조정 | — | R4에게 취소·변경 요청 | Schedule Grid **Cancel** | `cancelled` + 해당 요일 `preferences` 삭제 |
 | E | Admin 취소/삭제 후 **미재신청** | — | 해당 사이클 해당 요일 **배정 제외** | — | 선호 없음 → 배정 대상 아님 |
 
@@ -115,11 +118,11 @@ flowchart TD
 
 | # | 상황 | 조건 | 결과 | 사용자 메시지 |
 |---|------|------|------|---------------|
-| 1 | 정상 첫 신청 | 구글 폼 또는 시크릿 URL (`reservation_open = true`) | `processMultiDayReservation` → `players` upsert + `preferences` DELETE(해당 player+cycle) + INSERT | *Your application has been received.* |
+| 1 | 정상 첫 신청 | 구글 폼 또는 시크릿 URL (**Open secret URL**) | `processMultiDayReservation` → `players` upsert + `preferences` DELETE(해당 player+cycle) + INSERT | *Your application has been received.* |
 | 2 | 같은 `player_id` 재제출 | 동일 사이클에 기존 `preferences` 있음 | 동일 함수, 전체 교체 | *Your application has been updated.* |
-| 3 | 시크릿 URL 마감 | `reservation_open = false` (시크릿 URL만) | 거부 | *Secret URL applications are currently closed.* |
-| 3b | 구글 폼 제출 | `reservation_open` **무관** (`skipOpenCheck`) | 정상 처리 (마감 여부와 무관) | *Your application has been received.* / *…updated.* |
-| 4 | 배정 실행 후 재제출 | `last_assignment_run` 있음 | 구글 폼: 항상 허용. 시크릿 URL: `reservation_open = true`일 때만. 해당 player `reservations` DELETE + `preferences` 전체 교체 (assigned·eliminated 동일) | *Your application has been updated.* |
+| 3 | **Close secret URL** | `reservation_open = false` (시크릿 URL만) | 거부 | *Secret URL applications are currently closed.* |
+| 3b | 구글 폼 제출 | 대시보드 open/close **무관** (`skipOpenCheck`) — 구글 폼에서 응답을 받을 때까지 접수 | 정상 처리 | *Your application has been received.* / *…updated.* |
+| 4 | 배정 실행 후 재제출 | `last_assignment_run` 있음 | 구글 폼: 항상 허용. 시크릿 URL: **Open secret URL**일 때만. 해당 player `reservations` DELETE + `preferences` 전체 교체 (assigned·eliminated 동일) | *Your application has been updated.* |
 | 5 | 선호 블록 없는 요일 | speedup/블록 비움 | 해당 요일 skip (제출에 미포함) | — |
 | 6 | 상태 조회 | `/r/[token]/check` | 배정 전/후 분기 | Application received / Assigned / On waitlist |
 
@@ -127,9 +130,9 @@ flowchart TD
 
 | 단계 | `last_assignment_run` | Admin UI | 주요 액션 |
 |------|----------------------|----------|-----------|
-| 1. 신청 개시 | 없음 | Secret URL, Open | `access_token` 공유, `reservation_open = true` |
-| 2. 신청 수집 | 없음 | Applicants, Search | 신청자·스피드업 확인 |
-| 3. 마감 | 없음 | Close reservations | `reservation_open = false` |
+| 1. 신청 개시 | 없음 | Secret URL, **Open secret URL** | `access_token` 공유(plan B), `reservation_open = true` |
+| 2. 신청 수집 | 없음 | Applicants, Search | 신청자·스피드업 확인 (메인: 구글 폼) |
+| 3. 마감 | 없음 | (a) 구글 폼 응답 중지 + (b) **Close secret URL** | (a) 구글 쪽 / (b) `reservation_open = false` |
 | 4. 검증 | 없음 | Search, Export | 스피드업 실제 수치 대조·수정 |
 | 5. 배정 | 없음 → 설정됨 | **Run full assignment** | mon → tue → thu MCMF 일괄 배정 |
 | 6. 공지 | 있음 | `/status` | 링크 공유 |
@@ -143,7 +146,7 @@ flowchart TD
 | 1 | 배정된 슬롯 취소 | Grid **Cancel** | `status = cancelled`, 해당 요일 `preferences` 삭제 |
 | 2 | 같은 블록 대기자 있음 | (자동) | `promoteOnCancel` → `eliminated` 1명 `assigned` 승격 |
 | 3 | 대기자 없음 | Cancel만 | 빈 슬롯 유지 (`healEliminated` / backfill) |
-| 4 | 취소된 플레이어 재신청 | 구글 폼 또는 `/r/[token]` (`reservation_open = true`) | Admin Cancel로 해당 요일 `preferences` 삭제 후 전체 교체 재제출 가능 |
+| 4 | 취소된 플레이어 재신청 | 구글 폼 또는 `/r/[token]` (**Open secret URL**) | Admin Cancel로 해당 요일 `preferences` 삭제 후 전체 교체 재제출 가능 |
 | 5 | 배정 **재실행** | Run full assignment 다시 | 해당 요일 배정 전부 삭제 후 MCMF 재계산 |
 
 #### 배정 검증 (`verify:assignment`)
@@ -165,7 +168,7 @@ flowchart TD
 | `/r/[token]` | 비밀 토큰 일치 시 | 다단계 신청 폼 (정보 → 월 → 화 → 목) |
 | `/r/[token]/check` | 동일 토큰 | Player ID로 신청·배정·대기 상태 조회 |
 | `/status` | 공개 | 실시간 스케줄·대기열 (배정 전/후 문구 분기) |
-| `/admin` | 로그인 후 | URL·마감·배정·검색·그리드·Reset |
+| `/admin` | 로그인 후 | Secret URL 표시·**Open/Close secret URL**·배정·검색·그리드·Reset (구글 폼 마감은 Google Forms에서 별도) |
 | `/admin/login` | — | 비밀번호 로그인 |
 | `/admin/setup` | 최초 1회 | 관리자 비밀번호 해시 저장 |
 

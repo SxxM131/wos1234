@@ -7,7 +7,7 @@ For R4+ admins with access to this site. Explains how the reservation system wor
 | Phase | What happens |
 |-------|----------------|
 | Application window | Members submit **preferences only** (day, speedup, preferred UTC blocks). No slot assignment yet. |
-| After deadline | Stop the **Google Form** (main channel), close the secret URL if needed, verify speedups, then **Run full assignment**. |
+| After deadline | In **Google Forms** (not this website), stop accepting responses on the form. On `/admin`, close the secret URL if needed, verify speedups, then **Run full assignment**. |
 | After assignment | Results appear on **`/status`**. Members can check their own status via `/r/.../check` or `/status`. |
 
 **Application channels**
@@ -22,8 +22,8 @@ For R4+ admins with access to this site. Explains how the reservation system wor
 ```mermaid
 flowchart TD
   A[Open Google Form window] --> B[Members submit preferences]
-  B --> C[Stop Google Form responses]
-  C --> D[Close secret URL on dashboard if needed]
+  B --> C[In Google Forms: stop accepting responses]
+  C --> D[Close secret URL on /admin if needed]
   D --> E[Verify speedups in Search / Export]
   E --> F[Run full assignment]
   F --> G[Share /status link]
@@ -32,7 +32,7 @@ flowchart TD
 ## Operating rules (read first)
 
 - **Secret URL is not the normal path.** It is plan B for special situations only. Day-to-day applications go through the **Google Form**.
-- **Closing reservations** means closing the **Google Form** application window (stop accepting responses in Google Forms). That is the main-channel deadline. The dashboard button **Close secret URL** only toggles `reservation_open` for `/r/...` — it does **not** stop Google Form submissions.
+- **Closing reservations** means stopping responses **in Google Forms itself** (Responses → accept responses off / equivalent). That is done on Google Forms, **not** on this website. The dashboard button **Close secret URL** only toggles `reservation_open` for `/r/...` — it does **not** stop Google Form submissions.
 - **Do not press Run full assignment casually.** It recalculates Mon → Tue → Thu for the whole cycle; a re-run **replaces** current assignments. Close the form, verify speedups, then run it once you are ready.
 - **Delete** (Search, pre-assignment) and **Cancel** (Schedule Grid, post-assignment) are written to the `audit_log` table (snapshot of the deleted/cancelled rows) before the action runs. Review logs in Supabase if you need a trail.
 
@@ -41,7 +41,7 @@ flowchart TD
 | Step | Action |
 |------|--------|
 | 1 | Distribute the **Google Form** link (main path). Keep secret URL available only as plan B. |
-| 2 | When the window ends → **stop accepting responses on the Google Form** (close reservations). On `/admin`, use **Close secret URL** if `/r/...` should also reject submits. |
+| 2 | When the window ends → in **Google Forms** (not `/admin`), stop accepting responses (close reservations). On `/admin`, use **Close secret URL** if `/r/...` should also reject submits. |
 | 3 | **Search** or **Export Excel** — cross-check speedup values; edit if needed |
 | 4 | **Run full assignment** (yellow panel) — only when ready (see Operating rules) |
 | 5 | Share **`/status`** with the alliance |
@@ -118,7 +118,7 @@ Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION
 | Days omitted | Days **not** included in a re-submit are **removed** from preferences |
 | No form edit after submit | Google Form has no edit link — re-submit form or use secret link |
 | Google account vs Player ID | **Limit to 1 response: Off** — same Google account can submit **multiple times** for **different Player IDs** |
-| Deadline | Main channel: stop Google Form responses. Secret link rejected after R4 uses **Close secret URL** (`reservation_open = false`); Google Form still accepts until Google stops responses |
+| Deadline | Main channel: stop accepting responses **in Google Forms** (not this site). Secret link rejected after R4 uses **Close secret URL** (`reservation_open = false`); Google Form still accepts until you stop it in Google Forms |
 | Both channels | Form and secret link both **full replace** — latest wins |
 | After assignment | Google Form re-submit always allowed (deletes `reservations` + replaces preferences). Secret link: same when `reservation_open = true`. Contact R4 to keep a slot or for ops adjustments |
 

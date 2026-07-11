@@ -88,17 +88,24 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### 경우 2 — 배정 전 (구글 폼 마감 후, 배정 실행 전)
 
-**시크릿 URL**이 닫혀 있으면 (`reservation_open = false`) 웹 재제출은 거부됩니다. **구글 폼**은 구글 쪽에서 **응답 수락 중지**할 때까지 계속 접수됩니다.
+**예약 마감은 두 가지가 별개입니다.**
+
+| 동작 | 어디서 | 효과 |
+|------|--------|------|
+| (a) 구글 폼 **응답 수락 중지** | Google Forms (웹사이트 아님) | 메인 신청 채널 마감 |
+| (b) **Close secret URL** | `/admin` 대시보드 | `/r/[token]`만 거부 (`reservation_open = false`) |
+
+**시크릿 URL**이 닫혀 있으면 (`Close secret URL` → `reservation_open = false`) 웹 재제출은 거부됩니다. **구글 폼**은 구글 쪽에서 **응답 수락 중지**할 때까지 계속 접수됩니다.
 
 1. R4에게 연락
-2. R4가 **시크릿 URL**을 다시 열어 주거나, 구글 폼으로 **재제출** (전체 교체)
+2. R4가 대시보드에서 **Open secret URL**로 다시 열어 주거나, 구글 폼으로 **재제출** (전체 교체)
 3. (선택) R4가 Search에서 요일별 **Delete** 후 재제출 유도
 
 ### 경우 3 — 배정 후
 
 **구글 폼**은 배정 실행 후에도 재제출이 가능합니다. 재제출 시 해당 player의 기존 `reservations`(배정·대기)가 **삭제**되고 `preferences`가 **전체 교체**됩니다 (assigned·eliminated 동일).
 
-**시크릿 URL**은 `reservation_open` 상태에만 의존합니다. `reservation_open = false`이면 거부되고, `true`이면 구글 폼과 동일하게 처리됩니다.
+**시크릿 URL**은 대시보드 **Open secret URL** / **Close secret URL**(`reservation_open`)에만 의존합니다. **Close secret URL**이면 거부되고, **Open secret URL**이면 구글 폼과 동일하게 처리됩니다.
 
 슬롯을 **유지**하거나 운영진이 직접 조정해야 할 때는 각 연맹 **R4**에게 문의하세요.
 
@@ -124,8 +131,8 @@ R4가 Schedule Grid에서 **Cancel** 등으로 처리할 수 있습니다.
 | # | 시점 | 신청 경로 | 플레이어 | R4+ Admin |
 |---|------|-----------|----------|-----------|
 | A | 신청 기간 중 · **내용 수정 필요** | `/r/[token]` 또는 구글 폼 재제출 | **같은 Player ID로 재제출** (전체 교체) | (선택) Search → **Delete** |
-| B | 폼 마감 후 · **배정 실행 전** | `/r/[token]` (시크릿 URL) | R4 연락 후 시크릿 URL **재제출** | (선택) Search → **Delete** |
-| C | **배정 실행 후** · 재제출 | 구글 폼 (항상) / 시크릿 URL (`reservation_open = true`) | **재제출** — 기존 배정 삭제 후 preferences 전체 교체 | — |
+| B | 구글 폼 응답 중지 후 · **배정 실행 전** | `/r/[token]` (시크릿 URL) | R4 연락 후 **Open secret URL** 상태에서 재제출 | (선택) Search → **Delete** |
+| C | **배정 실행 후** · 재제출 | 구글 폼 (항상) / 시크릿 URL (**Open secret URL**) | **재제출** — 기존 배정 삭제 후 preferences 전체 교체 | — |
 | C-2 | **배정 실행 후** · R4 조정 | — | R4에게 취소·변경 요청 | Schedule Grid **Cancel** |
 | D | Admin 취소/삭제 후 **재신청 안 함** | — | 해당 요일·사이클에서 **배정 대상 제외** | — |
 
@@ -135,17 +142,17 @@ R4가 Schedule Grid에서 **Cancel** 등으로 처리할 수 있습니다.
 |---|------|-------------|------|
 | 1 | 신청 기간 · 첫 제출 | `preferences` INSERT (`reservations` 없음) | *Your application has been received.* |
 | 2 | 같은 `player_id` 재제출 | 기존 `preferences` DELETE 후 INSERT (전체 교체) | *Your application has been updated.* |
-| 3 | 시크릿 URL 마감 (`reservation_open = false`) | 시크릿 URL만 거부 | *Secret URL applications are currently closed.* |
-| 3b | 구글 폼 제출 | `reservation_open` 무관 (`skipOpenCheck`) | *Your application has been received.* / *…updated.* |
-| 4 | 배정 실행 후 재제출 (`last_assignment_run`) | 구글 폼: 항상 허용. 시크릿 URL: `reservation_open = true`일 때만. `reservations` DELETE + `preferences` 전체 교체 | *Your application has been updated.* |
+| 3 | **Close secret URL** (`reservation_open = false`) | 시크릿 URL(`/r/...`)만 거부 | *Secret URL applications are currently closed.* |
+| 3b | 구글 폼 제출 | 대시보드 open/close와 **무관** (`skipOpenCheck`) — 구글 폼에서 응답을 받을 때까지 접수 | *Your application has been received.* / *…updated.* |
+| 4 | 배정 실행 후 재제출 (`last_assignment_run`) | 구글 폼: 항상 허용. 시크릿 URL: **Open secret URL**일 때만. `reservations` DELETE + `preferences` 전체 교체 | *Your application has been updated.* |
 | 5 | `/r/[token]/check` 조회 | 배정 전·후 상태 표시 | Application received / Assigned / On waitlist |
 
 ### Admin 단계별 UI
 
 | 단계 | `last_assignment_run` | 주요 UI | 가능 작업 |
 |------|----------------------|---------|-----------|
-| 신청 기간 | 없음 | Applicants, Search (**Delete** 버튼) | Secret URL, Open/Close |
-| 마감 ~ 배정 전 | 없음 | Search + Delete, (그리드 비어 있음) | 스피드업 검증, **Run full assignment** |
+| 신청 기간 | 없음 | Applicants, Search (**Delete** 버튼) | 구글 폼 배포, Secret URL, **Open/Close secret URL** |
+| 신청 마감 ~ 배정 전 | 없음 | Search + Delete, (그리드 비어 있음) | (a) 구글 폼 응답 중지 + (b) **Close secret URL**, 스피드업 검증, **Run full assignment** |
 | 배정 후 | 있음 | Schedule Grid, Waitlist | 슬롯 **Cancel**, Export Excel |
 
 > English + diagrams: [docs/RESERVATION_SYSTEM_EN.html](docs/RESERVATION_SYSTEM_EN.html)
@@ -158,12 +165,14 @@ R4가 Schedule Grid에서 **Cancel** 등으로 처리할 수 있습니다.
 
 ```mermaid
 flowchart TD
-    A[플레이어: 선호 시간 제출\n비밀 URL 또는 구글 폼] --> B[마감]
-    B --> B2{{배정 전 삭제 필요?}}
-    B2 -->|예| B3[Admin: 검색 → Delete 요일 버튼]
-    B3 --> B4[해당 요일 preferences 삭제]
-    B2 -->|아니오| C[관리자: Run full assignment 실행]
-    B4 --> C
+    A[플레이어: 선호 시간 제출\n구글 폼 또는 시크릿 URL] --> B1[구글 폼: 응답 수락 중지]
+    A --> B2[Admin: Close secret URL]
+    B1 --> B2
+    B2 --> B3{{배정 전 삭제 필요?}}
+    B3 -->|예| B4[Admin: 검색 → Delete 요일 버튼]
+    B4 --> B5[해당 요일 preferences 삭제]
+    B3 -->|아니오| C[관리자: Run full assignment 실행]
+    B5 --> C
     C --> D{MCMF 알고리즘\n스피드업 내림차순\n신청 시각 오름차순}
     D -->|배정 성공| E[🟢 예약 확정]
     D -->|슬롯 없음| F[⏳ 대기열 Waitlist]

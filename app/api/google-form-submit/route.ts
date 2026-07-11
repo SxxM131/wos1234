@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { createServiceClient } from "@/lib/supabase";
 import { submitMultiDayReservationRpc, DaySubmit } from "@/lib/assignment";
+import { logResubmitPreferenceIfNeeded } from "@/lib/audit-log";
 import { DayOfWeek, isValidAlliance } from "@/lib/types";
 
 const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
@@ -99,6 +100,15 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
+
+  // actor_ip is null: request IP is Apps Script's server, not the submitter
+  await logResubmitPreferenceIfNeeded(
+    supabase,
+    playerId,
+    "google_form",
+    null
+  );
+
   const result = await submitMultiDayReservationRpc(
     supabase,
     playerId,

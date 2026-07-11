@@ -10,6 +10,7 @@ import {
   getLastAssignmentRun,
 } from "@/lib/assignment";
 import { clearCancelledDayReservations } from "@/lib/reservation-guard";
+import { getActorIp } from "@/lib/audit-log";
 import { DayOfWeek } from "@/lib/types";
 import {
   EXPORT_CSV_HEADER,
@@ -25,24 +26,12 @@ import {
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 async function requireAdmin() {
   const session = await getAdminSession();
   if (!session.isLoggedIn) {
     throw new Error("Unauthorized");
-  }
-}
-
-async function getActorIp(): Promise<string | null> {
-  try {
-    const h = await headers();
-    const forwarded = h.get("x-forwarded-for");
-    if (!forwarded) return null;
-    return forwarded.split(",")[0]?.trim() || null;
-  } catch {
-    return null;
   }
 }
 

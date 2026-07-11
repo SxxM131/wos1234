@@ -8,6 +8,7 @@ import {
   isReservationOpen,
   SECRET_URL_CLOSED_MESSAGE,
 } from "@/lib/assignment";
+import { getActorIp, logResubmitPreferenceIfNeeded } from "@/lib/audit-log";
 import { DayOfWeek, DAY_CONFIG, ALLIANCE_OPTIONS, isValidAlliance } from "@/lib/types";
 
 const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
@@ -66,6 +67,13 @@ export async function submitReservation(formData: FormData) {
   if (!open) {
     return { success: false, message: SECRET_URL_CLOSED_MESSAGE };
   }
+
+  await logResubmitPreferenceIfNeeded(
+    supabase,
+    playerId,
+    "secret_url",
+    await getActorIp()
+  );
 
   return submitMultiDayReservationRpc(
     supabase,
