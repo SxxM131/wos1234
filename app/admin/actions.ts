@@ -25,12 +25,24 @@ import {
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 async function requireAdmin() {
   const session = await getAdminSession();
   if (!session.isLoggedIn) {
     throw new Error("Unauthorized");
+  }
+}
+
+async function getActorIp(): Promise<string | null> {
+  try {
+    const h = await headers();
+    const forwarded = h.get("x-forwarded-for");
+    if (!forwarded) return null;
+    return forwarded.split(",")[0]?.trim() || null;
+  } catch {
+    return null;
   }
 }
 
@@ -194,9 +206,28 @@ export async function cancelReservation(reservationId: string) {
 
   const { data: res } = await supabase
     .from("reservations")
-    .select("slot_id, player_id, slots(day_of_week)")
+    .select("*, slots(day_of_week)")
     .eq("id", reservationId)
     .single();
+
+  try {
+    const day = (
+      res?.slots as unknown as { day_of_week: DayOfWeek } | null
+    )?.day_of_week;
+    const { error: auditError } = await supabase.from("audit_log").insert({
+      action: "cancel_reservation",
+      player_id: res?.player_id ?? null,
+      day_of_week: day ?? null,
+      cycle_id: cycleId,
+      snapshot: res ?? null,
+      actor_ip: await getActorIp(),
+    });
+    if (auditError) {
+      console.error("audit_log insert failed (cancel_reservation):", auditError);
+    }
+  } catch (err) {
+    console.error("audit_log insert failed (cancel_reservation):", err);
+  }
 
   await supabase
     .from("reservations")
@@ -339,6 +370,29 @@ export async function deletePreferenceByDay(
 ): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
   const supabase = createServiceClient();
+
+  const { data: rows } = await supabase
+    .from("preferences")
+    .select("*")
+    .eq("player_id", playerId)
+    .eq("day_of_week", dayOfWeek)
+    .eq("cycle_id", cycleId);
+
+  try {
+    const { error: auditError } = await supabase.from("audit_log").insert({
+      action: "delete_preference",
+      player_id: playerId,
+      day_of_week: dayOfWeek,
+      cycle_id: cycleId,
+      snapshot: rows ?? [],
+      actor_ip: await getActorIp(),
+    });
+    if (auditError) {
+      console.error("audit_log insert failed (delete_preference):", auditError);
+    }
+  } catch (err) {
+    console.error("audit_log insert failed (delete_preference):", err);
+  }
 
   const { error } = await supabase
     .from("preferences")
