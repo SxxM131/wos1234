@@ -14,7 +14,7 @@ For R4+ admins with access to this site. Explains how the reservation system wor
 
 | Channel | When to use |
 |---------|-------------|
-| **Google Form** | **Normal path** during the application window (email collection **off** — no post-submit edit link; **re-submit form** to update) |
+| **Google Form** | **Normal path** during the application window (email collection **on** for sheet column layout; **re-submit form** to update DB — editing a response alone may not hit the webhook) |
 | **Secret link** (`/r/...`) | **Plan B only** — not the everyday path. Use for corrections during the window or late/special cases after the form closes. Share from the dashboard only when needed. |
 
 **Re-submit rule (both channels):** same **Player ID + cycle** → **full replace** via `processMultiDayReservation` (DELETE all preferences for that player in the cycle, then INSERT the new submission). Latest submission wins. **Google Form** ignores `reservation_open` (`skipOpenCheck`). **Secret link** is rejected when `reservation_open = false` (dashboard shows **Close secret URL** / banner **Secret URL closed**). **After assignment**, re-submitting also DELETEs that player's `reservations` (assigned and eliminated) before replacing preferences — accidental re-submits can clear slots. (`ASSIGNMENT_LOCKED_MESSAGE` exists in code but is **not** enforced on submit.)
@@ -101,7 +101,7 @@ Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION
 2. For each day (**Monday VP**, **Tuesday VP**, **Thursday MO**): speedup (days) + one or more UTC blocks.
 3. Submit.
 
-- **Cannot edit** the form after submit (email collection is off). To fix a mistake: **submit the form again** with the same Player ID, or use the **secret link** (when `reservation_open = true` for the secret link).
+- To fix a mistake: **submit the form again** with the same Player ID, or use the **secret link** (when `reservation_open = true`). Editing a Google Form response alone may not update the DB.
 
 **Secret link** (`/r/...`) — **plan B only**, when R4 provides it
 
@@ -116,7 +116,7 @@ Paste this in the form description (see [RESERVATION_SYSTEM.md §17](RESERVATION
 |------|--------|
 | Re-submit | Same **Player ID** in the current cycle → **latest submission replaces** the previous one (Mon / Tue / Thu can be combined in one submit) |
 | Days omitted | Days **not** included in a re-submit are **removed** from preferences |
-| No form edit after submit | Google Form has no edit link — re-submit form or use secret link |
+| Form response edit | Editing a Google Form response alone may not update the DB — **re-submit form** or use secret link |
 | Google account vs Player ID | **Limit to 1 response: Off** — same Google account can submit **multiple times** for **different Player IDs** |
 | Deadline | Main channel: stop accepting responses **in Google Forms** (not this site). Secret link rejected after R4 uses **Close secret URL** (`reservation_open = false`); Google Form still accepts until you stop it in Google Forms |
 | Both channels | Form and secret link both **full replace** — latest wins |
