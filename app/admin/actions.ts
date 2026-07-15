@@ -18,7 +18,6 @@ import {
   EXPORT_SUMMARY_SHEET_NAME,
   buildSlotExportRow,
   buildAllianceSummaryByDay,
-  buildAllianceSummaryStats,
   allianceSummaryToExcelRows,
   exportDayLabel,
   slotExportRowToCsvCells,
@@ -486,11 +485,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
     players: r.players as unknown as PlayerRow | null,
   }));
   const daySummaries = buildAllianceSummaryByDay(slots, assignedForSummary);
-  const totalStats = buildAllianceSummaryStats(slots, assignedForSummary);
-  result[EXPORT_SUMMARY_SHEET_NAME] = allianceSummaryToExcelRows(
-    daySummaries,
-    totalStats
-  );
+  result[EXPORT_SUMMARY_SHEET_NAME] = allianceSummaryToExcelRows(daySummaries);
 
   return result;
 }

@@ -4,8 +4,10 @@ import { EXPORT_SUMMARY_SHEET_NAME } from "./export-grid";
 /** Light green (연두색) fill for header row and slot grid columns */
 const HEADER_FILL = { fgColor: { rgb: "C6EFCE" } };
 const HEADER_FONT = { bold: true };
+const THOUSANDS_FORMAT = "#,##0";
 
 const SLOT_GRID_COLUMN_HEADERS = ["Day", "Slot start (UTC)"];
+const NUMERIC_COMMA_HEADERS = ["Speedup (days)"];
 
 function applyHeaderRowStyle(ws: XLSX.WorkSheet) {
   if (!ws["!ref"]) return;
@@ -59,6 +61,24 @@ function applySlotGridColumnStyle(ws: XLSX.WorkSheet) {
   }
 }
 
+/** Apply Excel thousands format to numeric columns (keeps values as numbers). */
+function applyThousandsNumberFormat(ws: XLSX.WorkSheet, headers: string[]) {
+  if (!ws["!ref"]) return;
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  const headerRow = range.s.r;
+  const columnIndices = findColumnIndices(ws, headers);
+  if (columnIndices.length === 0) return;
+
+  for (let r = headerRow + 1; r <= range.e.r; r++) {
+    for (const c of columnIndices) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (!cell || typeof cell.v !== "number") continue;
+      cell.z = THOUSANDS_FORMAT;
+    }
+  }
+}
+
 export function buildStyledExcelWorkbook(
   sheets: Record<string, Record<string, string | number>[]>
 ): ArrayBuffer {
@@ -69,6 +89,7 @@ export function buildStyledExcelWorkbook(
     applyHeaderRowStyle(ws);
     if (sheetName !== EXPORT_SUMMARY_SHEET_NAME) {
       applySlotGridColumnStyle(ws);
+      applyThousandsNumberFormat(ws, NUMERIC_COMMA_HEADERS);
     }
     XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
   }

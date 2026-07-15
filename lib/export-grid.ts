@@ -247,48 +247,87 @@ export function formatAllianceSummaryLine(stats: AllianceSummaryStat[]): string 
 
 type SummaryExcelRow = Record<string, string | number>;
 
-const SUMMARY_BLANK: SummaryExcelRow = {
-  Day: "",
-  Alliance: "",
-  "Players (p)": "",
-  "Speedup (days) (d)": "",
-};
-
-function allianceRowsForDay(
-  dayLabel: string,
-  stats: AllianceSummaryStat[]
-): SummaryExcelRow[] {
-  return stats.map((s) => ({
-    Day: dayLabel,
-    Alliance: s.alliance,
-    "Players (p)": s.players,
-    "Speedup (days) (d)": s.speedupDays,
-  }));
+function formatThousands(n: number): string {
+  return n.toLocaleString("en-US");
 }
 
-/** Summary sheet: day1 / day2 / day4 alliance blocks, then Total (all days). */
+/** Alliance rows × day1/day2/day4 columns (players + speedup), then Total. */
 export function allianceSummaryToExcelRows(
-  daySummaries: DayAllianceSummary[],
-  totalStats: AllianceSummaryStat[]
+  daySummaries: DayAllianceSummary[]
 ): SummaryExcelRow[] {
-  const rows: SummaryExcelRow[] = [];
+  const byAllianceDay = new Map<string, Map<string, AllianceSummaryStat>>();
+  const allianceOrder: string[] = [...ALLIANCE_OPTIONS];
+  const seenExtras = new Set<string>();
 
-  for (let i = 0; i < daySummaries.length; i++) {
-    if (i > 0) rows.push({ ...SUMMARY_BLANK });
-    rows.push(...allianceRowsForDay(daySummaries[i].dayLabel, daySummaries[i].stats));
+  for (const daySummary of daySummaries) {
+    for (const s of daySummary.stats) {
+      if (!(ALLIANCE_OPTIONS as readonly string[]).includes(s.alliance)) {
+        if (!seenExtras.has(s.alliance)) {
+          seenExtras.add(s.alliance);
+          allianceOrder.push(s.alliance);
+        }
+      }
+      let dayMap = byAllianceDay.get(s.alliance);
+      if (!dayMap) {
+        dayMap = new Map();
+        byAllianceDay.set(s.alliance, dayMap);
+      }
+      dayMap.set(daySummary.dayLabel, s);
+    }
   }
 
-  rows.push({ ...SUMMARY_BLANK });
-  rows.push(...allianceRowsForDay("Total", totalStats));
+  // Keep known alliances first; extras alphabetically after the fixed set
+  const fixed = ALLIANCE_OPTIONS.length;
+  allianceOrder.splice(
+    fixed,
+    allianceOrder.length - fixed,
+    ...allianceOrder.slice(fixed).sort((a, b) => a.localeCompare(b))
+  );
 
-  const totalPlayers = totalStats.reduce((sum, s) => sum + s.players, 0);
-  const totalSpeedup = totalStats.reduce((sum, s) => sum + s.speedupDays, 0);
-  rows.push({
-    Day: "Total",
-    Alliance: "All",
-    "Players (p)": totalPlayers,
-    "Speedup (days) (d)": totalSpeedup,
+  const dayLabels = daySummaries.map((d) => d.dayLabel);
+
+  const rows: SummaryExcelRow[] = allianceOrder.map((alliance) => {
+    const dayMap = byAllianceDay.get(alliance);
+    const row: SummaryExcelRow = { Alliance: alliance };
+    let totalPlayers = 0;
+    let totalSpeedup = 0;
+
+    for (const label of dayLabels) {
+      const s = dayMap?.get(label);
+      const players = s?.players ?? 0;
+      const speedup = s?.speedupDays ?? 0;
+      row[`${label} Players`] = formatThousands(players);
+      row[`${label} Speedup`] = formatThousands(speedup);
+      totalPlayers += players;
+      totalSpeedup += speedup;
+    }
+
+    row["Total Players"] = formatThousands(totalPlayers);
+    row["Total Speedup"] = formatThousands(totalSpeedup);
+    return row;
   });
+
+  const totals: SummaryExcelRow = { Alliance: "Total" };
+  let grandPlayers = 0;
+  let grandSpeedup = 0;
+
+  for (const label of dayLabels) {
+    let dayPlayers = 0;
+    let daySpeedup = 0;
+    for (const alliance of allianceOrder) {
+      const s = byAllianceDay.get(alliance)?.get(label);
+      dayPlayers += s?.players ?? 0;
+      daySpeedup += s?.speedupDays ?? 0;
+    }
+    totals[`${label} Players`] = formatThousands(dayPlayers);
+    totals[`${label} Speedup`] = formatThousands(daySpeedup);
+    grandPlayers += dayPlayers;
+    grandSpeedup += daySpeedup;
+  }
+
+  totals["Total Players"] = formatThousands(grandPlayers);
+  totals["Total Speedup"] = formatThousands(grandSpeedup);
+  rows.push(totals);
 
   return rows;
 }
