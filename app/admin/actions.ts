@@ -17,6 +17,7 @@ import {
   EXPORT_DAY_ORDER,
   EXPORT_SUMMARY_SHEET_NAME,
   buildSlotExportRow,
+  buildAllianceSummaryByDay,
   buildAllianceSummaryStats,
   allianceSummaryToExcelRows,
   exportDayLabel,
@@ -479,15 +480,17 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
 
   type PlayerRow = typeof playerShape;
 
-  const summaryStats = buildAllianceSummaryStats(
-    slots,
-    (reservations ?? []).map((r) => ({
-      player_id: r.player_id,
-      slot_id: r.slot_id,
-      players: r.players as unknown as PlayerRow | null,
-    }))
+  const assignedForSummary = (reservations ?? []).map((r) => ({
+    player_id: r.player_id,
+    slot_id: r.slot_id,
+    players: r.players as unknown as PlayerRow | null,
+  }));
+  const daySummaries = buildAllianceSummaryByDay(slots, assignedForSummary);
+  const totalStats = buildAllianceSummaryStats(slots, assignedForSummary);
+  result[EXPORT_SUMMARY_SHEET_NAME] = allianceSummaryToExcelRows(
+    daySummaries,
+    totalStats
   );
-  result[EXPORT_SUMMARY_SHEET_NAME] = allianceSummaryToExcelRows(summaryStats);
 
   return result;
 }
