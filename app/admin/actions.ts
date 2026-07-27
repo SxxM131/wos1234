@@ -1,6 +1,6 @@
 "use server";
 
-import { createServiceClient } from "@/lib/supabase";
+import { createServiceClient, fetchAllPages } from "@/lib/supabase";
 import { getAdminSession } from "@/lib/session";
 import {
   getCurrentCycleId,
@@ -9,7 +9,7 @@ import {
   getAssignmentApplicantCounts,
   getLastAssignmentRun,
 } from "@/lib/assignment";
-import { clearCancelledDayReservations } from "@/lib/reservation-guard";
+import { clearCancelledDayReservations, dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
 import { getActorIp } from "@/lib/audit-log";
 import { DayOfWeek } from "@/lib/types";
 import {
@@ -18,10 +18,14 @@ import {
   EXPORT_SUMMARY_SHEET_NAME,
   buildSlotExportRow,
   buildAllianceSummaryByDay,
+  buildDayWaitlistRows,
   allianceSummaryToExcelRows,
   exportDayLabel,
+  excelBlankRow,
+  excelWaitlistSectionHeader,
   slotExportRowToCsvCells,
   slotExportRowToExcelRecord,
+  waitlistExportRowToExcelRecord,
 } from "@/lib/export-grid";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
@@ -421,6 +425,44 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
     throw new Error("Failed to fetch reservations");
   }
 
+  const { data: eliminated, error: elimError } = await supabase
+    .from("reservations")
+    .select(
+      "player_id, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
+    )
+    .eq("cycle_id", cycleId)
+    .eq("status", "eliminated");
+  if (elimError) {
+    throw new Error("Failed to fetch waitlist");
+  }
+
+  const { data: preferences, error: prefError } = await fetchAllPages(
+    async (from, to) =>
+      await supabase
+        .from("preferences")
+        .select("player_id, day_of_week, block_start_utc")
+        .eq("cycle_id", cycleId)
+        .order("player_id")
+        .order("day_of_week")
+        .order("block_start_utc")
+        .range(from, to)
+  );
+  if (prefError) {
+    throw new Error("Failed to fetch preferences");
+  }
+
+  const eliminatedDeduped = dedupeEliminatedByPlayer(eliminated ?? []).map((e) => ({
+    player_id: e.player_id,
+    players: e.players as unknown as {
+      player_id: number;
+      name: string;
+      alliance: string;
+      speedup_mon: number;
+      speedup_tue: number;
+      speedup_thu: number;
+    } | null,
+  }));
+
   // Map reservations to their slot IDs
   const resMap = new Map<number, typeof reservations[number]>();
   if (reservations) {
@@ -431,11 +473,24 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
     }
   }
 
+  const slotDayById = new Map(
+    slots.map((s) => [s.id, s.day_of_week as DayOfWeek])
+  );
+  const assignedByDay = new Map<DayOfWeek, Set<number>>();
+  for (const d of EXPORT_DAY_ORDER) {
+    assignedByDay.set(d, new Set());
+  }
+  for (const r of reservations ?? []) {
+    if (r.slot_id == null) continue;
+    const day = slotDayById.get(r.slot_id);
+    if (!day) continue;
+    assignedByDay.get(day)!.add(r.player_id);
+  }
+
   const result: Record<string, Record<string, string | number>[]> = {};
 
   for (const d of EXPORT_DAY_ORDER) {
     const sheetName = exportDayLabel(d);
-    result[sheetName] = [];
 
     const daySlots = slots.filter((s) => s.day_of_week === d);
     daySlots.sort((a, b) => {
@@ -445,7 +500,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
       return a.slot_index - b.slot_index;
     });
 
-    result[sheetName] = daySlots.map((s) => {
+    const slotRows = daySlots.map((s) => {
       const r = resMap.get(s.id);
       const row = buildSlotExportRow(
         s,
@@ -466,6 +521,20 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
       );
       return slotExportRowToExcelRecord(row);
     });
+
+    const waitlistRows = buildDayWaitlistRows(
+      d,
+      eliminatedDeduped,
+      preferences ?? [],
+      assignedByDay.get(d) ?? new Set()
+    ).map(waitlistExportRowToExcelRecord);
+
+    result[sheetName] = [
+      ...slotRows,
+      ...(waitlistRows.length > 0
+        ? [excelBlankRow(), excelWaitlistSectionHeader(), ...waitlistRows]
+        : []),
+    ];
   }
 
   const playerShape = {

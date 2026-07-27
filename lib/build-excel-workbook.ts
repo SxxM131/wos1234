@@ -41,15 +41,22 @@ function findColumnIndices(ws: XLSX.WorkSheet, headers: string[]): number[] {
   return indices;
 }
 
-/** Day / Slot start data rows share the same green fill as the header. */
+/** Day / Slot start data rows share the same green fill as the header (slot grid only). */
 function applySlotGridColumnStyle(ws: XLSX.WorkSheet) {
   if (!ws["!ref"]) return;
   const range = XLSX.utils.decode_range(ws["!ref"]);
   const headerRow = range.s.r;
   const columnIndices = findColumnIndices(ws, SLOT_GRID_COLUMN_HEADERS);
+  const slotStartCols = findColumnIndices(ws, ["Slot start (UTC)"]);
   if (columnIndices.length === 0) return;
 
   for (let r = headerRow + 1; r <= range.e.r; r++) {
+    // Skip blank / waitlist section rows (no slot start time)
+    if (slotStartCols.length > 0) {
+      const slotAddr = XLSX.utils.encode_cell({ r, c: slotStartCols[0] });
+      const slotVal = ws[slotAddr]?.v;
+      if (slotVal === undefined || slotVal === null || slotVal === "") continue;
+    }
     for (const c of columnIndices) {
       const addr = XLSX.utils.encode_cell({ r, c });
       if (!ws[addr]) continue;

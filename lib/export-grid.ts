@@ -1,4 +1,5 @@
 import { DayOfWeek, ALLIANCE_OPTIONS } from "./types";
+import { formatBlockRange } from "./utils";
 
 export const EXPORT_DAY_ORDER: DayOfWeek[] = ["mon", "tue", "thu"];
 
@@ -22,6 +23,15 @@ export interface SlotExportRow {
   alliance: string;
   speedup: string;
   status: string;
+}
+
+export interface WaitlistExportRow {
+  day: DayOfWeek;
+  playerId: number;
+  name: string;
+  alliance: string;
+  speedup: number;
+  preferredBlocks: number[];
 }
 
 interface SlotRecord {
@@ -343,5 +353,111 @@ export function slotExportRowToExcelRecord(row: SlotExportRow): Record<string, s
     Alliance: row.alliance,
     "Speedup (days)": row.speedup ? Number(row.speedup) : "",
     Status: row.status,
+    "Preferred blocks (UTC)": "",
   };
+}
+
+const EXCEL_BLANK_ROW: Record<string, string | number> = {
+  Day: "",
+  "Block (UTC)": "",
+  "Slot # (1-4)": "",
+  "Slot start (UTC)": "",
+  "Player Name": "",
+  "Player ID": "",
+  Alliance: "",
+  "Speedup (days)": "",
+  Status: "",
+  "Preferred blocks (UTC)": "",
+};
+
+export function excelWaitlistSectionHeader(): Record<string, string | number> {
+  return {
+    ...EXCEL_BLANK_ROW,
+    Day: "— Waitlist —",
+  };
+}
+
+export function excelBlankRow(): Record<string, string | number> {
+  return { ...EXCEL_BLANK_ROW };
+}
+
+function formatPreferredBlocks(blocks: number[]): string {
+  if (blocks.length === 0) return "-";
+  return [...new Set(blocks)]
+    .sort((a, b) => a - b)
+    .map((b) => formatBlockRange(b))
+    .join(", ");
+}
+
+export function waitlistExportRowToExcelRecord(
+  row: WaitlistExportRow
+): Record<string, string | number> {
+  return {
+    Day: exportDayLabel(row.day),
+    "Block (UTC)": "",
+    "Slot # (1-4)": "",
+    "Slot start (UTC)": "",
+    "Player Name": row.name,
+    "Player ID": row.playerId,
+    Alliance: row.alliance,
+    "Speedup (days)": row.speedup,
+    Status: "waitlist",
+    "Preferred blocks (UTC)": formatPreferredBlocks(row.preferredBlocks),
+  };
+}
+
+/**
+ * Waitlist for a day: eliminated players with prefs that day, not assigned that day.
+ * Sorted by speedup descending.
+ */
+export function buildDayWaitlistRows(
+  day: DayOfWeek,
+  eliminated: {
+    player_id: number;
+    players: {
+      player_id: number;
+      name: string;
+      alliance: string;
+      speedup_mon: number;
+      speedup_tue: number;
+      speedup_thu: number;
+    } | null;
+  }[],
+  preferences: { player_id: number; day_of_week: string; block_start_utc: number }[],
+  assignedPlayerIdsOnDay: Set<number>
+): WaitlistExportRow[] {
+  const prefsByPlayer = new Map<number, number[]>();
+  for (const p of preferences) {
+    if (p.day_of_week !== day) continue;
+    const list = prefsByPlayer.get(p.player_id) ?? [];
+    list.push(p.block_start_utc);
+    prefsByPlayer.set(p.player_id, list);
+  }
+
+  const rows: WaitlistExportRow[] = [];
+  for (const e of eliminated) {
+    if (assignedPlayerIdsOnDay.has(e.player_id)) continue;
+    const blocks = prefsByPlayer.get(e.player_id);
+    if (!blocks?.length) continue;
+
+    const p = e.players;
+    const speedup = p
+      ? day === "mon"
+        ? p.speedup_mon
+        : day === "tue"
+          ? p.speedup_tue
+          : p.speedup_thu
+      : 0;
+
+    rows.push({
+      day,
+      playerId: e.player_id,
+      name: p?.name ?? "(data error)",
+      alliance: p?.alliance ?? "(data error)",
+      speedup,
+      preferredBlocks: blocks,
+    });
+  }
+
+  return rows.sort((a, b) => b.speedup - a.speedup || a.playerId - b.playerId);
 }
