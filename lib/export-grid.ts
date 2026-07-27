@@ -1,5 +1,4 @@
 import { DayOfWeek, ALLIANCE_OPTIONS } from "./types";
-import { formatBlockRange } from "./utils";
 
 export const EXPORT_DAY_ORDER: DayOfWeek[] = ["mon", "tue", "thu"];
 
@@ -9,6 +8,19 @@ export function exportDayLabel(day: DayOfWeek): string {
   if (day === "tue") return "tue";
   return "thur";
 }
+
+/** Waitlist block starts at column K (0-based index 10). */
+export const EXCEL_WAITLIST_ORIGIN_COL = 10;
+
+export type ExcelDaySheetData = {
+  schedule: Record<string, string | number>[];
+  waitlist: Record<string, string | number>[];
+};
+
+export type ExcelExportData = {
+  days: Record<string, ExcelDaySheetData>;
+  summary: Record<string, string | number>[];
+};
 
 export const EXPORT_CSV_HEADER =
   "Day,Block (UTC),Slot # (1-4),Slot start (UTC),Player Name,Player ID,Alliance,Speedup (days),Status";
@@ -353,56 +365,18 @@ export function slotExportRowToExcelRecord(row: SlotExportRow): Record<string, s
     Alliance: row.alliance,
     "Speedup (days)": row.speedup ? Number(row.speedup) : "",
     Status: row.status,
-    "Preferred blocks (UTC)": "",
   };
-}
-
-const EXCEL_BLANK_ROW: Record<string, string | number> = {
-  Day: "",
-  "Block (UTC)": "",
-  "Slot # (1-4)": "",
-  "Slot start (UTC)": "",
-  "Player Name": "",
-  "Player ID": "",
-  Alliance: "",
-  "Speedup (days)": "",
-  Status: "",
-  "Preferred blocks (UTC)": "",
-};
-
-export function excelWaitlistSectionHeader(): Record<string, string | number> {
-  return {
-    ...EXCEL_BLANK_ROW,
-    Day: "— Waitlist —",
-  };
-}
-
-export function excelBlankRow(): Record<string, string | number> {
-  return { ...EXCEL_BLANK_ROW };
-}
-
-function formatPreferredBlocks(blocks: number[]): string {
-  if (blocks.length === 0) return "-";
-  return Array.from(new Set(blocks))
-    .sort((a, b) => a - b)
-    .map((b) => formatBlockRange(b))
-    .join(", ");
 }
 
 export function waitlistExportRowToExcelRecord(
   row: WaitlistExportRow
 ): Record<string, string | number> {
   return {
-    Day: exportDayLabel(row.day),
-    "Block (UTC)": "",
-    "Slot # (1-4)": "",
-    "Slot start (UTC)": "",
     "Player Name": row.name,
     "Player ID": row.playerId,
     Alliance: row.alliance,
     "Speedup (days)": row.speedup,
     Status: "waitlist",
-    "Preferred blocks (UTC)": formatPreferredBlocks(row.preferredBlocks),
   };
 }
 

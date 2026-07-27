@@ -15,17 +15,15 @@ import { DayOfWeek } from "@/lib/types";
 import {
   EXPORT_CSV_HEADER,
   EXPORT_DAY_ORDER,
-  EXPORT_SUMMARY_SHEET_NAME,
   buildSlotExportRow,
   buildAllianceSummaryByDay,
   buildDayWaitlistRows,
   allianceSummaryToExcelRows,
   exportDayLabel,
-  excelBlankRow,
-  excelWaitlistSectionHeader,
   slotExportRowToCsvCells,
   slotExportRowToExcelRecord,
   waitlistExportRowToExcelRecord,
+  type ExcelExportData,
 } from "@/lib/export-grid";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
@@ -402,7 +400,7 @@ export async function deletePreferenceByDay(
   return { success: true };
 }
 
-export async function exportExcelData(): Promise<Record<string, any[]>> {
+export async function exportExcelData(): Promise<ExcelExportData> {
   await requireAdmin();
   const supabase = createServiceClient();
   const cycleId = await getCurrentCycleId(supabase);
@@ -487,7 +485,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
     assignedByDay.get(day)!.add(r.player_id);
   }
 
-  const result: Record<string, Record<string, string | number>[]> = {};
+  const days: ExcelExportData["days"] = {};
 
   for (const d of EXPORT_DAY_ORDER) {
     const sheetName = exportDayLabel(d);
@@ -500,7 +498,7 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
       return a.slot_index - b.slot_index;
     });
 
-    const slotRows = daySlots.map((s) => {
+    const schedule = daySlots.map((s) => {
       const r = resMap.get(s.id);
       const row = buildSlotExportRow(
         s,
@@ -522,19 +520,14 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
       return slotExportRowToExcelRecord(row);
     });
 
-    const waitlistRows = buildDayWaitlistRows(
+    const waitlist = buildDayWaitlistRows(
       d,
       eliminatedDeduped,
       preferences ?? [],
       assignedByDay.get(d) ?? new Set()
     ).map(waitlistExportRowToExcelRecord);
 
-    result[sheetName] = [
-      ...slotRows,
-      ...(waitlistRows.length > 0
-        ? [excelBlankRow(), excelWaitlistSectionHeader(), ...waitlistRows]
-        : []),
-    ];
+    days[sheetName] = { schedule, waitlist };
   }
 
   const playerShape = {
@@ -554,7 +547,9 @@ export async function exportExcelData(): Promise<Record<string, any[]>> {
     players: r.players as unknown as PlayerRow | null,
   }));
   const daySummaries = buildAllianceSummaryByDay(slots, assignedForSummary);
-  result[EXPORT_SUMMARY_SHEET_NAME] = allianceSummaryToExcelRows(daySummaries);
 
-  return result;
+  return {
+    days,
+    summary: allianceSummaryToExcelRows(daySummaries),
+  };
 }
