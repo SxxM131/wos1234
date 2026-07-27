@@ -383,7 +383,7 @@ export function excelBlankRow(): Record<string, string | number> {
 
 function formatPreferredBlocks(blocks: number[]): string {
   if (blocks.length === 0) return "-";
-  return [...new Set(blocks)]
+  return Array.from(new Set(blocks))
     .sort((a, b) => a - b)
     .map((b) => formatBlockRange(b))
     .join(", ");
