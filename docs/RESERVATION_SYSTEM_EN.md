@@ -1,6 +1,6 @@
 # SVS Reservation System — Technical Reference
 
-Next.js 14 + Supabase based alliance SVS (castle) reservation and assignment system.
+Next.js 14 + Supabase based alliance SVS (office) reservation and assignment system.
 Players **submit only their preferred time slots** during the application window, and R4+ admins run a **batch assignment after the deadline**.
 The assignment algorithm uses **Min-Cost Max-Flow (MCMF)**.
 

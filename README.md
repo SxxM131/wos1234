@@ -1,6 +1,6 @@
 # SVS Reservation
 
-> **Next.js 14 + Supabase + Vercel** 기반의 연맹 SVS(성) 예약·배정 웹앱
+> **Next.js 14 + Supabase + Vercel** 기반의 연맹 SVS(관직) 예약·배정 웹앱
 
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)
