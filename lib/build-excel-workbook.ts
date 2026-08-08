@@ -129,7 +129,7 @@ function buildDaySheet(
       origin: { r: 0, c: EXCEL_WAITLIST_ORIGIN_COL },
       skipHeader: false,
     });
-    const waitlistEndCol = EXCEL_WAITLIST_ORIGIN_COL + 4; // K–O
+    const waitlistEndCol = EXCEL_WAITLIST_ORIGIN_COL + 5; // K–P (incl. Preferred time)
     const waitlistLastRow = waitlist.length;
     applyHeaderRowStyle(ws, 0, EXCEL_WAITLIST_ORIGIN_COL, waitlistEndCol);
     applyThousandsNumberFormat(

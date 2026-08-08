@@ -1,4 +1,5 @@
 import { DayOfWeek, ALLIANCE_OPTIONS } from "./types";
+import { formatBlockRange } from "./utils";
 
 export const EXPORT_DAY_ORDER: DayOfWeek[] = ["mon", "tue", "thu"];
 
@@ -371,12 +372,18 @@ export function slotExportRowToExcelRecord(row: SlotExportRow): Record<string, s
 export function waitlistExportRowToExcelRecord(
   row: WaitlistExportRow
 ): Record<string, string | number> {
+  const preferredTime = Array.from(new Set(row.preferredBlocks))
+    .sort((a, b) => a - b)
+    .map((b) => formatBlockRange(b).replace(/ UTC$/, ""))
+    .join(", ");
+
   return {
     "Player Name": row.name,
     "Player ID": row.playerId,
     Alliance: row.alliance,
     "Speedup (days)": row.speedup,
     Status: "waitlist",
+    "Preferred time (UTC)": preferredTime,
   };
 }
 
