@@ -1131,6 +1131,25 @@ export async function runBatchAssignmentForCycle(
   const mon = await runBatchAssignment(supabase, cycleId, "mon");
   const tue = await runBatchAssignment(supabase, cycleId, "tue");
   const thu = await runBatchAssignment(supabase, cycleId, "thu");
+
+  // Per-day runs drop eliminated rows when a player later gets assigned on
+  // another day. Restore waitlist markers for any pref-day still unassigned.
+  const { data: prefPlayers } = await supabase
+    .from("preferences")
+    .select("player_id")
+    .eq("cycle_id", cycleId);
+  const playerIds = Array.from(
+    new Set((prefPlayers ?? []).map((p) => p.player_id))
+  );
+  if (playerIds.length) {
+    await healEliminatedReservations(
+      supabase,
+      playerIds,
+      cycleId,
+      new Date().toISOString()
+    );
+  }
+
   await saveLastAssignmentRun(supabase, new Date().toISOString());
   return { mon, tue, thu };
 }

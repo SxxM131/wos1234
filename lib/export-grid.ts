@@ -387,41 +387,49 @@ export function waitlistExportRowToExcelRecord(
   };
 }
 
+type WaitlistPlayerInfo = {
+  player_id: number;
+  name: string;
+  alliance: string;
+  speedup_mon: number;
+  speedup_tue: number;
+  speedup_thu: number;
+};
+
 /**
- * Waitlist for a day: eliminated players with prefs that day, not assigned that day.
- * Sorted by speedup descending.
+ * Waitlist for a day: players with prefs that day who are not assigned that day.
+ * Does not require an `eliminated` reservation row (those are lost when the same
+ * player is assigned on another day). Sorted by speedup descending.
  */
 export function buildDayWaitlistRows(
   day: DayOfWeek,
-  eliminated: {
+  preferences: {
     player_id: number;
-    players: {
-      player_id: number;
-      name: string;
-      alliance: string;
-      speedup_mon: number;
-      speedup_tue: number;
-      speedup_thu: number;
-    } | null;
+    day_of_week: string;
+    block_start_utc: number;
+    players: WaitlistPlayerInfo | null;
   }[],
-  preferences: { player_id: number; day_of_week: string; block_start_utc: number }[],
   assignedPlayerIdsOnDay: Set<number>
 ): WaitlistExportRow[] {
   const prefsByPlayer = new Map<number, number[]>();
+  const playerInfo = new Map<number, WaitlistPlayerInfo | null>();
+
   for (const p of preferences) {
     if (p.day_of_week !== day) continue;
+    if (assignedPlayerIdsOnDay.has(p.player_id)) continue;
     const list = prefsByPlayer.get(p.player_id) ?? [];
     list.push(p.block_start_utc);
     prefsByPlayer.set(p.player_id, list);
+    if (!playerInfo.has(p.player_id)) {
+      playerInfo.set(p.player_id, p.players);
+    }
   }
 
   const rows: WaitlistExportRow[] = [];
-  for (const e of eliminated) {
-    if (assignedPlayerIdsOnDay.has(e.player_id)) continue;
-    const blocks = prefsByPlayer.get(e.player_id);
-    if (!blocks?.length) continue;
+  for (const [playerId, blocks] of Array.from(prefsByPlayer.entries())) {
+    if (!blocks.length) continue;
 
-    const p = e.players;
+    const p = playerInfo.get(playerId) ?? null;
     const speedup = p
       ? day === "mon"
         ? p.speedup_mon
@@ -432,7 +440,7 @@ export function buildDayWaitlistRows(
 
     rows.push({
       day,
-      playerId: e.player_id,
+      playerId,
       name: p?.name ?? "(data error)",
       alliance: p?.alliance ?? "(data error)",
       speedup,

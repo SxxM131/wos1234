@@ -9,7 +9,7 @@ import {
   getAssignmentApplicantCounts,
   getLastAssignmentRun,
 } from "@/lib/assignment";
-import { clearCancelledDayReservations, dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
+import { clearCancelledDayReservations } from "@/lib/reservation-guard";
 import { getActorIp } from "@/lib/audit-log";
 import { DayOfWeek } from "@/lib/types";
 import {
@@ -423,22 +423,13 @@ export async function exportExcelData(): Promise<ExcelExportData> {
     throw new Error("Failed to fetch reservations");
   }
 
-  const { data: eliminated, error: elimError } = await supabase
-    .from("reservations")
-    .select(
-      "player_id, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
-    )
-    .eq("cycle_id", cycleId)
-    .eq("status", "eliminated");
-  if (elimError) {
-    throw new Error("Failed to fetch waitlist");
-  }
-
   const { data: preferences, error: prefError } = await fetchAllPages(
     async (from, to) =>
       await supabase
         .from("preferences")
-        .select("player_id, day_of_week, block_start_utc")
+        .select(
+          "player_id, day_of_week, block_start_utc, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)"
+        )
         .eq("cycle_id", cycleId)
         .order("player_id")
         .order("day_of_week")
@@ -448,18 +439,6 @@ export async function exportExcelData(): Promise<ExcelExportData> {
   if (prefError) {
     throw new Error("Failed to fetch preferences");
   }
-
-  const eliminatedDeduped = dedupeEliminatedByPlayer(eliminated ?? []).map((e) => ({
-    player_id: e.player_id,
-    players: e.players as unknown as {
-      player_id: number;
-      name: string;
-      alliance: string;
-      speedup_mon: number;
-      speedup_tue: number;
-      speedup_thu: number;
-    } | null,
-  }));
 
   // Map reservations to their slot IDs
   const resMap = new Map<number, typeof reservations[number]>();
@@ -486,6 +465,20 @@ export async function exportExcelData(): Promise<ExcelExportData> {
   }
 
   const days: ExcelExportData["days"] = {};
+
+  const prefsForWaitlist = (preferences ?? []).map((p) => ({
+    player_id: p.player_id,
+    day_of_week: p.day_of_week,
+    block_start_utc: p.block_start_utc,
+    players: p.players as unknown as {
+      player_id: number;
+      name: string;
+      alliance: string;
+      speedup_mon: number;
+      speedup_tue: number;
+      speedup_thu: number;
+    } | null,
+  }));
 
   for (const d of EXPORT_DAY_ORDER) {
     const sheetName = exportDayLabel(d);
@@ -522,8 +515,7 @@ export async function exportExcelData(): Promise<ExcelExportData> {
 
     const waitlist = buildDayWaitlistRows(
       d,
-      eliminatedDeduped,
-      preferences ?? [],
+      prefsForWaitlist,
       assignedByDay.get(d) ?? new Set()
     ).map(waitlistExportRowToExcelRecord);
 
