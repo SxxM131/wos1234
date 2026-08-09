@@ -17,6 +17,7 @@ import {
 import { buildStyledExcelWorkbook } from "@/lib/build-excel-workbook";
 import { DAY_CONFIG, DayOfWeek, TIME_BLOCKS } from "@/lib/types";
 import { dayLabel, formatSlotTime, formatBlockRange } from "@/lib/utils";
+import { buildDayWaitlistEntries } from "@/lib/waitlist";
 import { DayTabs } from "@/components/DayTabs";
 
 interface ReservationRow {
@@ -66,12 +67,6 @@ interface PendingRow {
 
 interface Props {
   reservations: ReservationRow[];
-  eliminated: {
-    id: string;
-    player_id: number;
-    players: ReservationRow["players"];
-    preferences: { day_of_week: string; block_start_utc: number }[];
-  }[];
   applicants: ApplicantRow[];
   pendingApplicants: PendingRow[];
   assignmentPublished: boolean;
@@ -84,7 +79,6 @@ interface Props {
 
 export function AdminDashboard({
   reservations,
-  eliminated,
   applicants,
   pendingApplicants,
   assignmentPublished,
@@ -208,18 +202,42 @@ export function AdminDashboard({
   );
 
   const speedupKey = DAY_CONFIG[activeDay].speedupKey;
+  const showGrid = assignmentPublished || !!assignPreview?.lastRun;
 
-  // Waitlist = has prefs this day, not already assigned this day
-  const dayEliminated = eliminated
-    .filter(
-      (e) =>
-        e.preferences?.some(
-          (p) => (p as { day_of_week?: string }).day_of_week === activeDay
-        ) && !assignedPlayerIdsOnDay.has(e.player_id)
-    )
-    .sort(
-      (a, b) => (b.players?.[speedupKey] ?? 0) - (a.players?.[speedupKey] ?? 0)
-    );
+  const prefRowsForWaitlist = applicants.flatMap((a) =>
+    a.preferences.map((p) => ({
+      player_id: a.player_id,
+      day_of_week: p.day_of_week,
+      block_start_utc: p.block_start_utc,
+      players: a.players,
+    }))
+  );
+
+  // Waitlist = prefs this day + not assigned this day (no eliminated row needed)
+  const dayWaitlist = showGrid
+    ? buildDayWaitlistEntries(
+        activeDay,
+        prefRowsForWaitlist,
+        assignedPlayerIdsOnDay
+      )
+    : [];
+
+  // Cross-day waitlist for search (any day with prefs + unassigned that day)
+  const searchWaitlistPool = showGrid
+    ? (["mon", "tue", "thu"] as DayOfWeek[]).flatMap((d) => {
+        const assignedOnDay = new Set(
+          reservations
+            .filter(
+              (r) =>
+                r.status === "assigned" && r.slots?.day_of_week === d
+            )
+            .map((r) => r.player_id)
+        );
+        return buildDayWaitlistEntries(d, prefRowsForWaitlist, assignedOnDay).map(
+          (e) => ({ ...e, day: d })
+        );
+      })
+    : [];
 
   // Search logic across all reservations and waitlist
   const term = searchTerm.trim().toLowerCase();
@@ -231,12 +249,16 @@ export function AdminDashboard({
     return nameMatch || allianceMatch || idMatch;
   });
 
-  const searchResultsElim = eliminated.filter((e) => {
-    if (!term || !e.players) return false;
-    const nameMatch = e.players.name?.toLowerCase().includes(term);
-    const allianceMatch = e.players.alliance?.toLowerCase().includes(term);
-    const idMatch = String(e.players.player_id ?? "").includes(term);
-    return nameMatch || allianceMatch || idMatch;
+  const seenSearchWaitlist = new Set<number>();
+  const searchResultsWaitlist = searchWaitlistPool.filter((e) => {
+    if (!term) return false;
+    if (seenSearchWaitlist.has(e.playerId)) return false;
+    const nameMatch = e.name.toLowerCase().includes(term);
+    const allianceMatch = e.alliance.toLowerCase().includes(term);
+    const idMatch = String(e.playerId).includes(term);
+    if (!(nameMatch || allianceMatch || idMatch)) return false;
+    seenSearchWaitlist.add(e.playerId);
+    return true;
   });
 
   const dayApplicants = applicants
@@ -255,8 +277,6 @@ export function AdminDashboard({
     const idMatch = String(a.players.player_id ?? "").includes(term);
     return nameMatch || allianceMatch || idMatch;
   });
-
-  const showGrid = assignmentPublished || !!assignPreview?.lastRun;
 
   return (
     <div className="flex flex-col gap-4 pb-20">
@@ -536,7 +556,7 @@ export function AdminDashboard({
           <h2 className="mb-3 text-sm font-bold text-brand-900">
             Search Results (
             {showGrid
-              ? searchResultsRes.length + searchResultsElim.length
+              ? searchResultsRes.length + searchResultsWaitlist.length
               : searchResultsApplicants.length}
             )
           </h2>
@@ -615,7 +635,7 @@ export function AdminDashboard({
                 })}
               </div>
             )
-          ) : searchResultsRes.length === 0 && searchResultsElim.length === 0 ? (
+          ) : searchResultsRes.length === 0 && searchResultsWaitlist.length === 0 ? (
             <p className="text-sm text-slate-500 italic">No matches found.</p>
           ) : (
             <div className="flex flex-col gap-3">
@@ -677,22 +697,23 @@ export function AdminDashboard({
                   </div>
                 );
               })}
-              {searchResultsElim.map((e) => (
+              {searchResultsWaitlist.map((e) => (
                 <div
-                  key={e.id}
+                  key={`wl-${e.playerId}`}
                   className="flex items-center justify-between border-b border-slate-100 pb-2.5 last:border-b-0 last:pb-0 text-sm"
                 >
                   <div>
                     <p className="font-semibold text-slate-900">
-                      {e.players?.name ?? "Unknown"}{" "}
+                      {e.name}{" "}
                       <span className="text-xs text-slate-500 font-normal">
-                        ({e.players?.alliance ?? "Unknown"}) · ID: {e.players?.player_id ?? "Unknown"}
+                        ({e.alliance}) · ID: {e.playerId}
                       </span>
                     </p>
                     <p className="text-xs text-amber-600 font-semibold mt-0.5">
-                      Status: Waitlist (Mon: {e.players?.speedup_mon ?? 0}d / Tue:{" "}
-                      {e.players?.speedup_tue ?? 0}d / Thu:{" "}
-                      {e.players?.speedup_thu ?? 0}d)
+                      Status: Waitlist · Preferred{" "}
+                      {e.preferredBlocks
+                        .map((b) => formatBlockRange(b))
+                        .join(", ") || "-"}
                     </p>
                   </div>
                 </div>
@@ -839,46 +860,32 @@ export function AdminDashboard({
             </div>
           </div>
 
-          {dayEliminated.length > 0 && (
+          {dayWaitlist.length > 0 && (
             <div className="mt-6">
           <h2 className="mb-2 text-sm font-bold text-slate-700">
             Waitlist ({DAY_CONFIG[activeDay].office})
           </h2>
           <div className="flex flex-col gap-2">
-            {dayEliminated.map((e) => {
-              const speedup = e.players
-                ? e.players[DAY_CONFIG[activeDay].speedupKey] ?? 0
-                : 0;
-              const prefs = Array.from(
-                new Set(
-                  e.preferences
-                    ?.filter(
-                      (p) =>
-                        (p as { day_of_week?: string }).day_of_week ===
-                        activeDay
-                    )
-                    .map((p) => p.block_start_utc) ?? []
-                )
-              )
-                .sort((a, b) => a - b)
+            {dayWaitlist.map((e) => {
+              const prefs = e.preferredBlocks
                 .map((b) => formatBlockRange(b))
                 .join(", ");
               return (
-                <div key={e.player_id} className="card !py-2.5 !px-3 text-sm">
+                <div key={e.playerId} className="card !py-2.5 !px-3 text-sm">
                   <p className="font-semibold text-slate-900">
-                    {e.players?.name ?? "Unknown"}{" "}
+                    {e.name}{" "}
                     <span className="text-xs text-slate-500 font-normal">
-                      ({e.players?.alliance ?? "Unknown"}) · ID {e.players?.player_id ?? "Unknown"}
+                      ({e.alliance}) · ID {e.playerId}
                     </span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Speedup {speedup}d · Preferred {prefs || "-"}
+                    Speedup {e.speedup}d · Preferred {prefs || "-"}
                   </p>
                 </div>
               );
             })}
-            </div>
           </div>
+            </div>
           )}
         </>
       )}

@@ -95,6 +95,7 @@ async function main() {
       seenElimPlayerIds.add(r.player_id);
       return true;
     });
+  const eliminatedPlayerIds = new Set(eliminated.map((e) => e.player_id));
 
   const assignedByBlock = new Map<string, Map<number, any[]>>();
   const assignedByPlayerDay = new Map<number, Map<string, any[]>>();
@@ -146,9 +147,22 @@ async function main() {
     return 0;
   }
 
+  /** Truth waitlist: prefs that day + not assigned that day (ignores eliminated rows). */
+  function truthWaitlistForDay(day: string): number[] {
+    const out: number[] = [];
+    for (const [playerId, dayMap] of prefByPlayerDayBlock.entries()) {
+      if (!dayMap.has(day)) continue;
+      const isAssignedOnDay = assignedByPlayerDay.get(playerId)?.has(day) ?? false;
+      if (isAssignedOnDay) continue;
+      out.push(playerId);
+    }
+    return out;
+  }
+
   for (const day of ["mon", "tue", "thu"]) {
     console.log(`\n--- [${day.toUpperCase()}] ---`);
     const daySlotsMap = activeSlotsByBlock.get(day) ?? new Map();
+    const truthWaitlist = truthWaitlistForDay(day);
 
     for (const block of Array.from(daySlotsMap.keys()).sort((a, b) => a - b)) {
       const activeSlotsForBlock = slots.filter(
@@ -160,20 +174,17 @@ async function main() {
       const assignedForThisBlock = assigned.filter((r) => activeSlotIdsSet.has(r.slot_id));
       const assignedCount = assignedForThisBlock.length;
 
-      // Find eliminated players who wanted this block and are not assigned on this day
-      const elimWanted = eliminated.filter((e) => {
-        const isAssignedOnDay = assignedByPlayerDay.get(e.player_id)?.has(day) ?? false;
-        if (isAssignedOnDay) return false;
-        const wants = prefByPlayerDayBlock.get(e.player_id)?.get(day)?.has(block);
-        return wants;
-      });
+      // Waitlist who preferred this block (truth = prefs + unassigned; not elim-row gated)
+      const waitlistWanted = truthWaitlist.filter((playerId) =>
+        prefByPlayerDayBlock.get(playerId)?.get(day)?.has(block)
+      );
 
       const emptyCount = activeSlotsForBlock.length - assignedCount;
 
       // V1
-      if (emptyCount > 0 && elimWanted.length > 0) {
+      if (emptyCount > 0 && waitlistWanted.length > 0) {
         console.warn(
-          `[경고] V1: ${day} 블록 ${block}에 빈 자리(${emptyCount}개)가 있지만 대기자(${elimWanted.length}명)가 존재합니다.`
+          `[경고] V1: ${day} 블록 ${block}에 빈 자리(${emptyCount}개)가 있지만 대기자(${waitlistWanted.length}명)가 존재합니다.`
         );
         warnings++;
       }
@@ -185,19 +196,30 @@ async function main() {
           return hasPref;
         });
 
-        if (assignedListWhoPreferred.length > 0 && elimWanted.length > 0) {
+        if (assignedListWhoPreferred.length > 0 && waitlistWanted.length > 0) {
           const assignedSpeedups = assignedListWhoPreferred.map((r) => getSpeedup(r.player_id, day));
-          const elimSpeedups = elimWanted.map((r) => getSpeedup(r.player_id, day));
+          const waitSpeedups = waitlistWanted.map((id) => getSpeedup(id, day));
           const minAssigned = Math.min(...assignedSpeedups);
-          const maxElim = Math.max(...elimSpeedups);
-          if (maxElim > minAssigned) {
+          const maxWait = Math.max(...waitSpeedups);
+          if (maxWait > minAssigned) {
             console.warn(
-              `[경고] V4: ${day} 블록 ${block}에서 스피드업 역전 발생 (배정 최소: ${minAssigned}, 대기자 최대: ${maxElim})`
+              `[경고] V4: ${day} 블록 ${block}에서 스피드업 역전 발생 (배정 최소: ${minAssigned}, 대기자 최대: ${maxWait})`
             );
             warnings++;
           }
         }
       }
+    }
+
+    // V6: prefs + unassigned that day, but missing eliminated marker
+    // (batch may drop markers for partial assignees; UI/promote no longer need them)
+    for (const playerId of truthWaitlist) {
+      if (eliminatedPlayerIds.has(playerId)) continue;
+      const name = playerMap.get(playerId)?.name ?? "?";
+      console.warn(
+        `[경고] V6: ${day} 대기 자격(prefs+미배정)인데 eliminated 마커 없음 — ${name} (${playerId}) (표시/승격은 prefs 기준이라 동작에는 영향 없음)`
+      );
+      warnings++;
     }
   }
 

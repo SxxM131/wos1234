@@ -1,8 +1,8 @@
 #!/usr/bin/env npx tsx
 /**
- * Re-assign players who are waitlisted (eliminated) but have empty preferred blocks.
- * Run: npx tsx scripts/recover-waitlist.ts
- * Optional: npx tsx scripts/recover-waitlist.ts 테스터_52 테스터_26
+ * Backfill empty slots for waitlisted players (prefs that day + not assigned).
+ * Run: npx tsx scripts/maintenance/recover-waitlist.ts
+ * Optional: npx tsx scripts/maintenance/recover-waitlist.ts 테스터_52 테스터_26
  */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
@@ -10,7 +10,6 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import {
   getCurrentCycleId,
-  healEliminatedReservations,
   backfillEmptySlotsForCycle,
 } from "../../lib/assignment";
 import { DayOfWeek } from "../../lib/types";
@@ -36,7 +35,6 @@ const nameFilter = process.argv.slice(2);
 
 async function main() {
   const cycleId = await getCurrentCycleId(supabase);
-  const now = new Date().toISOString();
 
   let playersQuery = supabase.from("players").select("*");
   if (nameFilter.length > 0) {
@@ -50,18 +48,6 @@ async function main() {
   }
 
   for (const player of players) {
-    const { data: eliminated } = await supabase
-      .from("reservations")
-      .select("id")
-      .eq("player_id", player.player_id)
-      .eq("cycle_id", cycleId)
-      .eq("status", "eliminated");
-
-    if (!eliminated?.length) {
-      console.log(`⏭ ${player.name}: not on waitlist`);
-      continue;
-    }
-
     const { data: prefs } = await supabase
       .from("preferences")
       .select("day_of_week, block_start_utc")
@@ -73,16 +59,36 @@ async function main() {
       continue;
     }
 
-    const byDay = new Map<DayOfWeek, number[]>();
-    for (const p of prefs) {
-      const day = p.day_of_week as DayOfWeek;
-      const list = byDay.get(day) ?? [];
-      list.push(p.block_start_utc);
-      byDay.set(day, list);
+    const prefDays = Array.from(
+      new Set(prefs.map((p) => p.day_of_week as DayOfWeek))
+    );
+    let waitlistedDays = 0;
+    for (const day of prefDays) {
+      const { data: daySlots } = await supabase
+        .from("slots")
+        .select("id")
+        .eq("day_of_week", day);
+      const slotIds = (daySlots ?? []).map((s) => s.id);
+      if (!slotIds.length) continue;
+      const { data: assigned } = await supabase
+        .from("reservations")
+        .select("id")
+        .eq("player_id", player.player_id)
+        .eq("cycle_id", cycleId)
+        .eq("status", "assigned")
+        .in("slot_id", slotIds)
+        .limit(1);
+      if (!assigned?.length) waitlistedDays++;
     }
 
-    console.log(`  → ${player.name}: queued for heal + backfill`);
-    await healEliminatedReservations(supabase, [player.player_id], cycleId, now);
+    if (waitlistedDays === 0) {
+      console.log(`⏭ ${player.name}: assigned on all preferred days`);
+      continue;
+    }
+
+    console.log(
+      `  → ${player.name}: waitlisted on ${waitlistedDays} day(s) — included in backfill`
+    );
   }
 
   const filled = await backfillEmptySlotsForCycle(supabase, cycleId);

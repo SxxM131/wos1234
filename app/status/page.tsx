@@ -1,6 +1,5 @@
-import { createServiceClient } from "@/lib/supabase";
+import { createServiceClient, fetchAllPages } from "@/lib/supabase";
 import { getCurrentCycleId, getLastAssignmentRun } from "@/lib/assignment";
-import { dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
 import { StatusView } from "./StatusView";
 import { DayOfWeek } from "@/lib/types";
 
@@ -30,24 +29,22 @@ export default async function StatusPage() {
     .eq("cycle_id", cycleId)
     .eq("status", "assigned");
 
-  const { data: eliminated } = await supabase
-    .from("reservations")
-    .select("player_id, players(name, alliance, speedup_mon, speedup_tue, speedup_thu)")
-    .eq("cycle_id", cycleId)
-    .eq("status", "eliminated");
-
-  const elimWithPrefs = (
-    await Promise.all(
-      dedupeEliminatedByPlayer(eliminated ?? []).map(async (e) => {
-        const { data: prefs } = await supabase
-          .from("preferences")
-          .select("block_start_utc, day_of_week")
-          .eq("player_id", e.player_id)
-          .eq("cycle_id", cycleId);
-        return { ...e, preferences: prefs ?? [] };
-      })
-    )
-  ).filter((e) => e.preferences.length > 0);
+  const { data: preferences, error: prefError } = await fetchAllPages(
+    async (from, to) =>
+      await supabase
+        .from("preferences")
+        .select(
+          "player_id, day_of_week, block_start_utc, players(name, alliance, speedup_mon, speedup_tue, speedup_thu)"
+        )
+        .eq("cycle_id", cycleId)
+        .order("player_id")
+        .order("day_of_week")
+        .order("block_start_utc")
+        .range(from, to)
+  );
+  if (prefError) {
+    throw new Error(`Failed to load preferences: ${prefError.message}`);
+  }
 
   const lastAssignmentRun = await getLastAssignmentRun(supabase);
 
@@ -57,8 +54,16 @@ export default async function StatusPage() {
         ...s,
         day_of_week: s.day_of_week as DayOfWeek,
       }))}
-      initialReservations={(reservations ?? []) as unknown as Parameters<typeof StatusView>[0]["initialReservations"]}
-      initialEliminated={elimWithPrefs as unknown as Parameters<typeof StatusView>[0]["initialEliminated"]}
+      initialReservations={
+        (reservations ?? []) as unknown as Parameters<
+          typeof StatusView
+        >[0]["initialReservations"]
+      }
+      initialPreferences={
+        (preferences ?? []) as unknown as Parameters<
+          typeof StatusView
+        >[0]["initialPreferences"]
+      }
       reservationOpen={openData?.value !== "false"}
       cycleId={cycleId}
       assignmentPending={!lastAssignmentRun}

@@ -4,6 +4,11 @@ import {
   SUBMIT_RECEIVED_MESSAGE,
   SUBMIT_UPDATED_MESSAGE,
 } from "./reservation-guard";
+import {
+  buildDayWaitlistCandidates,
+  sortWaitlistCandidates,
+  type WaitlistPrefRow,
+} from "./waitlist";
 
 export interface DaySubmit {
   dayOfWeek: DayOfWeek;
@@ -366,76 +371,56 @@ async function runReassignmentQueue(
   }
 }
 
-export async function healEliminatedReservations(
+/**
+ * Promote a waitlisted player into a slot. Prefers converting an existing
+ * eliminated row; otherwise inserts a new assigned reservation.
+ */
+async function assignSlotToWaitlistPlayer(
   supabase: SupabaseClient,
-  playerIds: number[],
+  playerId: number,
+  slotId: number,
   cycleId: number,
-  now: string
-) {
-  for (const playerId of playerIds) {
-    await supabase
+  appliedAt: string
+): Promise<boolean> {
+  const { data: elimRows } = await supabase
+    .from("reservations")
+    .select("id")
+    .eq("player_id", playerId)
+    .eq("cycle_id", cycleId)
+    .eq("status", "eliminated")
+    .is("slot_id", null)
+    .limit(1);
+
+  const elimRow = elimRows?.[0];
+  if (elimRow?.id) {
+    const { error } = await supabase
       .from("reservations")
-      .delete()
-      .eq("player_id", playerId)
-      .eq("cycle_id", cycleId)
-      .eq("status", "eliminated");
-
-    const { data: prefs } = await supabase
-      .from("preferences")
-      .select("day_of_week")
-      .eq("player_id", playerId)
-      .eq("cycle_id", cycleId);
-
-    if (!prefs?.length) continue;
-
-    const prefDays = Array.from(new Set(prefs.map((p) => p.day_of_week)));
-
-    let needsEliminated = false;
-    for (const day of prefDays) {
-      const { data: slots } = await supabase
-        .from("slots")
-        .select("id")
-        .eq("day_of_week", day);
-      const slotIds = slots?.map((s) => s.id) ?? [];
-      if (!slotIds.length) continue;
-
-      const { data: assigned } = await supabase
-        .from("reservations")
-        .select("id")
-        .eq("player_id", playerId)
-        .eq("cycle_id", cycleId)
-        .eq("status", "assigned")
-        .in("slot_id", slotIds)
-        .limit(1);
-
-      if (!assigned?.length) {
-        needsEliminated = true;
-        break;
-      }
-    }
-
-    if (needsEliminated) {
-      await supabase.from("reservations").insert({
-        player_id: playerId,
-        slot_id: null,
-        status: "eliminated",
-        cycle_id: cycleId,
-        applied_at: now,
-      });
-    }
+      .update({ status: "assigned", slot_id: slotId })
+      .eq("id", elimRow.id);
+    return !error;
   }
+
+  const { error } = await supabase.from("reservations").insert({
+    player_id: playerId,
+    slot_id: slotId,
+    status: "assigned",
+    cycle_id: cycleId,
+    applied_at: appliedAt,
+  });
+  return !error;
 }
 
 /**
  * Fill empty slots in a day from waitlisted players who preferred that block
- * (speedup desc, then earlier applied_at). Runs after heal / cancel / submit.
+ * (speedup desc, then earlier applied_at). Candidates = prefs that day + not
+ * assigned that day (does not require an eliminated row).
  */
 export async function backfillEmptySlotsForDay(
   supabase: SupabaseClient,
   day: DayOfWeek,
   cycleId: number
 ): Promise<number> {
-  const config = DAY_CONFIG[day];
+  const now = new Date().toISOString();
 
   const { data: daySlots } = await supabase
     .from("slots")
@@ -459,6 +444,21 @@ export async function backfillEmptySlotsForDay(
     (assignedOnDay ?? []).map((r) => r.player_id)
   );
 
+  const { data: prefRows } = await supabase
+    .from("preferences")
+    .select(
+      "player_id, day_of_week, block_start_utc, applied_at, players(speedup_mon, speedup_tue, speedup_thu)"
+    )
+    .eq("day_of_week", day)
+    .eq("cycle_id", cycleId);
+
+  const waitlistByPlayer = buildDayWaitlistCandidates(
+    day,
+    (prefRows ?? []) as unknown as WaitlistPrefRow[],
+    assignedPlayerIds,
+    now
+  );
+
   const blocks = new Map<number, typeof daySlots>();
   for (const s of daySlots) {
     const list = blocks.get(s.block_start_utc) ?? [];
@@ -467,7 +467,6 @@ export async function backfillEmptySlotsForDay(
   }
 
   let filled = 0;
-  const promotedPlayerIds = new Set<number>();
 
   for (const [blockStart, slots] of Array.from(blocks.entries())) {
     const slotIds = slots.map((s) => s.id);
@@ -483,87 +482,29 @@ export async function backfillEmptySlotsForDay(
 
     if (!emptySlots.length) continue;
 
-    const { data: prefs } = await supabase
-      .from("preferences")
-      .select("player_id")
-      .eq("day_of_week", day)
-      .eq("block_start_utc", blockStart)
-      .eq("cycle_id", cycleId);
-
-    const prefPlayerIds = new Set(prefs?.map((p) => p.player_id) ?? []);
-    if (!prefPlayerIds.size) continue;
-
-    const { data: eliminated } = await supabase
-      .from("reservations")
-      .select("id, player_id, applied_at, players(speedup_mon, speedup_tue, speedup_thu)")
-      .eq("status", "eliminated")
-      .eq("cycle_id", cycleId)
-      .is("slot_id", null);
-
-    const byPlayer = new Map<
-      number,
-      { id: string; playerId: number; speedup: number; appliedAt: string }
-    >();
-    for (const e of eliminated ?? []) {
-      if (
-        !prefPlayerIds.has(e.player_id) ||
-        assignedPlayerIds.has(e.player_id)
-      ) {
-        continue;
-      }
-      const p = e.players as unknown as {
-        speedup_mon: number;
-        speedup_tue: number;
-        speedup_thu: number;
-      };
-      const row = {
-        id: e.id as string,
-        playerId: e.player_id,
-        speedup: getSpeedup(p, day),
-        appliedAt: e.applied_at,
-      };
-      const prev = byPlayer.get(e.player_id);
-      if (!prev) {
-        byPlayer.set(e.player_id, row);
-        continue;
-      }
-      if (
-        row.speedup > prev.speedup ||
-        (row.speedup === prev.speedup &&
-          new Date(row.appliedAt).getTime() <
-            new Date(prev.appliedAt).getTime())
-      ) {
-        byPlayer.set(e.player_id, row);
-      }
-    }
-    const candidates = Array.from(byPlayer.values()).sort((a, b) => {
-      if (b.speedup !== a.speedup) return b.speedup - a.speedup;
-      return new Date(a.appliedAt).getTime() - new Date(b.appliedAt).getTime();
-    });
+    const candidates = sortWaitlistCandidates(
+      Array.from(waitlistByPlayer.values()).filter(
+        (c) => c.blocks.has(blockStart) && !assignedPlayerIds.has(c.playerId)
+      )
+    );
 
     for (let i = 0; i < emptySlots.length && i < candidates.length; i++) {
       const slot = emptySlots[i];
       const winner = candidates[i];
-      const { error } = await supabase
-        .from("reservations")
-        .update({ status: "assigned", slot_id: slot.id })
-        .eq("id", winner.id);
+      const ok = await assignSlotToWaitlistPlayer(
+        supabase,
+        winner.playerId,
+        slot.id,
+        cycleId,
+        winner.appliedAt
+      );
 
-      if (!error) {
+      if (ok) {
         assignedPlayerIds.add(winner.playerId);
-        promotedPlayerIds.add(winner.playerId);
+        waitlistByPlayer.delete(winner.playerId);
         filled++;
       }
     }
-  }
-
-  if (promotedPlayerIds.size > 0) {
-    await healEliminatedReservations(
-      supabase,
-      Array.from(promotedPlayerIds),
-      cycleId,
-      new Date().toISOString()
-    );
   }
 
   return filled;
@@ -594,7 +535,6 @@ export async function promoteOnCancel(
   if (!slot) return;
 
   const day = slot.day_of_week as DayOfWeek;
-  const config = DAY_CONFIG[day];
   const blockStart = slot.block_start_utc;
   const now = new Date().toISOString();
 
@@ -621,11 +561,19 @@ export async function promoteOnCancel(
   const { data: prefRows } = await supabase
     .from("preferences")
     .select(
-      "player_id, block_start_utc, applied_at, players(speedup_mon, speedup_tue, speedup_thu)"
+      "player_id, day_of_week, block_start_utc, applied_at, players(speedup_mon, speedup_tue, speedup_thu)"
     )
     .eq("day_of_week", day)
     .eq("cycle_id", cycleId);
 
+  const waitlistByPlayer = buildDayWaitlistCandidates(
+    day,
+    (prefRows ?? []) as unknown as WaitlistPrefRow[],
+    assignedPlayerIds,
+    now
+  );
+
+  // Also build applicantMap for Top-N eligibility (all prefs that day).
   const applicantMap = new Map<number, BatchApplicant>();
   for (const row of prefRows ?? []) {
     const p = row.players as unknown as {
@@ -652,70 +600,31 @@ export async function promoteOnCancel(
     }
   }
 
-  const { data: eliminated } = await supabase
-    .from("reservations")
-    .select("id, player_id, applied_at, players(speedup_mon, speedup_tue, speedup_thu)")
-    .eq("status", "eliminated")
-    .eq("cycle_id", cycleId)
-    .is("slot_id", null);
-
-  if (!eliminated?.length) return;
-
-  const elimByPlayer = new Map<
-    number,
-    { id: string; playerId: number; speedup: number; appliedAt: string }
-  >();
-
-  for (const e of eliminated ?? []) {
-    if (assignedPlayerIds.has(e.player_id)) continue;
-    const a = applicantMap.get(e.player_id);
-    if (!a?.blocks.has(blockStart)) continue;
-    elimByPlayer.set(e.player_id, {
-      id: e.id as string,
-      playerId: e.player_id,
-      speedup: a.speedup,
-      appliedAt: e.applied_at ?? a.appliedAt,
-    });
-  }
-
-  if (elimByPlayer.size === 0) return;
-
-  const sortCandidates = (
-    list: { id: string; playerId: number; speedup: number; appliedAt: string }[]
-  ) =>
-    list.sort((a, b) => {
-      if (b.speedup !== a.speedup) return b.speedup - a.speedup;
-      return (
-        new Date(a.appliedAt).getTime() - new Date(b.appliedAt).getTime()
-      );
-    });
+  const blockWaitlist = Array.from(waitlistByPlayer.values()).filter((c) =>
+    c.blocks.has(blockStart)
+  );
+  if (blockWaitlist.length === 0) return;
 
   const eligibleByBlock = computeEligibleByBlock(applicantMap, activeSlots);
   const top4ForBlock = eligibleByBlock.get(blockStart) ?? new Set();
 
-  const phase1Pool = Array.from(elimByPlayer.values()).filter((c) =>
-    top4ForBlock.has(c.playerId)
+  const phase1Pool = blockWaitlist.filter((c) => top4ForBlock.has(c.playerId));
+  let candidates = sortWaitlistCandidates(
+    phase1Pool.length > 0 ? phase1Pool : blockWaitlist
   );
-  let candidates = sortCandidates(phase1Pool);
-
-  if (candidates.length === 0) {
-    candidates = sortCandidates(Array.from(elimByPlayer.values()));
-  }
 
   if (candidates.length === 0) return;
 
   const winner = candidates[0];
-  await supabase
-    .from("reservations")
-    .update({ status: "assigned", slot_id: slotId })
-    .eq("id", winner.id);
-
-  await healEliminatedReservations(
+  const ok = await assignSlotToWaitlistPlayer(
     supabase,
-    [winner.playerId],
+    winner.playerId,
+    slotId,
     cycleId,
-    now
+    winner.appliedAt
   );
+  if (!ok) return;
+
   await backfillEmptySlotsForDay(supabase, day, cycleId);
 }
 
@@ -1131,25 +1040,6 @@ export async function runBatchAssignmentForCycle(
   const mon = await runBatchAssignment(supabase, cycleId, "mon");
   const tue = await runBatchAssignment(supabase, cycleId, "tue");
   const thu = await runBatchAssignment(supabase, cycleId, "thu");
-
-  // Per-day runs drop eliminated rows when a player later gets assigned on
-  // another day. Restore waitlist markers for any pref-day still unassigned.
-  const { data: prefPlayers } = await supabase
-    .from("preferences")
-    .select("player_id")
-    .eq("cycle_id", cycleId);
-  const playerIds = Array.from(
-    new Set((prefPlayers ?? []).map((p) => p.player_id))
-  );
-  if (playerIds.length) {
-    await healEliminatedReservations(
-      supabase,
-      playerIds,
-      cycleId,
-      new Date().toISOString()
-    );
-  }
-
   await saveLastAssignmentRun(supabase, new Date().toISOString());
   return { mon, tue, thu };
 }

@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createAnonClient } from "@/lib/supabase";
-import { dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
+import { createAnonClient, fetchAllPages } from "@/lib/supabase";
 import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS } from "@/lib/types";
 import { DayTabs } from "@/components/DayTabs";
 import { formatSlotTime, formatBlockRange } from "@/lib/utils";
+import {
+  buildDayWaitlistEntries,
+  type WaitlistPrefRowWithInfo,
+} from "@/lib/waitlist";
 
 interface SlotData {
   id: number;
@@ -19,11 +22,6 @@ interface ReservationData {
   slot_id: number;
   player_id: number;
   status: string;
-  players: { name: string; alliance: string; speedup_mon: number; speedup_tue: number; speedup_thu: number };
-}
-
-interface EliminatedData {
-  player_id: number;
   players: {
     name: string;
     alliance: string;
@@ -31,37 +29,43 @@ interface EliminatedData {
     speedup_tue: number;
     speedup_thu: number;
   };
-  preferences: { block_start_utc: number; day_of_week?: string }[];
+  slots?: { day_of_week: DayOfWeek } | null;
+}
+
+interface PreferenceData {
+  player_id: number;
+  day_of_week: string;
+  block_start_utc: number;
+  players: {
+    name: string;
+    alliance: string;
+    speedup_mon: number;
+    speedup_tue: number;
+    speedup_thu: number;
+  } | null;
 }
 
 interface Props {
   initialSlots: SlotData[];
   initialReservations: ReservationData[];
-  initialEliminated: EliminatedData[];
+  initialPreferences: PreferenceData[];
   reservationOpen: boolean;
   cycleId: number;
   assignmentPending: boolean;
 }
 
-function preferencesForDay(
-  prefs: EliminatedData["preferences"],
-  day: DayOfWeek
-) {
-  return prefs.filter((p) => p.day_of_week === day);
-}
-
 export function StatusView({
   initialSlots,
   initialReservations,
-  initialEliminated,
+  initialPreferences,
   reservationOpen,
   cycleId,
   assignmentPending,
 }: Props) {
   const [day, setDay] = useState<DayOfWeek>("mon");
-  const [slots, setSlots] = useState(initialSlots);
+  const [slots] = useState(initialSlots);
   const [reservations, setReservations] = useState(initialReservations);
-  const [eliminated, setEliminated] = useState(initialEliminated);
+  const [preferences, setPreferences] = useState(initialPreferences);
   const [closed, setClosed] = useState(!reservationOpen);
 
   const refresh = useCallback(async () => {
@@ -83,28 +87,21 @@ export function StatusView({
 
     if (resData) setReservations(resData as unknown as ReservationData[]);
 
-    const { data: elimData } = await supabase
-      .from("reservations")
-      .select("player_id, players(name, alliance, speedup_mon, speedup_tue, speedup_thu)")
-      .eq("cycle_id", cycleId)
-      .eq("status", "eliminated");
-
-    if (elimData) {
-      const withPrefs = (
-        await Promise.all(
-          dedupeEliminatedByPlayer(elimData).map(async (e) => {
-            const { data: prefs } = await supabase
-              .from("preferences")
-              .select("block_start_utc, day_of_week")
-              .eq("player_id", e.player_id)
-              .eq("cycle_id", cycleId);
-            return { ...e, preferences: prefs ?? [] };
-          })
-        )
-      ).filter((e) => e.preferences.length > 0);
-      setEliminated(withPrefs as unknown as EliminatedData[]);
-    } else {
-      setEliminated([]);
+    const { data: prefData, error: prefError } = await fetchAllPages(
+      async (from, to) =>
+        await supabase
+          .from("preferences")
+          .select(
+            "player_id, day_of_week, block_start_utc, players(name, alliance, speedup_mon, speedup_tue, speedup_thu)"
+          )
+          .eq("cycle_id", cycleId)
+          .order("player_id")
+          .order("day_of_week")
+          .order("block_start_utc")
+          .range(from, to)
+    );
+    if (!prefError) {
+      setPreferences((prefData ?? []) as unknown as PreferenceData[]);
     }
   }, [cycleId]);
 
@@ -134,23 +131,20 @@ export function StatusView({
     if (r.slot_id) resBySlot.set(r.slot_id, r);
   });
 
-  const daySlotIds = new Set(daySlots.map((s) => s.id));
+  const slotDayById = new Map(slots.map((s) => [s.id, s.day_of_week]));
   const assignedPlayerIdsOnDay = new Set(
     reservations
-      .filter((r) => daySlotIds.has(r.slot_id))
+      .filter((r) => slotDayById.get(r.slot_id) === day)
       .map((r) => r.player_id)
   );
 
-  const dayEliminated = eliminated
-    .filter((e) => {
-      const dayPrefs = preferencesForDay(e.preferences, day);
-      return dayPrefs.length > 0 && !assignedPlayerIdsOnDay.has(e.player_id);
-    })
-    .sort((a, b) => {
-      const sa = a.players ? a.players[config.speedupKey] ?? 0 : 0;
-      const sb = b.players ? b.players[config.speedupKey] ?? 0 : 0;
-      return sb - sa;
-    });
+  const dayWaitlist = assignmentPending
+    ? []
+    : buildDayWaitlistEntries(
+        day,
+        preferences as WaitlistPrefRowWithInfo[],
+        assignedPlayerIdsOnDay
+      );
 
   return (
     <div>
@@ -221,32 +215,29 @@ export function StatusView({
         })}
       </div>
 
-      {dayEliminated.length > 0 && (
+      {dayWaitlist.length > 0 && (
         <div className="mt-6">
           <h2 className="mb-2 text-sm font-bold text-slate-700">
             Waitlist ({config.office})
           </h2>
           <div className="flex flex-col gap-2">
-            {dayEliminated.map((e) => {
-              const speedup = e.players
-                ? e.players[config.speedupKey] ?? 0
-                : 0;
-              const prefs = Array.from(
-                new Set(
-                  preferencesForDay(e.preferences, day).map((p) => p.block_start_utc)
-                )
-              )
-                .sort((a, b) => a - b)
+            {dayWaitlist.map((e) => {
+              const prefs = e.preferredBlocks
                 .map((b) => formatBlockRange(b))
                 .join(", ");
               return (
-                <div key={e.player_id} className="card !py-2 text-sm">
+                <div key={e.playerId} className="card !py-2 text-sm">
                   <p className="font-medium">
-                    {e.players.name}{" "}
-                    <span className="text-slate-500">({e.players.alliance})</span>
+                    {e.name}{" "}
+                    <span className="text-slate-500">({e.alliance})</span>
                   </p>
                   <p className="text-xs text-slate-500">
-                    {day === "mon" ? "Monday Speedup" : day === "tue" ? "Tuesday Speedup" : "Thursday Speedup"}: {speedup}d · Preferred {prefs || "-"}
+                    {day === "mon"
+                      ? "Monday Speedup"
+                      : day === "tue"
+                        ? "Tuesday Speedup"
+                        : "Thursday Speedup"}
+                    : {e.speedup}d · Preferred {prefs || "-"}
                   </p>
                 </div>
               );

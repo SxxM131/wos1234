@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 import { getAdminSession } from "@/lib/session";
 import { createServiceClient, fetchAllPages } from "@/lib/supabase";
 import { getCurrentCycleId, getLastAssignmentRun } from "@/lib/assignment";
-import { dedupeEliminatedByPlayer } from "@/lib/reservation-guard";
 import { AdminDashboard } from "./AdminDashboard";
 import { DayOfWeek } from "@/lib/types";
 
@@ -43,23 +42,6 @@ export default async function AdminPage() {
     .eq("cycle_id", cycleId)
     .not("slot_id", "is", null)
     .order("applied_at");
-
-  const { data: eliminated } = await supabase
-    .from("reservations")
-    .select("id, player_id, players(player_id, name, alliance, speedup_mon, speedup_tue, speedup_thu)")
-    .eq("cycle_id", cycleId)
-    .eq("status", "eliminated");
-
-  const elimWithPrefs = await Promise.all(
-    dedupeEliminatedByPlayer(eliminated ?? []).map(async (e) => {
-      const { data: prefs } = await supabase
-        .from("preferences")
-        .select("day_of_week, block_start_utc")
-        .eq("player_id", e.player_id)
-        .eq("cycle_id", cycleId);
-      return { ...e, preferences: prefs ?? [] };
-    })
-  );
 
   const { data: prefRows, error: prefError } = await fetchAllPages(async (from, to) =>
     await supabase
@@ -163,11 +145,6 @@ export default async function AdminPage() {
         (assignmentPublished
           ? reservations ?? []
           : []) as unknown as Parameters<typeof AdminDashboard>[0]["reservations"]
-      }
-      eliminated={
-        (assignmentPublished
-          ? elimWithPrefs
-          : []) as unknown as Parameters<typeof AdminDashboard>[0]["eliminated"]
       }
       applicants={applicants}
       pendingApplicants={pendingApplicants}
