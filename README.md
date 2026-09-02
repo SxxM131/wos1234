@@ -1,325 +1,171 @@
 # SVS Reservation
 
-> **Next.js 14 + Supabase + Vercel** 기반의 연맹 SVS(관직) 예약·배정 웹앱
-
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)
-![Vercel](https://img.shields.io/badge/Vercel-Deployed-black?logo=vercel&logoColor=white)
-![Algorithm](https://img.shields.io/badge/Algorithm-Min--Cost%20Max--Flow-blue)
-![Mobile First](https://img.shields.io/badge/UI-Mobile--first-orange)
-
----
-
-## 목차
-
-- [로컬 개발](#-로컬-개발)
-- [환경 변수](#-환경-변수)
-- [Supabase 설정](#-supabase-설정)
-- [배포](#-배포-vercel)
-- [예약 수정 방법](#-예약-수정-방법)
-- [운영 시나리오 요약](#-운영-시나리오-요약)
-- [예약 배정 알고리즘](#-예약-배정-알고리즘)
-- [구글 폼 연동](#-구글-폼-연동-선택)
-- [npm 스크립트](#-npm-스크립트)
-- [페이지 구조](#-페이지-구조)
-- [폴더 구조](#-폴더-구조)
-- [기술 스택](#-기술-스택)
-
----
-
-## 로컬 개발
-
-```bash
-npm install
-cp .env.example .env.local   # 또는 이미 있는 .env.local 수정
-npm run check-env             # 환경 변수 검증
-npm run dev
-```
-
-> 상세 설정: README 환경 변수·Supabase 섹션 참고
-
----
-
-## 환경 변수
-
-| 변수 | 설명 |
-|------|------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL (예: `https://xxxx.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | service role key — **️ 서버 전용, 절대 클라이언트 노출 금지** |
-| `IRON_SESSION_SECRET` | 32자 이상 랜덤 문자열 |
-
-세션 시크릿 생성:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
----
-
-## ️ Supabase 설정
-
-1. [Supabase](https://supabase.com)에서 프로젝트 생성
-2. SQL Editor에서 `supabase/schema.sql` 전체 실행
-3. **Project Settings → API** 에서 URL, anon key, service_role key 복사
-
----
-
-## ️ 배포 (Vercel)
-
-1. GitHub에 push
-2. Vercel에서 **Import** → 환경 변수 4개 등록
-3. 배포 후 `/admin/setup`에서 관리자 비밀번호 설정
-4. `/admin`에서 비밀 URL 확인 후 연맹원에게 공유
-
----
-
-## ️ 예약 수정 방법
-
-제출한 예약을 수정해야 할 경우, 아래 상황에 맞는 방법을 따르세요.
-
-### 경우 1 — 신청 기간 중 수정 필요
-
-구글 폼은 **이메일 수집 없음** — 제출 후 폼 수정 링크가 없습니다.
-
-1. **같은 Player ID로 구글 폼을 다시 제출**하거나, R4가 제공한 **시크릿 URL**(`/r/[token]`)로 재제출
-2. 재제출 시 **해당 사이클 신청 전체가 최신 내용으로 교체**됩니다 (이번 제출에 없는 요일은 삭제됨)
-3. (선택) R4가 Admin Search에서 **Delete**로 신청을 제거만 하고 싶을 때
-
-### 경우 2 — 배정 전 (구글 폼 마감 후, 배정 실행 전)
-
-**예약 마감은 두 가지가 별개입니다.**
-
-| 동작 | 어디서 | 효과 |
-|------|--------|------|
-| (a) 구글 폼 **응답 수락 중지** | Google Forms (웹사이트 아님) | 메인 신청 채널 마감 |
-| (b) **Close secret URL** | `/admin` 대시보드 | `/r/[token]`만 거부 (`reservation_open = false`) |
-
-**시크릿 URL**이 닫혀 있으면 (`Close secret URL` → `reservation_open = false`) 웹 재제출은 거부됩니다. **구글 폼**은 구글 쪽에서 **응답 수락 중지**할 때까지 계속 접수됩니다.
-
-1. R4에게 연락
-2. R4가 대시보드에서 **Open secret URL**로 다시 열어 주거나, 구글 폼으로 **재제출** (전체 교체)
-3. (선택) R4가 Search에서 요일별 **Delete** 후 재제출 유도
-
-### 경우 3 — 배정 후
-
-**구글 폼**은 배정 실행 후에도 재제출이 가능합니다. 재제출 시 해당 player의 기존 `reservations`(배정·대기)가 **삭제**되고 `preferences`가 **전체 교체**됩니다 (assigned·eliminated 동일).
-
-**시크릿 URL**은 대시보드 **Open secret URL** / **Close secret URL**(`reservation_open`)에만 의존합니다. **Close secret URL**이면 거부되고, **Open secret URL**이면 구글 폼과 동일하게 처리됩니다.
-
-슬롯을 **유지**하거나 운영진이 직접 조정해야 할 때는 각 연맹 **R4**에게 문의하세요.
-
-```
-요청 내용:
-https://wos1234.vercel.app/admin 에서
-슬롯 취소(Cancel) 등 운영진 조치 요청
-```
-
-R4가 Schedule Grid에서 **Cancel** 등으로 처리할 수 있습니다.
-
-> Cancel 후 재신청하지 않으면 해당 사이클에서 배정 대상에서 제외될 수 있습니다.  
-> 배정 후 폼 재제출은 기존 배정을 지우므로, 의도치 않은 재제출에 주의하세요.
-
-상세 시나리오 표: [docs/RESERVATION_SYSTEM.md §3.5](docs/RESERVATION_SYSTEM.md#35-운영-시나리오-및-대응)
-
----
-
-## 운영 시나리오 요약
-
-### 예약 변경·수정
-
-| # | 시점 | 신청 경로 | 플레이어 | R4+ Admin |
-|---|------|-----------|----------|-----------|
-| A | 신청 기간 중 · **내용 수정 필요** | `/r/[token]` 또는 구글 폼 재제출 | **같은 Player ID로 재제출** (전체 교체) | (선택) Search → **Delete** |
-| B | 구글 폼 응답 중지 후 · **배정 실행 전** | `/r/[token]` (시크릿 URL) | R4 연락 후 **Open secret URL** 상태에서 재제출 | (선택) Search → **Delete** |
-| C | **배정 실행 후** · 재제출 | 구글 폼 (항상) / 시크릿 URL (**Open secret URL**) | **재제출** — 기존 배정 삭제 후 preferences 전체 교체 | — |
-| C-2 | **배정 실행 후** · R4 조정 | — | R4에게 취소·변경 요청 | Schedule Grid **Cancel** |
-| D | Admin 취소/삭제 후 **재신청 안 함** | — | 해당 요일·사이클에서 **배정 대상 제외** | — |
-
-### 플레이어 신청
-
-| # | 상황 | 시스템 동작 | 안내 |
-|---|------|-------------|------|
-| 1 | 신청 기간 · 첫 제출 | `preferences` INSERT (`reservations` 없음) | *Your application has been received.* |
-| 2 | 같은 `player_id` 재제출 | 기존 `preferences` DELETE 후 INSERT (전체 교체) | *Your application has been updated.* |
-| 3 | **Close secret URL** (`reservation_open = false`) | 시크릿 URL(`/r/...`)만 거부 | *Secret URL applications are currently closed.* |
-| 3b | 구글 폼 제출 | 대시보드 open/close와 **무관** (`skipOpenCheck`) — 구글 폼에서 응답을 받을 때까지 접수 | *Your application has been received.* / *…updated.* |
-| 4 | 배정 실행 후 재제출 (`last_assignment_run`) | 구글 폼: 항상 허용. 시크릿 URL: **Open secret URL**일 때만. `reservations` DELETE + `preferences` 전체 교체 | *Your application has been updated.* |
-| 5 | `/r/[token]/check` 조회 | 배정 전·후 상태 표시 | Application received / Assigned / On waitlist |
-
-### Admin 단계별 UI
-
-| 단계 | `last_assignment_run` | 주요 UI | 가능 작업 |
-|------|----------------------|---------|-----------|
-| 신청 기간 | 없음 | Applicants, Search (**Delete** 버튼) | 구글 폼 배포, Secret URL, **Open/Close secret URL** |
-| 신청 마감 ~ 배정 전 | 없음 | Search + Delete, (그리드 비어 있음) | (a) 구글 폼 응답 중지 + (b) **Close secret URL**, 스피드업 검증, **Run full assignment** |
-| 배정 후 | 있음 | Schedule Grid, Waitlist | 슬롯 **Cancel**, Export Excel |
-
-> English + diagrams: [docs/RESERVATION_SYSTEM_EN.html](docs/RESERVATION_SYSTEM_EN.html)
-
----
-
-## ️ 예약 배정 알고리즘
-
-현재 시스템은 즉시 배정이 아닌 **일괄 배정(Batch Assignment)** 방식을 사용합니다.
-
-```mermaid
-flowchart TD
-    A[플레이어: 선호 시간 제출\n구글 폼 또는 시크릿 URL] --> B1[구글 폼: 응답 수락 중지]
-    A --> B2[Admin: Close secret URL]
-    B1 --> B2
-    B2 --> B3{{배정 전 삭제 필요?}}
-    B3 -->|예| B4[Admin: 검색 → Delete 요일 버튼]
-    B4 --> B5[해당 요일 preferences 삭제]
-    B3 -->|아니오| C[관리자: Run full assignment 실행]
-    B5 --> C
-    C --> D{MCMF 알고리즘\n스피드업 내림차순\n신청 시각 오름차순}
-    D -->|배정 성공| E[🟢 예약 확정]
-    D -->|슬롯 없음| F[⏳ 대기열 Waitlist]
-    G[기존 예약 취소] --> H[대기열 1순위 자동 승격]
-    F --> H
-```
-
-신청 제출은 구글 폼·시크릿 URL 모두 `processMultiDayReservation`으로 처리됩니다 (full replace).
-
-> **MCMF 도입 이유:** 이전 Hopcroft-Karp 방식에서 발생하던 ① 빈 슬롯 + 대기자 동시 존재(V1), ② 스피드업 역전(V4) 문제를 해결했습니다. `verify:assignment` 기준 에러 0건·경고 0건.
-
- 상세 동작: [docs/RESERVATION_SYSTEM.md](docs/RESERVATION_SYSTEM.md)
-
----
-
-## 구글 폼 연동 (선택)
-
-Vercel 콜드스타트 우회 목적으로 구글 폼 신청을 병행 운영할 수 있습니다.
-
-```mermaid
-flowchart LR
-    A[구글 폼 제출] -->|onFormSubmit| B[Apps Script]
-    B -->|POST /api/google-form-submit| C[processMultiDayReservation]
-    D[시크릿 링크 /r/token] -->|Server Action| C
-    C --> E[Supabase\nplayers / preferences]
-    E --> F[배정 알고리즘]
-```
+취미 게임 커뮤니티(연맹)의 SVS(관직) 스케줄을 관리하고, **Min-Cost Max-Flow** 알고리즘으로 공정하게 예약·배정하는 모바일 퍼스트 웹앱입니다.
 
 | 항목 | 내용 |
 |------|------|
-| 재제출(전체 교체) | 같은 `player_id` + `cycle_id` → DELETE 전체 후 INSERT (`processMultiDayReservation`) |
-| 웹훅 | Apps Script → `POST /api/google-form-submit` — Supabase 직접 호출 없음 |
-| 폼 안내 문구 | 폼 설명란에 재제출 안내 붙여넣기 — [§17 복사용 문구](docs/RESERVATION_SYSTEM.md#폼-상단-안내-문구-복사용) |
-| cycle_id | Supabase settings 테이블에서 동적 조회 — Reset 후 코드 수정 불필요 |
-| Apps Script | [`scripts/appscript/onFormSubmit.gs`](scripts/appscript/onFormSubmit.gs) |
-
- 설정 방법: [docs/RESERVATION_SYSTEM.md §17](docs/RESERVATION_SYSTEM.md#17-구글-폼-연동-apps-script-파이프라인)
+| **상태** | 배포 완료 (Vercel) |
+| **유형** | 개인 프로젝트 (1인 풀스택) |
+| **저장소** | `wos1234` |
 
 ---
 
-## ️ npm 스크립트
+## 소개
 
-### 개발
+연맹원이 희망 시간대·관직을 신청하면, 관리자(R4)가 일괄 배정을 실행해 슬롯을 확정하는 시스템입니다. 구글 폼 또는 시크릿 URL(`/r/[token]`)로 신청을 받고, 스피드업·신청 시각을 기준으로 MCMF 알고리즘이 배정합니다.
 
-| 스크립트 | 설명 |
-|----------|------|
-| `npm run dev` | 로컬 개발 서버 |
-| `npm run check-env` | 환경 변수 검증 |
-| `npm run set-admin-password` | Admin 비밀번호 설정 |
-
-### 테스트 데이터
-
-| 스크립트 | 설명 |
-|----------|------|
-| `npm run inject:random -- N` | N명 무작위 신청 주입 (기본 120) |
-| `npm run inject:test` | 실제 테스트 데이터 주입 |
-| `npm run clear:assignments` | 현재 사이클 배정 결과만 삭제 |
-| `npm run seed:stress` | clear + 120명 주입 |
-
-### 배정 실행 및 검증
-
-| 스크립트 | 설명 |
-|----------|------|
-| `npm run run:batch` | Admin 버튼과 동일한 일괄 배정 실행 |
-| `npm run verify:assignment` | 배정 결과 검증 (V1~V5) — 에러 시 exit(1) |
-| `npm run audit:reservations` | 사이클 전체 감사 |
-| `npm run validate:assignment` | 배정 유효성 검사 |
-
-### 유지보수
-
-| 스크립트 | 설명 |
-|----------|------|
-| `npm run recover:waitlist` | 대기열 복구 |
-| `npm run backfill:slots` | 빈 슬롯 백필 |
-| `npm run reconcile:waitlist` | eliminated 정합성 정리 |
-| `npm run purge:orphans` | 고아 players 삭제 |
-| `npm run build:docs-html` | `RESERVATION_SYSTEM.html` 재생성 (한글 기술 문서) |
-
-<details>
-<summary>배정 테스트 플로우</summary>
-
-```bash
-npm run inject:random -- 10
-npm run run:batch
-npm run verify:assignment
-```
-
-</details>
+> 원래 게임 클랜 스케줄 관리 웹사이트로 시작했으며, 이후 연맹 SVS 예약·배정 시스템으로 발전했습니다.
 
 ---
 
-## 페이지 구조
+## 주요 기능
 
-| 경로 | 대상 | 설명 |
-|------|------|------|
-| `/r/[token]` | 연맹원 | 예약 신청 (비밀 URL) |
-| `/r/[token]/check` | 연맹원 | 본인 예약 확인 |
-| `/status` | 전체 공개 | 현황 조회 |
-| `/admin` | 운영자 | 관리 패널 |
-
----
-
-## 폴더 구조
-
-<details>
-<summary>펼쳐서 보기</summary>
-
-```
-wos1234/
-├── README.md
-├── middleware.ts
-├── package.json
-├── app/                   # Next.js 페이지·API
-│   ├── admin/
-│   ├── r/[token]/
-│   ├── status/
-│   └── api/
-├── lib/                   # 공유 로직 (assignment, reservation-guard 등)
-├── components/            # UI 컴포넌트
-├── docs/
-│   ├── RESERVATION_SYSTEM.md
-│   ├── RESERVATION_SYSTEM.html
-│   ├── RESERVATION_SYSTEM_EN.md
-│   ├── RESERVATION_SYSTEM_EN.html
-│   └── ADMIN_GUIDE_QUICKSTART_EN.md
-├── scripts/
-│   ├── appscript/         # onFormSubmit.gs
-│   ├── dev/               # inject-random, clear-cycle-assignments 등
-│   ├── verify/            # verify-assignment, audit-reservations 등
-│   ├── maintenance/       # run-batch-assignment, recover-waitlist 등
-│   └── admin/             # check-env, set-admin-password
-└── supabase/
-    ├── schema.sql
-    └── migrations/        # v4.sql … v7.sql
-```
-
-</details>
+| 기능 | 설명 |
+|------|------|
+| **예약 신청** | 구글 폼 또는 시크릿 URL로 선호 시간·관직 제출 |
+| **일괄 배정** | Min-Cost Max-Flow(MCMF) 알고리즘으로 공정한 슬롯 배정 |
+| **대기열** | 슬롯 부족 시 Waitlist, 취소 시 자동 승격 |
+| **관리자 대시보드** | 신청자 조회, 배정 실행, 스케줄 그리드, Excel보내기 |
+| **예약 수정** | 신청 기간 중 재제출(전체 교체), 배정 후 R4 조정 |
+| **Google Forms 연동** | Apps Script → Webhook으로 구글 폼 제출 수신 (선택) |
+| **모바일 퍼스트 UI** | 연맹원이 주로 모바일로 접속하는 환경에 맞춘 설계 |
 
 ---
 
 ## 기술 스택
 
-| 분류 | 기술 |
+| 영역 | 기술 |
 |------|------|
-| 프레임워크 | Next.js 14 (App Router, Server Actions) |
-| 데이터베이스 | Supabase (PostgreSQL + Realtime) |
-| 스타일 | Tailwind CSS |
-| 인증 | iron-session + bcryptjs |
-| 배정 알고리즘 | Min-Cost Max-Flow (MCMF) |
-| 배포 | Vercel |
+| **Framework** | Next.js 14, React 18, TypeScript |
+| **Database** | Supabase (PostgreSQL) |
+| **인증** | Iron Session, bcryptjs |
+| **배포** | Vercel |
+| **알고리즘** | Min-Cost Max-Flow (예약 배정) |
+| **기타** | Tailwind CSS, xlsx (Excel보내기), Mermaid |
+
+---
+
+## 시스템 구조
+
+```
+플레이어                    관리자 (R4)
+   │                           │
+   ├── 구글 폼 ──▶ Apps Script ──┐
+   └── /r/[token] ──────────────┤
+                                 ▼
+                         Next.js API Routes
+                                 │
+                                 ▼
+                            Supabase (PostgreSQL)
+                                 │
+                                 ▼
+                         MCMF 일괄 배정 (Run full assignment)
+```
+
+---
+
+## 프로젝트 구조
+
+```
+wos1234/
+├── app/              # Next.js App Router
+│   ├── admin/        # 관리자 대시보드
+│   ├── api/          # API Routes (google-form-submit 등)
+│   └── r/[token]/    # 시크릿 URL 예약 페이지
+├── components/       # UI 컴포넌트
+├── lib/              # 비즈니스 로직, MCMF 배정
+├── supabase/         # schema.sql, migrations
+├── scripts/          # 검증·유지보수·개발 스크립트
+└── docs/             # 운영 시나리오, 시스템 문서
+```
+
+---
+
+## 시작하기
+
+### 사전 요구사항
+
+- Node.js 18+
+- Supabase 계정
+
+### 1. 설치
+
+```bash
+npm install
+cp .env.example .env.local
+npm run check-env
+```
+
+### 2. Supabase 설정
+
+1. [Supabase](https://supabase.com)에서 프로젝트 생성
+2. SQL Editor에서 `supabase/schema.sql` 전체 실행
+3. Project Settings → API에서 URL, anon key, service_role key 복사
+
+### 3. 로컬 실행
+
+```bash
+npm run dev
+```
+
+### 환경 변수
+
+| 변수 | 필수 | 설명 |
+|------|------|------|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase 프로젝트 URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | anon public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | service role key (서버 전용) |
+| `IRON_SESSION_SECRET` | ✅ | 32자 이상 랜덤 문자열 |
+| `GOOGLE_FORM_WEBHOOK_SECRET` | | 구글 폼 Webhook 시크릿 (선택) |
+
+세션 시크릿 생성:
+
+```bash
+npm run setup:secret
+```
+
+### 배포 (Vercel)
+
+1. GitHub에 push
+2. Vercel Import → 환경 변수 4개 등록
+3. 배포 후 `/admin/setup`에서 관리자 비밀번호 설정
+4. `/admin`에서 비밀 URL 확인 후 연맹원에게 공유
+
+---
+
+## 예약 배정 흐름
+
+1. 플레이어가 구글 폼 또는 시크릿 URL로 선호 시간 제출
+2. 관리자가 구글 폼 응답 중지 + **Close secret URL**
+3. 관리자가 **Run full assignment** 실행
+4. MCMF 알고리즘: 스피드업 내림차순 → 신청 시각 오름차순으로 배정
+5. 배정 성공 → 예약 확정 / 슬롯 없음 → 대기열
+
+> MCMF 도입으로 빈 슬롯+대기자 동시 존재, 스피드업 역전 문제를 해결했습니다.
+
+---
+
+## 유용한 스크립트
+
+| 명령 | 설명 |
+|------|------|
+| `npm run verify:assignment` | 배정 결과 검증 |
+| `npm run run:batch` | 일괄 배정 실행 |
+| `npm run audit:reservations` | 예약 감사 |
+| `npm run seed:stress` | 스트레스 테스트 데이터 주입 |
+
+---
+
+## 상세 문서
+
+| 문서 | 내용 |
+|------|------|
+| [docs/RESERVATION_SYSTEM.md](docs/RESERVATION_SYSTEM.md) | 운영 시나리오, 예약 수정, 배정 상세 |
+| [docs/RESERVATION_SYSTEM_EN.html](docs/RESERVATION_SYSTEM_EN.html) | English + diagrams |
+
+---
+
+## 참고
+
+- 구글 폼은 대시보드 Open/Close와 무관하게 응답 수락 중일 때 계속 접수됩니다.
+- 배정 후 재제출 시 기존 배정이 삭제되므로 의도치 않은 재제출에 주의하세요.
