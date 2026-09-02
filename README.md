@@ -1,5 +1,13 @@
 # SVS Reservation
 
+![Status](https://img.shields.io/badge/status-deployed-success)
+![Next.js](https://img.shields.io/badge/Next.js-14.2-black?logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-deployed-black?logo=vercel&logoColor=white)
+![Algorithm](https://img.shields.io/badge/Algorithm-Min--Cost%20Max--Flow-blue)
+
 취미 게임 커뮤니티(연맹)의 SVS(관직) 스케줄을 관리하고, **Min-Cost Max-Flow** 알고리즘으로 공정하게 예약·배정하는 모바일 퍼스트 웹앱입니다.
 
 | 항목 | 내용 |
@@ -10,11 +18,25 @@
 
 ---
 
+## 목차
+
+- [소개](#소개)
+- [주요 기능](#주요-기능)
+- [기술 스택](#기술-스택)
+- [시스템 구조](#시스템-구조)
+- [데이터베이스 설계](#데이터베이스-설계)
+- [외부 API 키 및 필수 기능](#외부-api-키-및-필수-기능)
+- [예약 배정 흐름](#예약-배정-흐름)
+- [프로젝트 구조](#프로젝트-구조)
+- [시작하기](#시작하기)
+- [상세 문서](#상세-문서)
+- [보안 · API 키 관리](#보안--api-키-관리)
+
+---
+
 ## 소개
 
 연맹원이 희망 시간대·관직을 신청하면, 관리자(R4)가 일괄 배정을 실행해 슬롯을 확정하는 시스템입니다. 구글 폼 또는 시크릿 URL(`/r/[token]`)로 신청을 받고, 스피드업·신청 시각을 기준으로 MCMF 알고리즘이 배정합니다.
-
-> 원래 게임 클랜 스케줄 관리 웹사이트로 시작했으며, 이후 연맹 SVS 예약·배정 시스템으로 발전했습니다.
 
 ---
 
@@ -26,9 +48,8 @@
 | **일괄 배정** | Min-Cost Max-Flow(MCMF) 알고리즘으로 공정한 슬롯 배정 |
 | **대기열** | 슬롯 부족 시 Waitlist, 취소 시 자동 승격 |
 | **관리자 대시보드** | 신청자 조회, 배정 실행, 스케줄 그리드, Excel보내기 |
-| **예약 수정** | 신청 기간 중 재제출(전체 교체), 배정 후 R4 조정 |
-| **Google Forms 연동** | Apps Script → Webhook으로 구글 폼 제출 수신 (선택) |
-| **모바일 퍼스트 UI** | 연맹원이 주로 모바일로 접속하는 환경에 맞춘 설계 |
+| **Google Forms 연동** | Apps Script → Webhook (선택) |
+| **모바일 퍼스트 UI** | 연맹원 모바일 접속 환경에 최적화 |
 
 ---
 
@@ -40,26 +61,119 @@
 | **Database** | Supabase (PostgreSQL) |
 | **인증** | Iron Session, bcryptjs |
 | **배포** | Vercel |
-| **알고리즘** | Min-Cost Max-Flow (예약 배정) |
-| **기타** | Tailwind CSS, xlsx (Excel보내기), Mermaid |
+| **알고리즘** | Min-Cost Max-Flow |
+| **기타** | Tailwind CSS, xlsx |
 
 ---
 
 ## 시스템 구조
 
+```mermaid
+flowchart TB
+    subgraph Players
+        GF[Google Form]
+        SEC["/r/token<br/>시크릿 URL"]
+    end
+
+    subgraph Server
+        API[Next.js API Routes]
+        MCMF[MCMF 배정 엔진]
+        ADMIN["/admin<br/>관리자 대시보드"]
+    end
+
+    subgraph Storage
+        SB[(Supabase PostgreSQL)]
+    end
+
+    GF -->|Apps Script Webhook| API
+    SEC --> API
+    ADMIN --> API
+    API --> SB
+    API --> MCMF
+    MCMF --> SB
 ```
-플레이어                    관리자 (R4)
-   │                           │
-   ├── 구글 폼 ──▶ Apps Script ──┐
-   └── /r/[token] ──────────────┤
-                                 ▼
-                         Next.js API Routes
-                                 │
-                                 ▼
-                            Supabase (PostgreSQL)
-                                 │
-                                 ▼
-                         MCMF 일괄 배정 (Run full assignment)
+
+---
+
+## 데이터베이스 설계
+
+스키마: `supabase/schema.sql`
+
+```mermaid
+erDiagram
+    players ||--o{ preferences : submits
+    players ||--o{ reservations : assigned
+    slots ||--o{ reservations : contains
+    slots ||--o{ preferences : requested
+
+    players {
+        uuid id PK
+        string player_id UK
+        string name
+        int speedup
+    }
+    slots {
+        uuid id PK
+        string day
+        string slot_name
+        int capacity
+    }
+    preferences {
+        uuid id PK
+        uuid player_id FK
+        uuid slot_id FK
+        int priority
+    }
+    reservations {
+        uuid id PK
+        uuid player_id FK
+        uuid slot_id FK
+        string status
+    }
+    settings {
+        string key PK
+        jsonb value
+    }
+```
+
+| 테이블 | 설명 |
+|--------|------|
+| `players` | 연맹원 (player_id, speedup) |
+| `slots` | 배정 슬롯 (요일·시간대·정원) |
+| `preferences` | 신청 선호 (재제출 시 전체 교체) |
+| `reservations` | 배정·대기열 결과 |
+| `settings` | `reservation_open`, 사이클 설정 등 |
+| `archived_*` | 이전 사이클 아카이브 |
+
+---
+
+## 외부 API 키 및 필수 기능
+
+| 환경 변수 | 필수 | 연동 기능 | 없을 때 |
+|-----------|------|-----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | DB 연결 (전체) | 앱 동작 불가 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | 클라이언트 Supabase | DB 접근 불가 |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | 서버 API (관리자·배정) | 서버 기능 불가 |
+| `IRON_SESSION_SECRET` | ✅ | 관리자 세션 암호화 | `/admin` 로그인 불가 |
+| `GOOGLE_FORM_WEBHOOK_SECRET` | 구글 폼 사용 시 | Webhook 인증 | 구글 폼 제출 거부 |
+
+> `SUPABASE_SERVICE_ROLE_KEY`는 **서버 전용** — 클라이언트에 노출 금지
+
+---
+
+## 예약 배정 흐름
+
+```mermaid
+flowchart TD
+    A[플레이어: 선호 시간 제출] --> B[구글 폼 응답 중지 / Close secret URL]
+    B --> C{배정 전 삭제 필요?}
+    C -->|예| D[Admin: Delete 요일]
+    C -->|아니오| E[Run full assignment]
+    D --> E
+    E --> F{MCMF 알고리즘}
+    F -->|성공| G[예약 확정]
+    F -->|슬롯 없음| H[대기열 Waitlist]
+    H --> I[취소 시 자동 승격]
 ```
 
 ---
@@ -70,89 +184,30 @@
 wos1234/
 ├── app/              # Next.js App Router
 │   ├── admin/        # 관리자 대시보드
-│   ├── api/          # API Routes (google-form-submit 등)
-│   └── r/[token]/    # 시크릿 URL 예약 페이지
-├── components/       # UI 컴포넌트
-├── lib/              # 비즈니스 로직, MCMF 배정
-├── supabase/         # schema.sql, migrations
-├── scripts/          # 검증·유지보수·개발 스크립트
-└── docs/             # 운영 시나리오, 시스템 문서
+│   ├── api/          # API Routes
+│   └── r/[token]/    # 시크릿 URL 예약
+├── lib/              # MCMF 배정 로직
+├── supabase/         # schema.sql
+├── scripts/          # 검증·유지보수
+└── docs/             # 운영 시나리오
 ```
 
 ---
 
 ## 시작하기
 
-### 사전 요구사항
-
-- Node.js 18+
-- Supabase 계정
-
-### 1. 설치
-
 ```bash
 npm install
 cp .env.example .env.local
 npm run check-env
-```
-
-### 2. Supabase 설정
-
-1. [Supabase](https://supabase.com)에서 프로젝트 생성
-2. SQL Editor에서 `supabase/schema.sql` 전체 실행
-3. Project Settings → API에서 URL, anon key, service_role key 복사
-
-### 3. 로컬 실행
-
-```bash
 npm run dev
-```
-
-### 환경 변수
-
-| 변수 | 필수 | 설명 |
-|------|------|------|
-| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase 프로젝트 URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | anon public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | service role key (서버 전용) |
-| `IRON_SESSION_SECRET` | ✅ | 32자 이상 랜덤 문자열 |
-| `GOOGLE_FORM_WEBHOOK_SECRET` | | 구글 폼 Webhook 시크릿 (선택) |
-
-세션 시크릿 생성:
-
-```bash
-npm run setup:secret
 ```
 
 ### 배포 (Vercel)
 
-1. GitHub에 push
-2. Vercel Import → 환경 변수 4개 등록
-3. 배포 후 `/admin/setup`에서 관리자 비밀번호 설정
-4. `/admin`에서 비밀 URL 확인 후 연맹원에게 공유
-
----
-
-## 예약 배정 흐름
-
-1. 플레이어가 구글 폼 또는 시크릿 URL로 선호 시간 제출
-2. 관리자가 구글 폼 응답 중지 + **Close secret URL**
-3. 관리자가 **Run full assignment** 실행
-4. MCMF 알고리즘: 스피드업 내림차순 → 신청 시각 오름차순으로 배정
-5. 배정 성공 → 예약 확정 / 슬롯 없음 → 대기열
-
-> MCMF 도입으로 빈 슬롯+대기자 동시 존재, 스피드업 역전 문제를 해결했습니다.
-
----
-
-## 유용한 스크립트
-
-| 명령 | 설명 |
-|------|------|
-| `npm run verify:assignment` | 배정 결과 검증 |
-| `npm run run:batch` | 일괄 배정 실행 |
-| `npm run audit:reservations` | 예약 감사 |
-| `npm run seed:stress` | 스트레스 테스트 데이터 주입 |
+1. GitHub push → Vercel Import
+2. 환경 변수 4~5개 등록
+3. `/admin/setup`에서 관리자 비밀번호 설정
 
 ---
 
@@ -161,11 +216,12 @@ npm run setup:secret
 | 문서 | 내용 |
 |------|------|
 | [docs/RESERVATION_SYSTEM.md](docs/RESERVATION_SYSTEM.md) | 운영 시나리오, 예약 수정, 배정 상세 |
-| [docs/RESERVATION_SYSTEM_EN.html](docs/RESERVATION_SYSTEM_EN.html) | English + diagrams |
 
 ---
 
-## 참고
+## 보안 · API 키 관리
 
-- 구글 폼은 대시보드 Open/Close와 무관하게 응답 수락 중일 때 계속 접수됩니다.
-- 배정 후 재제출 시 기존 배정이 삭제되므로 의도치 않은 재제출에 주의하세요.
+- `.env.local`은 gitignore 처리, `.env.example`에 placeholder만 포함
+- `SUPABASE_SERVICE_ROLE_KEY`는 API Route·Server Action에서만 사용
+- `GOOGLE_FORM_WEBHOOK_SECRET`은 Apps Script `WEBHOOK_SECRET`과 일치해야 함
+- 코드베이스에 하드코딩된 시크릿 없음
