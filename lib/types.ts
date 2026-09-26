@@ -2,7 +2,7 @@ export type DayOfWeek = "mon" | "tue" | "thu";
 export type OfficeType = "VP" | "MO";
 export type ReservationStatus = "assigned" | "eliminated" | "cancelled";
 
-export const ALLIANCE_OPTIONS = ["NWO", "BOS", "MAR", "SXY"] as const;
+export const ALLIANCE_OPTIONS = ["BOS", "MAR", "SXY", "NWO"] as const;
 export type AllianceCode = (typeof ALLIANCE_OPTIONS)[number];
 
 export function isValidAlliance(value: string): value is AllianceCode {
