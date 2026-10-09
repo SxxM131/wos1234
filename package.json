@@ -18,6 +18,7 @@
     "audit:reservations": "npx tsx scripts/verify/audit-reservations.ts",
     "validate:assignment": "npx tsx scripts/verify/validate-assignment.ts",
     "run:batch": "npx tsx scripts/maintenance/run-batch-assignment.ts",
+    "local:assign": "npx tsx scripts/local/from-google-form.ts",
     "recover:waitlist": "npx tsx scripts/maintenance/recover-waitlist.ts",
     "backfill:slots": "npx tsx scripts/maintenance/backfill-empty-slots.ts",
     "reconcile:waitlist": "npx tsx scripts/maintenance/reconcile-eliminated.ts",
