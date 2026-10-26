@@ -3,7 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { createServiceClient } from "@/lib/supabase";
 import { submitMultiDayReservationRpc, DaySubmit } from "@/lib/assignment";
 import { logResubmitPreferenceIfNeeded } from "@/lib/audit-log";
-import { DayOfWeek, isValidAlliance } from "@/lib/types";
+import { DayOfWeek, isValidAlliance, normalizeAlliance } from "@/lib/types";
 
 const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
 
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
   const playerId = parseInt(String(body.player_id ?? ""), 10);
   const name = String(body.name ?? "").trim();
-  const alliance = String(body.alliance ?? "").trim();
+  const alliance = normalizeAlliance(String(body.alliance ?? ""));
 
   if (!playerId || isNaN(playerId)) {
     return NextResponse.json({ error: "Invalid player_id." }, { status: 400 });

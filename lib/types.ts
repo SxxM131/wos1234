@@ -2,8 +2,16 @@ export type DayOfWeek = "mon" | "tue" | "thu";
 export type OfficeType = "VP" | "MO";
 export type ReservationStatus = "assigned" | "eliminated" | "cancelled";
 
-export const ALLIANCE_OPTIONS = ["BOS", "MAR", "SXY", "NWO"] as const;
+export const ALLIANCE_OPTIONS = ["BOS", "MAR", "SXY", "RED"] as const;
 export type AllianceCode = (typeof ALLIANCE_OPTIONS)[number];
+
+/** Former alliance names → current code (NWO was renamed to RED). */
+const LEGACY_ALLIANCE_ALIASES: Record<string, AllianceCode> = { NWO: "RED" };
+
+export function normalizeAlliance(value: string): string {
+  const v = value.trim();
+  return LEGACY_ALLIANCE_ALIASES[v.toUpperCase()] ?? v;
+}
 
 export function isValidAlliance(value: string): value is AllianceCode {
   return (ALLIANCE_OPTIONS as readonly string[]).includes(value);

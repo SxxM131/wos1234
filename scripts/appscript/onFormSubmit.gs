@@ -63,7 +63,7 @@ function testWebhookConnection() {
   const result = postToWebhook({
     player_id: 0,
     name: "__connection_test__",
-    alliance: "NWO",
+    alliance: "RED",
     days: {},
   });
   if (!result) {

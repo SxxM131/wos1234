@@ -9,14 +9,14 @@ import {
   SECRET_URL_CLOSED_MESSAGE,
 } from "@/lib/assignment";
 import { getActorIp, logResubmitPreferenceIfNeeded } from "@/lib/audit-log";
-import { DayOfWeek, DAY_CONFIG, ALLIANCE_OPTIONS, isValidAlliance } from "@/lib/types";
+import { DayOfWeek, DAY_CONFIG, ALLIANCE_OPTIONS, isValidAlliance, normalizeAlliance } from "@/lib/types";
 
 const ALL_DAYS: DayOfWeek[] = ["mon", "tue", "thu"];
 
 export async function submitReservation(formData: FormData) {
   const playerId = parseInt(formData.get("player_id") as string, 10);
   const name = (formData.get("name") as string)?.trim();
-  const alliance = (formData.get("alliance") as string)?.trim();
+  const alliance = normalizeAlliance((formData.get("alliance") as string) ?? "");
   const selectedDays = formData.getAll("days") as DayOfWeek[];
 
   if (!playerId || !name || !alliance || !isValidAlliance(alliance)) {

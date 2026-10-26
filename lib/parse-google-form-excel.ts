@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { readFileSync } from "fs";
-import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS, isValidAlliance } from "./types";
+import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS, isValidAlliance, normalizeAlliance } from "./types";
 
 export type FormDayPref = {
   dayOfWeek: DayOfWeek;
@@ -200,7 +200,7 @@ export function parseGoogleFormExcel(filePath: string): ParseGoogleFormResult {
     const excelRow = i + 1;
     const playerId = parseInt(String(cell(row, cols.playerId)).split(".")[0], 10);
     const name = String(cell(row, cols.name) ?? "").trim();
-    const alliance = String(cell(row, cols.alliance) ?? "").trim();
+    const alliance = normalizeAlliance(String(cell(row, cols.alliance) ?? ""));
 
     if (!playerId || Number.isNaN(playerId)) {
       skipped.push(`Row ${excelRow}: invalid Player ID.`);

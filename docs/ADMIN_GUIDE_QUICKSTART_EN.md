@@ -85,7 +85,7 @@ How members apply and what they experience — useful when answering questions o
 
 ## Before they apply
 
-- **Player ID**, **Player Name**, and **alliance** (NWO / BOS / MAR / SXY).
+- **Player ID**, **Player Name**, and **alliance** (RED / BOS / MAR / SXY).
 - All times are **UTC** (not KST).
 - Submitting saves **preferences only**; slots are assigned after the booking window closes.
 
