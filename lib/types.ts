@@ -2,6 +2,13 @@ export type DayOfWeek = "mon" | "tue" | "thu";
 export type OfficeType = "VP" | "MO";
 export type ReservationStatus = "assigned" | "eliminated" | "cancelled";
 
+/**
+ * v1: each day ranked by its own speedup (default).
+ * v2 (one-off cycle): Monday ranked by Mon + Tue speedup; Tue/Thu same as v1.
+ */
+export type AssignmentMode = "v1" | "v2";
+export const ASSIGNMENT_MODES: readonly AssignmentMode[] = ["v1", "v2"];
+
 export const ALLIANCE_OPTIONS = ["BOS", "MAR", "SXY", "RED"] as const;
 export type AllianceCode = (typeof ALLIANCE_OPTIONS)[number];
 

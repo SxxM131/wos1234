@@ -16,6 +16,8 @@ export const EXCEL_WAITLIST_ORIGIN_COL = 10;
 export type ExcelDaySheetData = {
   schedule: Record<string, string | number>[];
   waitlist: Record<string, string | number>[];
+  /** Titled table below schedule/waitlist (v2 only). */
+  footer?: { title: string; rows: Record<string, string | number>[] };
 };
 
 export type ExcelExportData = {

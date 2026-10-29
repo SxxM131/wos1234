@@ -1,6 +1,13 @@
 import * as XLSX from "xlsx";
 import { readFileSync } from "fs";
-import { DayOfWeek, DAY_CONFIG, TIME_BLOCKS, isValidAlliance, normalizeAlliance } from "./types";
+import {
+  AssignmentMode,
+  DayOfWeek,
+  DAY_CONFIG,
+  TIME_BLOCKS,
+  isValidAlliance,
+  normalizeAlliance,
+} from "./types";
 
 export type FormDayPref = {
   dayOfWeek: DayOfWeek;
@@ -15,6 +22,11 @@ export type FormApplicant = {
   appliedAt: string;
   days: FormDayPref[];
   sourceRow: number;
+  /**
+   * v2 only: this row's Mon/Tue speedup cells, read even when that day has no
+   * blocks (blank → 0). Never taken from older submissions or the DB.
+   */
+  v2Speedup?: { mon: number; tue: number };
 };
 
 export type ParseGoogleFormResult = {
@@ -99,6 +111,10 @@ export function parseBlocks(raw: unknown): number[] {
     .filter((n) => !Number.isNaN(n) && TIME_BLOCKS.includes(n));
 }
 
+function isBlankCell(raw: unknown): boolean {
+  return raw == null || String(raw).trim() === "";
+}
+
 function parseSpeedup(raw: unknown): number | null {
   if (raw == null || String(raw).trim() === "") return null;
   const n = parseInt(String(raw).split(".")[0], 10);
@@ -174,8 +190,14 @@ function cell(row: unknown[], index: number): unknown {
 /**
  * Parse a Google Form responses spreadsheet (xlsx).
  * Same player_id submitted more than once: last row wins (matches live resubmit).
+ * mode v2: blank Monday speedup with Monday blocks counts as 0 (instead of
+ * skipping Monday), and `v2Speedup` is filled for the combined Monday rank.
  */
-export function parseGoogleFormExcel(filePath: string): ParseGoogleFormResult {
+export function parseGoogleFormExcel(
+  filePath: string,
+  options?: { mode?: AssignmentMode }
+): ParseGoogleFormResult {
+  const mode = options?.mode ?? "v1";
   const wb = XLSX.read(readFileSync(filePath), { cellDates: true });
   const sheetName = wb.SheetNames[0];
   if (!sheetName) {
@@ -221,7 +243,11 @@ export function parseGoogleFormExcel(filePath: string): ParseGoogleFormResult {
     for (const day of Object.keys(DAY_CONFIG) as DayOfWeek[]) {
       const preferredBlocks = parseBlocks(cell(row, cols.blocks[day]));
       if (preferredBlocks.length === 0) continue;
-      const speedup = parseSpeedup(cell(row, cols.speedup[day]));
+      const rawSpeedup = cell(row, cols.speedup[day]);
+      const speedup =
+        mode === "v2" && day === "mon" && isBlankCell(rawSpeedup)
+          ? 0
+          : parseSpeedup(rawSpeedup);
       if (speedup == null) {
         skipped.push(
           `Row ${excelRow} (id ${playerId}): ${day} has time slots but invalid speedup.`
@@ -245,6 +271,14 @@ export function parseGoogleFormExcel(filePath: string): ParseGoogleFormResult {
       appliedAt: excelSerialToIso(cell(row, cols.timestamp)),
       days,
       sourceRow: excelRow,
+      ...(mode === "v2"
+        ? {
+            v2Speedup: {
+              mon: parseSpeedup(cell(row, cols.speedup.mon)) ?? 0,
+              tue: parseSpeedup(cell(row, cols.speedup.tue)) ?? 0,
+            },
+          }
+        : {}),
     });
   }
 

@@ -2,6 +2,7 @@ import * as XLSX from "xlsx-js-style";
 import {
   EXPORT_SUMMARY_SHEET_NAME,
   EXCEL_WAITLIST_ORIGIN_COL,
+  type ExcelDaySheetData,
   type ExcelExportData,
 } from "./export-grid";
 
@@ -11,7 +12,12 @@ const HEADER_FONT = { bold: true };
 const THOUSANDS_FORMAT = "#,##0";
 
 const SLOT_GRID_COLUMN_HEADERS = ["Day", "Slot start (UTC)"];
-const NUMERIC_COMMA_HEADERS = ["Speedup (days)"];
+const NUMERIC_COMMA_HEADERS = [
+  "Speedup (days)",
+  // v2 Monday footer table
+  "speedup_mon",
+  "speedup_tue",
+];
 
 function applyHeaderRowStyle(
   ws: XLSX.WorkSheet,
@@ -107,7 +113,8 @@ function applyThousandsNumberFormat(
 
 function buildDaySheet(
   schedule: Record<string, string | number>[],
-  waitlist: Record<string, string | number>[]
+  waitlist: Record<string, string | number>[],
+  footer?: ExcelDaySheetData["footer"]
 ): XLSX.WorkSheet {
   const ws = XLSX.utils.json_to_sheet(schedule);
 
@@ -142,6 +149,32 @@ function buildDaySheet(
     );
   }
 
+  if (footer) {
+    // One blank row below the taller of schedule / waitlist, then title + table
+    const titleRow = Math.max(schedule.length, waitlist.length) + 2;
+    XLSX.utils.sheet_add_aoa(ws, [[footer.title]], {
+      origin: { r: titleRow, c: 0 },
+    });
+    ws[XLSX.utils.encode_cell({ r: titleRow, c: 0 })].s = { font: HEADER_FONT };
+
+    if (footer.rows.length > 0) {
+      const headerRow = titleRow + 1;
+      XLSX.utils.sheet_add_json(ws, footer.rows, {
+        origin: { r: headerRow, c: 0 },
+      });
+      const footerEndCol = Object.keys(footer.rows[0]).length - 1;
+      applyHeaderRowStyle(ws, headerRow, 0, footerEndCol);
+      applyThousandsNumberFormat(
+        ws,
+        headerRow,
+        0,
+        footerEndCol,
+        headerRow + footer.rows.length,
+        NUMERIC_COMMA_HEADERS
+      );
+    }
+  }
+
   return ws;
 }
 
@@ -149,7 +182,7 @@ export function buildStyledExcelWorkbook(data: ExcelExportData): ArrayBuffer {
   const wb = XLSX.utils.book_new();
 
   for (const [sheetName, day] of Object.entries(data.days)) {
-    const ws = buildDaySheet(day.schedule, day.waitlist);
+    const ws = buildDaySheet(day.schedule, day.waitlist, day.footer);
     XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
   }
 

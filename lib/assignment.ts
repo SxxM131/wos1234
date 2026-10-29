@@ -659,7 +659,8 @@ export function compareBatchApplicants(
 export function computeEligibleByBlock(
   applicants: Map<number, BatchApplicant>,
   daySlots: DaySlotRow[],
-  blockOrder?: number[]
+  blockOrder?: number[],
+  compare: (a: BatchApplicant, b: BatchApplicant) => number = compareBatchApplicants
 ): Map<number, Set<number>> {
   const slotsByBlock = new Map<number, DaySlotRow[]>();
   for (const slot of daySlots) {
@@ -682,7 +683,7 @@ export function computeEligibleByBlock(
 
     const ranked = Array.from(applicants.values())
       .filter((a) => a.blocks.has(blockStart))
-      .sort(compareBatchApplicants);
+      .sort(compare);
 
     const blockEligible = new Set<number>();
     let usedCap = 0;
@@ -708,9 +709,15 @@ export function computeEligibleByBlock(
 export function solveDayAssignmentMCMF(
   applicants: Map<number, BatchApplicant>,
   daySlots: DaySlotRow[],
-  blockOrder?: number[]
+  blockOrder?: number[],
+  compare: (a: BatchApplicant, b: BatchApplicant) => number = compareBatchApplicants
 ): Map<number, number> {
-  const eligibleByBlock = computeEligibleByBlock(applicants, daySlots, blockOrder);
+  const eligibleByBlock = computeEligibleByBlock(
+    applicants,
+    daySlots,
+    blockOrder,
+    compare
+  );
 
   const playerIds = Array.from(applicants.keys());
   const slotIds = daySlots.map((s) => s.id);
@@ -756,7 +763,7 @@ export function solveDayAssignmentMCMF(
     addEdge(slotToIndex.get(sid)!, T, 1, 0);
   }
 
-  const rankedApplicants = Array.from(applicants.values()).sort(compareBatchApplicants);
+  const rankedApplicants = Array.from(applicants.values()).sort(compare);
   const playerToRank = new Map<number, number>();
   for (let i = 0; i < rankedApplicants.length; i++) {
     playerToRank.set(rankedApplicants[i].playerId, i + 1);
