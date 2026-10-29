@@ -436,7 +436,7 @@ flowchart LR
 |------|------|
 | Secret URL | `access_token` 표시·복사·재발급 (재발급 시 기존 `/r/...` 무효) |
 | Open / Close secret URL | `reservation_open` 토글 — **시크릿 URL(`/r/...`)만** 통제 (구글 폼과 무관) |
-| Export Excel | 사이클별 시트(요일별 등) |
+| Export Excel | 사이클별 시트 — 요일 시트 `day1`(월) · `day2`(화) · `day4`(목) + `Summary` |
 | **Run full assignment** | `runFullBatchAssignment` — Search Reservations 위 노란 패널 |
 | Reset cycle | `RESET` 입력 → `archive_and_reset_cycle` RPC로 아카이브 후 삭제, `current_cycle_id` +1 |
 | Search | 배정 전: 신청자 검색 (요일별 Delete 버튼 포함) / 배정 후: 예약·대기 검색 |

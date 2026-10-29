@@ -436,7 +436,7 @@ Login: bcrypt hash (`settings.admin_password_hash`) + iron-session cookie
 |---------|-------------|
 | Secret URL | Show, copy, or regenerate `access_token` (regenerating invalidates existing `/r/...` links) |
 | Open / Close secret URL | Toggle `reservation_open` — controls **secret URL (`/r/...`) only** (independent of Google Form) |
-| Export Excel | Per-cycle sheets (by day, etc.) |
+| Export Excel | Per-cycle sheets — day sheets `day1` (Mon) · `day2` (Tue) · `day4` (Thu) + `Summary` |
 | **Run full assignment** | `runFullBatchAssignment` — yellow panel above Search Reservations |
 | Reset cycle | Type `RESET` → `archive_and_reset_cycle` RPC archives then deletes; increments `current_cycle_id` |
 | Search | Before assignment: search applicants (with per-day Delete buttons) / After: search reservations and waitlist |

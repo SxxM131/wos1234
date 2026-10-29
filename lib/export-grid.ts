@@ -3,11 +3,11 @@ import { formatBlockRange } from "./utils";
 
 export const EXPORT_DAY_ORDER: DayOfWeek[] = ["mon", "tue", "thu"];
 
-/** Excel/CSV day labels: Monday→mon, Tuesday→tue, Thursday→thur */
+/** Excel/CSV day labels: Monday→day1, Tuesday→day2, Thursday→day4 */
 export function exportDayLabel(day: DayOfWeek): string {
-  if (day === "mon") return "mon";
-  if (day === "tue") return "tue";
-  return "thur";
+  if (day === "mon") return "day1";
+  if (day === "tue") return "day2";
+  return "day4";
 }
 
 /** Waitlist block starts at column K (0-based index 10). */
@@ -274,7 +274,7 @@ function formatThousands(n: number): string {
   return n.toLocaleString("en-US");
 }
 
-/** Alliance rows × mon/tue/thur columns (players + speedup), then Total. */
+/** Alliance rows × day1/day2/day4 columns (players + speedup), then Total. */
 export function allianceSummaryToExcelRows(
   daySummaries: DayAllianceSummary[]
 ): SummaryExcelRow[] {
