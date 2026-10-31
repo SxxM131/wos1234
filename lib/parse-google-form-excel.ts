@@ -13,6 +13,8 @@ export type FormDayPref = {
   dayOfWeek: DayOfWeek;
   speedup: number;
   preferredBlocks: number[];
+  /** Blocks chosen but speedup cell left blank: speedup is 0, ranked last that day. */
+  speedupMissing?: boolean;
 };
 
 export type FormApplicant = {
@@ -190,8 +192,9 @@ function cell(row: unknown[], index: number): unknown {
 /**
  * Parse a Google Form responses spreadsheet (xlsx).
  * Same player_id submitted more than once: last row wins (matches live resubmit).
- * mode v2: blank Monday speedup with Monday blocks counts as 0 (instead of
- * skipping Monday), and `v2Speedup` is filled for the combined Monday rank.
+ * A day with blocks but a blank speedup cell is kept with `speedupMissing`
+ * (only filled after everyone with a speedup; see `runOfflineAssignment`).
+ * mode v2: `v2Speedup` is filled for the combined Monday rank.
  */
 export function parseGoogleFormExcel(
   filePath: string,
@@ -244,10 +247,11 @@ export function parseGoogleFormExcel(
       const preferredBlocks = parseBlocks(cell(row, cols.blocks[day]));
       if (preferredBlocks.length === 0) continue;
       const rawSpeedup = cell(row, cols.speedup[day]);
-      const speedup =
-        mode === "v2" && day === "mon" && isBlankCell(rawSpeedup)
-          ? 0
-          : parseSpeedup(rawSpeedup);
+      if (isBlankCell(rawSpeedup)) {
+        days.push({ dayOfWeek: day, speedup: 0, preferredBlocks, speedupMissing: true });
+        continue;
+      }
+      const speedup = parseSpeedup(rawSpeedup);
       if (speedup == null) {
         skipped.push(
           `Row ${excelRow} (id ${playerId}): ${day} has time slots but invalid speedup.`

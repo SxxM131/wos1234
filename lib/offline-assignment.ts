@@ -65,14 +65,29 @@ export function compareV2MondayApplicants(
 /**
  * Speedup used to rank `a` on `day`. The only place v1 and v2 differ:
  * v2 ranks Monday by combined Mon + Tue speedup.
+ * Blank speedup that day (`speedupMissing`) is always 0.
  */
 export function assignmentSpeedup(
   a: FormApplicant,
   day: DayOfWeek,
   mode: AssignmentMode
 ): number {
+  const dayPref = a.days.find((d) => d.dayOfWeek === day);
+  if (dayPref?.speedupMissing) return 0;
   if (mode === "v2" && day === "mon") return v2CombinedSpeedup(a);
-  return a.days.find((d) => d.dayOfWeek === day)?.speedup ?? 0;
+  return dayPref?.speedup ?? 0;
+}
+
+/** Blocks chosen on `day` but speedup cell left blank. */
+export function isSpeedupMissing(a: FormApplicant, day: DayOfWeek): boolean {
+  return a.days.some((d) => d.dayOfWeek === day && d.speedupMissing);
+}
+
+/** Blank-speedup rank: appliedAt asc → player_id asc. */
+function compareByAppliedAt(a: BatchApplicant, b: BatchApplicant): number {
+  const t = new Date(a.appliedAt).getTime() - new Date(b.appliedAt).getTime();
+  if (t !== 0) return t;
+  return a.playerId - b.playerId;
 }
 
 /** Same slot grid as `supabase/schema.sql` INSERT INTO slots. */
@@ -163,16 +178,20 @@ export function runOfflineAssignment(
         slot_index: s.slot_index,
       }));
 
+    // Blank speedup that day → separate pool, only offered leftover slots
     const applicantMap = new Map<number, BatchApplicant>();
+    const missingSpeedupPool: BatchApplicant[] = [];
     for (const a of applicants) {
       const dayPref = a.days.find((d) => d.dayOfWeek === day);
       if (!dayPref) continue;
-      applicantMap.set(a.playerId, {
+      const candidate = {
         playerId: a.playerId,
         speedup: assignmentSpeedup(a, day, mode),
         appliedAt: a.appliedAt,
         blocks: new Set(dayPref.preferredBlocks),
-      });
+      };
+      if (dayPref.speedupMissing) missingSpeedupPool.push(candidate);
+      else applicantMap.set(a.playerId, candidate);
     }
 
     // v2 Monday: explicit total order, and candidates fed to MCMF in rank
@@ -190,9 +209,25 @@ export function runOfflineAssignment(
             compareV2MondayApplicants
           )
         : solveDayAssignmentMCMF(applicantMap, daySlots);
+
+    const usedSlotIds = new Set(matching.values());
+    const leftoverMatching = solveDayAssignmentMCMF(
+      new Map(
+        missingSpeedupPool
+          .sort(compareByAppliedAt)
+          .map((x) => [x.playerId, x])
+      ),
+      daySlots.filter((s) => !usedSlotIds.has(s.id)),
+      undefined,
+      compareByAppliedAt
+    );
+    for (const [playerId, slotId] of Array.from(leftoverMatching)) {
+      matching.set(playerId, slotId);
+    }
+
     results[day] = {
       assigned: matching.size,
-      waitlist: applicantMap.size - matching.size,
+      waitlist: applicantMap.size + missingSpeedupPool.length - matching.size,
     };
 
     for (const [playerId, slotId] of matching) {
@@ -227,6 +262,27 @@ export function runOfflineAssignment(
     assignedByDay.get(day)!.add(r.player_id);
   }
 
+  const byId = new Map(applicants.map((a) => [a.playerId, a]));
+  const missingIdsByDay = new Map(
+    EXPORT_DAY_ORDER.map((d) => [
+      d,
+      applicants.filter((a) => isSpeedupMissing(a, d)).map((a) => a.playerId),
+    ])
+  );
+  // Waitlist order kept, except blank-speedup rows go last (appliedAt asc)
+  const missingLast =
+    (day: DayOfWeek) =>
+    (a: Record<string, string | number>, b: Record<string, string | number>) => {
+      const pa = byId.get(Number(a["Player ID"]));
+      const pb = byId.get(Number(b["Player ID"]));
+      const ma = pa ? isSpeedupMissing(pa, day) : false;
+      const mb = pb ? isSpeedupMissing(pb, day) : false;
+      if (ma !== mb) return ma ? 1 : -1;
+      if (!ma || !pa || !pb) return 0;
+      const t = new Date(pa.appliedAt).getTime() - new Date(pb.appliedAt).getTime();
+      return t || pa.playerId - pb.playerId;
+    };
+
   const days: ExcelExportData["days"] = {};
   for (const d of EXPORT_DAY_ORDER) {
     const daySlots = slots
@@ -247,12 +303,17 @@ export function runOfflineAssignment(
       d,
       prefsForWaitlist,
       assignedByDay.get(d) ?? new Set()
-    ).map(waitlistExportRowToExcelRecord);
+    )
+      .map(waitlistExportRowToExcelRecord)
+      .sort(missingLast(d));
 
-    days[exportDayLabel(d)] = { schedule, waitlist };
+    days[exportDayLabel(d)] = {
+      schedule,
+      waitlist,
+      missingSpeedupPlayerIds: missingIdsByDay.get(d),
+    };
   }
 
-  const byId = new Map(applicants.map((a) => [a.playerId, a]));
   if (mode === "v2") {
     const monLabel = exportDayLabel("mon");
     const mon = days[monLabel];
@@ -289,16 +350,21 @@ export function runOfflineAssignment(
       );
 
     days[monLabel] = {
+      ...mon,
       schedule: mon.schedule.map(withCombinedText),
       waitlist: [...mon.waitlist]
         .sort(
           (a, b) =>
+            missingLast("mon")(a, b) ||
             combinedNum(b) - combinedNum(a) ||
             Number(a["Player ID"]) - Number(b["Player ID"])
         )
         .map(withCombinedText),
       footer: {
         title: V2_TUE_ONLY_TITLE,
+        missingSpeedupPlayerIds: tueOnly
+          .filter((a) => isSpeedupMissing(a, "tue"))
+          .map((a) => a.playerId),
         rows: tueOnly.map((a) => {
           const tue = a.days.find((d) => d.dayOfWeek === "tue")!;
           const slot = tueSlotByPlayer.get(a.playerId);

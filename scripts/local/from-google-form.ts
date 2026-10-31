@@ -3,19 +3,22 @@
  * Local pipeline: Google Form responses.xlsx → same styled assignment Excel
  * as Admin export. No Supabase / Vercel.
  *
+ * Output: results/result_<mode>_<input file name> (override with --out).
+ *
  * Usage:
  *   npm run local:assign -- "results/26.10.04 2614 SVS Reservation(응답).xlsx"
- *   npm run local:assign -- form.xlsx --cycle 34 --out results/reservation_cycle34.xlsx
+ *   npm run local:assign -- form.xlsx --out results/custom.xlsx
  *   npm run local:assign -- form.xlsx --mode=v2   (Monday ranked by Mon+Tue speedup)
  *
  * Runs V1–V5 checks on the result; exits 1 if any error.
  */
 import { mkdirSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
+import { basename, dirname, resolve } from "path";
 import { runAssignmentChecks } from "../../lib/assignment-checks";
 import { buildStyledExcelWorkbook } from "../../lib/build-excel-workbook";
 import {
   assignmentSpeedup,
+  isSpeedupMissing,
   runOfflineAssignment,
 } from "../../lib/offline-assignment";
 import { parseGoogleFormExcel } from "../../lib/parse-google-form-excel";
@@ -28,7 +31,6 @@ import {
 function parseArgs() {
   const args = process.argv.slice(2);
   let input: string | undefined;
-  let cycle = "1";
   let out: string | undefined;
   let mode = "v1";
   for (let i = 0; i < args.length; i++) {
@@ -41,38 +43,21 @@ function parseArgs() {
       mode = args[++i] ?? "";
       continue;
     }
-    if (a === "--cycle") {
-      cycle = args[++i] ?? "";
-      continue;
-    }
     if (a === "--out") {
       out = args[++i];
       continue;
     }
     if (!a.startsWith("-") && !input) input = a;
   }
-  return { input, cycle, out, mode };
-}
-
-function yyyymmdd(d = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}${m}${day}`;
+  return { input, out, mode };
 }
 
 function main() {
-  const { input, cycle, out, mode: modeArg } = parseArgs();
+  const { input, out, mode: modeArg } = parseArgs();
   if (!input) {
     console.error(
-      "Usage: npm run local:assign -- <google-form.xlsx> [--cycle N] [--out path.xlsx]"
+      "Usage: npm run local:assign -- <google-form.xlsx> [--mode v1|v2] [--out path.xlsx]"
     );
-    process.exit(1);
-  }
-
-  const cycleId = parseInt(cycle, 10);
-  if (!cycleId || Number.isNaN(cycleId)) {
-    console.error("--cycle must be a positive integer.");
     process.exit(1);
   }
 
@@ -103,9 +88,8 @@ function main() {
     applicants,
     { mode }
   );
-  const suffix = mode === "v1" ? "" : `_${mode}`;
   const outPath = resolve(
-    out ?? `results/reservation_cycle${cycleId}_${yyyymmdd()}${suffix}.xlsx`
+    out ?? `results/result_${mode}_${basename(inputPath)}`
   );
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, Buffer.from(buildStyledExcelWorkbook(data)));
@@ -121,6 +105,29 @@ function main() {
     `Thu — ${results.thu.assigned} assigned, ${results.thu.waitlist} waitlist`
   );
   console.log(`Wrote ${outPath}`);
+
+  // Blank speedup (blocks chosen): placed only in leftover slots, red in Excel
+  const slotById = new Map(slots.map((s) => [s.id, s]));
+  const missingLines = applicants.flatMap((a) =>
+    (["mon", "tue", "thu"] as DayOfWeek[])
+      .filter((day) => isSpeedupMissing(a, day))
+      .map((day) => {
+        const hit = assignments.find(
+          (r) =>
+            r.player_id === a.playerId &&
+            slotById.get(r.slot_id)?.day_of_week === day
+        );
+        const slot = hit ? slotById.get(hit.slot_id) : undefined;
+        const where = slot
+          ? `assigned (block ${slot.block_start_utc}, slot ${slot.slot_index + 1})`
+          : "waitlist";
+        return `  - ${a.name} (${a.playerId}) ${day}: ${where}`;
+      })
+  );
+  if (missingLines.length) {
+    console.log(`\nBlank speedup (lowest priority, red in Excel):`);
+    for (const line of missingLines) console.log(line);
+  }
 
   const applicantById = new Map(applicants.map((a) => [a.playerId, a]));
   const { errors } = runAssignmentChecks({

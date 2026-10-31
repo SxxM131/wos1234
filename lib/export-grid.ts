@@ -16,8 +16,15 @@ export const EXCEL_WAITLIST_ORIGIN_COL = 10;
 export type ExcelDaySheetData = {
   schedule: Record<string, string | number>[];
   waitlist: Record<string, string | number>[];
+  /** Blank speedup this day: name + speedup cells shown in red. */
+  missingSpeedupPlayerIds?: number[];
   /** Titled table below schedule/waitlist (v2 only). */
-  footer?: { title: string; rows: Record<string, string | number>[] };
+  footer?: {
+    title: string;
+    rows: Record<string, string | number>[];
+    /** Blank Tuesday speedup: name + Tue speedup cells shown in red. */
+    missingSpeedupPlayerIds?: number[];
+  };
 };
 
 export type ExcelExportData = {
