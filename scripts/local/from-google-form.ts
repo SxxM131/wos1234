@@ -3,7 +3,9 @@
  * Local pipeline: Google Form responses.xlsx → same styled assignment Excel
  * as Admin export. No Supabase / Vercel.
  *
- * Output: results/result_<mode>_<input file name> (override with --out).
+ * Output: results/<input file name with (응답) → (결과)> (override with --out).
+ *   e.g. "26.08.01 2614 SVS Reservation(응답).csv"
+ *     → "results/26.08.01 2614 SVS Reservation(결과).csv"
  *
  * Usage:
  *   npm run local:assign -- "results/26.10.04 2614 SVS Reservation(응답).xlsx"
@@ -13,20 +15,20 @@
  * Runs V1–V5 checks on the result; exits 1 if any error.
  */
 import { mkdirSync, writeFileSync } from "fs";
-import { basename, dirname, resolve } from "path";
-import { runAssignmentChecks } from "../../lib/assignment-checks";
-import { buildStyledExcelWorkbook } from "../../lib/build-excel-workbook";
+import { basename, dirname, extname, resolve } from "path";
+import { runAssignmentChecks } from "../../src/lib/assignment-checks";
+import { buildStyledExcelWorkbook } from "../../src/lib/build-excel-workbook";
 import {
   assignmentSpeedup,
   isSpeedupMissing,
   runOfflineAssignment,
-} from "../../lib/offline-assignment";
-import { parseGoogleFormExcel } from "../../lib/parse-google-form-excel";
+} from "../../src/lib/offline-assignment";
+import { parseGoogleFormExcel } from "../../src/lib/parse-google-form-excel";
 import {
   ASSIGNMENT_MODES,
   type AssignmentMode,
   type DayOfWeek,
-} from "../../lib/types";
+} from "../../src/lib/types";
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -50,6 +52,15 @@ function parseArgs() {
     if (!a.startsWith("-") && !input) input = a;
   }
   return { input, out, mode };
+}
+
+/** Plan file name: same as the input, with (응답) replaced by (결과). */
+function resultFileName(inputPath: string): string {
+  const name = basename(inputPath);
+  if (name.includes("(응답)")) return name.replaceAll("(응답)", "(결과)");
+  const ext = extname(name);
+  const stem = ext ? name.slice(0, -ext.length) : name;
+  return `${stem}(결과)${ext}`;
 }
 
 function main() {
@@ -88,9 +99,7 @@ function main() {
     applicants,
     { mode }
   );
-  const outPath = resolve(
-    out ?? `results/result_${mode}_${basename(inputPath)}`
-  );
+  const outPath = resolve(out ?? `results/${resultFileName(inputPath)}`);
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, Buffer.from(buildStyledExcelWorkbook(data)));
 

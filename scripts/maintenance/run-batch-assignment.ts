@@ -12,7 +12,7 @@ import {
   getAssignmentApplicantCounts,
   getLastAssignmentRun,
   runBatchAssignmentForCycle,
-} from "../../lib/assignment";
+} from "../../src/lib/assignment";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(

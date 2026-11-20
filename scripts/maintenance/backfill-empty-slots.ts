@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 import {
   backfillEmptySlotsForCycle,
   getCurrentCycleId,
-} from "../../lib/assignment";
+} from "../../src/lib/assignment";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(

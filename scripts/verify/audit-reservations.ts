@@ -6,9 +6,9 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { getCurrentCycleId } from "../../lib/assignment";
-import { fetchAllPages } from "../../lib/supabase";
-import { DayOfWeek, DAY_CONFIG } from "../../lib/types";
+import { getCurrentCycleId } from "../../src/lib/assignment";
+import { fetchAllPages } from "../../src/lib/supabase";
+import { DayOfWeek, DAY_CONFIG } from "../../src/lib/types";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(

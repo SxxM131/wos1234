@@ -23,7 +23,7 @@
     "backfill:slots": "npx tsx scripts/maintenance/backfill-empty-slots.ts",
     "reconcile:waitlist": "npx tsx scripts/maintenance/reconcile-eliminated.ts",
     "purge:orphans": "npx tsx scripts/maintenance/purge-orphan-players.ts",
-    "build:docs-html": "node scripts/build-reservation-doc-html.mjs"
+    "build:docs-html": "node scripts/docs/build-reservation-doc-html.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -38,6 +38,17 @@
     "react-dom": "^18.3.1",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"
+  },
+  "eslintConfig": {
+    "extends": "next/core-web-vitals"
+  },
+  "postcss": {
+    "plugins": {
+      "tailwindcss": {
+        "config": "./config/tailwind.config.ts"
+      },
+      "autoprefixer": {}
+    }
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

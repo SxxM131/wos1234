@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 import { marked } from "marked";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, "..");
+const root = resolve(__dirname, "../..");
 const mdPath = resolve(root, "docs/RESERVATION_SYSTEM.md");
 const outPath = resolve(root, "docs/RESERVATION_SYSTEM.html");
 

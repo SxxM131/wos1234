@@ -8,8 +8,8 @@ import {
   getLastAssignmentRun,
   computeEligibleByBlock,
   type BatchApplicant,
-} from "../../lib/assignment";
-import { DayOfWeek, DAY_CONFIG } from "../../lib/types";
+} from "../../src/lib/assignment";
+import { DayOfWeek, DAY_CONFIG } from "../../src/lib/types";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(

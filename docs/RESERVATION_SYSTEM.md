@@ -305,7 +305,7 @@ flowchart LR
 ### 서버 처리 규칙
 
 **공통:** 구글 폼·시크릿 URL 모두 `submitMultiDayReservationRpc` → Postgres RPC `submit_multi_day_reservation`을 호출합니다.  
-(구글 폼: `app/api/google-form-submit/route.ts` → 시크릿 URL: `app/r/[token]/actions.ts`)  
+(구글 폼: `src/app/api/google-form-submit/route.ts` → 시크릿 URL: `src/app/r/[token]/actions.ts`)  
 스크립트용 래퍼 `processMultiDayReservation`도 동일 RPC로 위임합니다.
 
 성공 시 한 트랜잭션 안에서 `players` upsert + 해당 `player_id`+`cycle_id`의 `preferences` DELETE 후 INSERT.  
@@ -550,16 +550,16 @@ npm run verify:assignment
 
 | 영역 | 파일 |
 |------|------|
-| 신청 RPC 래퍼·배정·MCMF | `lib/assignment.ts` (`submitMultiDayReservationRpc` / `processMultiDayReservation`) |
-| 재제출 감사 로그 | `lib/audit-log.ts` |
-| 재제출·메시지·eliminated 중복 제거 | `lib/reservation-guard.ts` |
-| 요일·블록 상수 | `lib/types.ts` |
-| UTC 포맷 | `lib/utils.ts` |
-| 구글 폼 웹훅 | `app/api/google-form-submit/route.ts` |
-| Admin UI | `app/admin/AdminDashboard.tsx`, `app/admin/actions.ts` |
-| How to use | `app/admin/guide/`, `docs/RESERVATION_SYSTEM.md`, `docs/ADMIN_GUIDE_QUICKSTART_EN.md` |
-| 신청·조회 | `app/r/[token]/ReservationForm.tsx`, `app/r/[token]/actions.ts` |
-| 공개 현황 | `app/status/StatusView.tsx`, `app/status/page.tsx` |
+| 신청 RPC 래퍼·배정·MCMF | `src/lib/assignment.ts` (`submitMultiDayReservationRpc` / `processMultiDayReservation`) |
+| 재제출 감사 로그 | `src/lib/audit-log.ts` |
+| 재제출·메시지·eliminated 중복 제거 | `src/lib/reservation-guard.ts` |
+| 요일·블록 상수 | `src/lib/types.ts` |
+| UTC 포맷 | `src/lib/utils.ts` |
+| 구글 폼 웹훅 | `src/app/api/google-form-submit/route.ts` |
+| Admin UI | `src/app/admin/AdminDashboard.tsx`, `src/app/admin/actions.ts` |
+| How to use | `src/app/admin/guide/`, `docs/RESERVATION_SYSTEM.md`, `docs/ADMIN_GUIDE_QUICKSTART_EN.md` |
+| 신청·조회 | `src/app/r/[token]/ReservationForm.tsx`, `src/app/r/[token]/actions.ts` |
+| 공개 현황 | `src/app/status/StatusView.tsx`, `src/app/status/page.tsx` |
 | 배정 검증 | `scripts/verify/verify-assignment.ts` |
 | 감사·유효성 | `scripts/verify/audit-reservations.ts`, `scripts/verify/validate-assignment.ts` |
 | 유지보수 | `scripts/maintenance/` |
@@ -666,7 +666,7 @@ flowchart LR
 3. Vercel 환경 변수에 `GOOGLE_FORM_WEBHOOK_SECRET`(임의의 긴 문자열) 추가 후 재배포
 4. **프로젝트 설정 → 스크립트 속성** (소스 코드에 넣지 말 것):
    - `WEBHOOK_SECRET` = Vercel의 `GOOGLE_FORM_WEBHOOK_SECRET`과 **동일한 값**
-   - (선택) `WEBHOOK_URL` = `https://wos1234.vercel.app/api/google-form-submit` — 기본값과 다를 때만
+   - (선택) `WEBHOOK_URL` = `https://wos1234.vercel.src/app/api/google-form-submit` — 기본값과 다를 때만
 5. 에디터에서 `testWebhookConnection` 실행 → `OK — webhook reachable` 확인
 6. 트리거 설정:
    - 왼쪽 메뉴 시계 아이콘(트리거) → **트리거 추가**

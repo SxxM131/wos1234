@@ -305,7 +305,7 @@ flowchart LR
 ### Server-Side Rules
 
 **Common:** Both Google Form and secret URL call `submitMultiDayReservationRpc` → Postgres RPC `submit_multi_day_reservation`.  
-(Google Form: `app/api/google-form-submit/route.ts` → secret URL: `app/r/[token]/actions.ts`)  
+(Google Form: `src/app/api/google-form-submit/route.ts` → secret URL: `src/app/r/[token]/actions.ts`)  
 The script wrapper `processMultiDayReservation` also delegates to the same RPC.
 
 On success, within one transaction: `players` upsert + DELETE all `preferences` for that `player_id`+`cycle_id`, then INSERT.  
@@ -550,16 +550,16 @@ npm run verify:assignment
 
 | Area | File |
 |------|------|
-| Submit RPC wrapper, assignment & MCMF | `lib/assignment.ts` (`submitMultiDayReservationRpc` / `processMultiDayReservation`) |
-| Re-submit audit log | `lib/audit-log.ts` |
-| Re-submit, messages & eliminated dedupe | `lib/reservation-guard.ts` |
-| Day & block constants | `lib/types.ts` |
-| UTC formatting | `lib/utils.ts` |
-| Google Form webhook | `app/api/google-form-submit/route.ts` |
-| Admin UI | `app/admin/AdminDashboard.tsx`, `app/admin/actions.ts` |
-| How to use | `app/admin/guide/`, `docs/RESERVATION_SYSTEM.md`, `docs/ADMIN_GUIDE_QUICKSTART_EN.md` |
-| Application & check | `app/r/[token]/ReservationForm.tsx`, `app/r/[token]/actions.ts` |
-| Public status | `app/status/StatusView.tsx`, `app/status/page.tsx` |
+| Submit RPC wrapper, assignment & MCMF | `src/lib/assignment.ts` (`submitMultiDayReservationRpc` / `processMultiDayReservation`) |
+| Re-submit audit log | `src/lib/audit-log.ts` |
+| Re-submit, messages & eliminated dedupe | `src/lib/reservation-guard.ts` |
+| Day & block constants | `src/lib/types.ts` |
+| UTC formatting | `src/lib/utils.ts` |
+| Google Form webhook | `src/app/api/google-form-submit/route.ts` |
+| Admin UI | `src/app/admin/AdminDashboard.tsx`, `src/app/admin/actions.ts` |
+| How to use | `src/app/admin/guide/`, `docs/RESERVATION_SYSTEM.md`, `docs/ADMIN_GUIDE_QUICKSTART_EN.md` |
+| Application & check | `src/app/r/[token]/ReservationForm.tsx`, `src/app/r/[token]/actions.ts` |
+| Public status | `src/app/status/StatusView.tsx`, `src/app/status/page.tsx` |
 | Assignment verification | `scripts/verify/verify-assignment.ts` |
 | Audit & validation | `scripts/verify/audit-reservations.ts`, `scripts/verify/validate-assignment.ts` |
 | Maintenance | `scripts/maintenance/` |
@@ -666,7 +666,7 @@ Checkbox block options (same for all three days):
 3. Add `GOOGLE_FORM_WEBHOOK_SECRET` (a long random string) to Vercel env vars and redeploy
 4. **Project Settings → Script properties** (not in source code):
    - `WEBHOOK_SECRET` = same value as Vercel `GOOGLE_FORM_WEBHOOK_SECRET`
-   - (optional) `WEBHOOK_URL` = `https://wos1234.vercel.app/api/google-form-submit` — only if different from default
+   - (optional) `WEBHOOK_URL` = `https://wos1234.vercel.src/app/api/google-form-submit` — only if different from default
 5. Run `testWebhookConnection` in the editor → expect `OK — webhook reachable`
 6. Set up the trigger:
    - Left menu clock icon (Triggers) → **Add trigger**

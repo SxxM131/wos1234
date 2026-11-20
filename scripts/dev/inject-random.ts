@@ -12,8 +12,8 @@ import {
   processMultiDayReservation,
   getCurrentCycleId,
   getAssignmentApplicantCounts,
-} from "../../lib/assignment";
-import { DayOfWeek, ALLIANCE_OPTIONS } from "../../lib/types";
+} from "../../src/lib/assignment";
+import { DayOfWeek, ALLIANCE_OPTIONS } from "../../src/lib/types";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(

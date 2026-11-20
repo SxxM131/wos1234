@@ -12,7 +12,7 @@ import { fileURLToPath } from "url";
 import {
   processMultiDayReservation,
   getCurrentCycleId,
-} from "../../lib/assignment";
+} from "../../src/lib/assignment";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(

@@ -3,8 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { fetchAllPages } from "../../lib/supabase";
-import { runAssignmentChecks } from "../../lib/assignment-checks";
+import { fetchAllPages } from "../../src/lib/supabase";
+import { runAssignmentChecks } from "../../src/lib/assignment-checks";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(

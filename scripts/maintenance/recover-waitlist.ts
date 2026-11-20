@@ -11,8 +11,8 @@ import { fileURLToPath } from "url";
 import {
   getCurrentCycleId,
   backfillEmptySlotsForCycle,
-} from "../../lib/assignment";
-import { DayOfWeek } from "../../lib/types";
+} from "../../src/lib/assignment";
+import { DayOfWeek } from "../../src/lib/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "../..");

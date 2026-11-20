@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { getCurrentCycleId } from "../../lib/assignment";
+import { getCurrentCycleId } from "../../src/lib/assignment";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = Object.fromEntries(
